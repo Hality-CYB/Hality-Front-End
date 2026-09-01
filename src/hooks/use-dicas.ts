@@ -1,7 +1,8 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { dicaService } from "@/services/dica-service";
+import type { Dica } from "@/types/dica";
 
 /**
  * Mesma chave de cache pros 3 papéis — quando o admin editar/publicar uma
@@ -13,5 +14,32 @@ export function useDicas(filtro?: { publicado?: boolean }) {
   return useQuery({
     queryKey: ["dicas", filtro],
     queryFn: () => dicaService.listar(filtro),
+  });
+}
+
+export function useDica(id: string) {
+  return useQuery({
+    queryKey: ["dicas", id],
+    queryFn: () => dicaService.buscar(id),
+    enabled: !!id,
+  });
+}
+
+type NovaDica = Omit<Dica, "id" | "criadoEm" | "visualizacoes">;
+
+export function useCriarDica() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (dica: NovaDica) => dicaService.criar(dica),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["dicas"] }),
+  });
+}
+
+export function useAtualizarDica() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...dica }: Partial<NovaDica> & { id: string }) =>
+      dicaService.atualizar(id, dica),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["dicas"] }),
   });
 }
