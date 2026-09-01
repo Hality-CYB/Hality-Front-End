@@ -1,26 +1,128 @@
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600&display=swap");
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  /* Brand teal */
+  --teal-950: #071f26;
+  --teal-900: #0a3d4a;
+  --teal-800: #0b6b82;
+  --teal-700: #0d8aa6;
+  --teal-200: #c5e2ea;
+  --teal-100: #e8f5f9;
+  --teal-50: #f0f9ff;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  /* Green */
+  --green-700: #15803d;
+  --green-600: #16a34a;
+  --green-100: #d1fae5;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Apple system neutrals */
+  --bg: #f2f2f7;
+  --surface: #ffffff;
+  --border: #e5e5ea;
+  --body: #1c1c1e;
+  --gray-text: #6e6e73;
+  --gray-3: #aeaeb2;
+  --amber: #ff9500;
+  --red: #ff3b30;
+
+  /* Gradients */
+  --gradient-brand: linear-gradient(160deg, #0a3d4a 0%, #0b6b82 55%, #0d8aa6 100%);
+  --gradient-green: linear-gradient(160deg, #16a34a 0%, #15803d 100%);
+
+  /* Radius */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+  background: var(--bg);
+  color: var(--body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Outfit", -apple-system, sans-serif;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input,
+textarea,
+select {
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+}
+
+/* ─── Auth input styles ─────────────────────────────────────────────────────── */
+
+.login-input {
+  padding: 16px;
+  background: #fff;
+  border: 1.5px solid #d1d5db;
+  border-radius: 12px;
+  font-size: 16px;
+  font-family: inherit;
+  outline: none;
+  color: var(--body);
+  transition: border-color 0.18s;
+}
+
+.login-input:focus {
+  border-color: var(--teal-800);
+  box-shadow: 0 0 0 3px rgba(11, 107, 130, 0.1);
+}
+
+.auth-input {
+  padding: 15px 16px;
+  background: var(--bg);
+  border: 1.5px solid transparent;
+  border-radius: 14px;
+  font-size: 16px;
+  font-family: inherit;
+  outline: none;
+  color: var(--body);
+  transition: all 0.18s;
+}
+
+.auth-input:focus {
+  background: #fff;
+  border-color: var(--teal-800);
+  box-shadow: 0 0 0 3px rgba(11, 107, 130, 0.1);
+}
+
+/* ─── Scrollbar ─────────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-3);
 }
