@@ -23,6 +23,16 @@ export const authService = {
     return usuarioSchema.parse(await response.json());
   },
 
+  async registrar(input: { nome: string; email: string; senha: string }): Promise<Usuario> {
+    const response = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) await parseErro(response);
+    return usuarioSchema.parse(await response.json());
+  },
+
   async logout(): Promise<void> {
     await fetch("/api/auth/logout", { method: "POST" });
   },

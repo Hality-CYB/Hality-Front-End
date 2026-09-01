@@ -19,6 +19,19 @@ export function useLogin() {
   });
 }
 
+export function useRegistrar() {
+  const router = useRouter();
+
+  return useMutation({
+    mutationFn: (input: { nome: string; email: string; senha: string }) =>
+      authService.registrar(input),
+    onSuccess: (usuario) => {
+      router.push(`/${usuario.role}`);
+      router.refresh();
+    },
+  });
+}
+
 export function useLogout() {
   const router = useRouter();
 
