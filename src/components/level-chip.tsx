@@ -1,7 +1,8 @@
-import { nivelColor, nivelLabel, type Nivel } from "@/lib/level-format";
+import { nivelColor, nivelLabel } from "@/lib/level-format";
+import type { DiagnosticoNivel } from "@/types/diagnostico";
 
 type LevelChipProps = {
-  nivel: Nivel | null;
+  nivel: DiagnosticoNivel | null;
   size?: "sm" | "md" | "lg";
 };
 

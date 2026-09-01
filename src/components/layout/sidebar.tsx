@@ -3,7 +3,8 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { NAV_ITEMS, perfilHref, type Role } from "@/lib/nav-items";
+import { NAV_ITEMS, perfilHref } from "@/lib/nav-items";
+import type { Role } from "@/types/usuario";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { BrandWordmark } from "@/components/brand-wordmark";
 import { cn } from "@/lib/utils";

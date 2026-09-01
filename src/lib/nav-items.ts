@@ -8,12 +8,7 @@ import {
   Lightbulb,
   type LucideIcon,
 } from "lucide-react";
-
-/**
- * `Role` fica aqui por enquanto — quando types/usuario.ts existir (fase 1)
- * ele deve virar a fonte única e este arquivo passa a importar de lá.
- */
-export type Role = "paciente" | "profissional" | "admin";
+import type { Role } from "@/types/usuario";
 
 export type NavItem = {
   href: string;

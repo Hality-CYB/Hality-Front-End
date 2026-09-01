@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/top-bar";
 import { BottomNav } from "@/components/layout/bottom-nav";
-import type { Role } from "@/lib/nav-items";
+import type { Role } from "@/types/usuario";
 
 type AppShellProps = {
   role: Role;

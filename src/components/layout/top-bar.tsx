@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
-import { perfilHref, type Role } from "@/lib/nav-items";
+import { perfilHref } from "@/lib/nav-items";
+import type { Role } from "@/types/usuario";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { BrandWordmark } from "@/components/brand-wordmark";
 import cybIcon from "@/assets/images/icon-check-your-breath.png";

@@ -1,8 +1,22 @@
-import type { HttpHandler } from "msw";
+import { usuariosHandlers } from "@/services/mocks/usuarios-handlers";
+import { pacientesHandlers } from "@/services/mocks/pacientes-handlers";
+import { profissionaisHandlers } from "@/services/mocks/profissionais-handlers";
+import { diagnosticosHandlers } from "@/services/mocks/diagnosticos-handlers";
+import { anamneseHandlers } from "@/services/mocks/anamnese-handlers";
+import { dicasHandlers } from "@/services/mocks/dicas-handlers";
 
 /**
- * Handlers de todos os recursos, compostos aqui. Vazio por enquanto — fase
- * 1 popula com um `<recurso>-handlers.ts` por serviço (ex.: auth-handlers.ts,
- * diagnostico-handlers.ts) e importa cada um neste array.
+ * Todos os handlers de mock, compostos aqui. auth-service.ts não passa
+ * por MSW — ver o comentário em lib/auth/session.ts: as rotas de auth são
+ * chamadas de dentro de app/api/auth/*, que roda no servidor Next (não no
+ * navegador), então o service worker do MSW não intercepta essas chamadas
+ * mesmo. Em modo mock, essas rotas validam direto contra seed-data.ts.
  */
-export const handlers: HttpHandler[] = [];
+export const handlers = [
+  ...usuariosHandlers,
+  ...pacientesHandlers,
+  ...profissionaisHandlers,
+  ...diagnosticosHandlers,
+  ...anamneseHandlers,
+  ...dicasHandlers,
+];

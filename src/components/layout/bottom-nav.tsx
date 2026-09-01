@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NAV_ITEMS, type Role } from "@/lib/nav-items";
+import { NAV_ITEMS } from "@/lib/nav-items";
+import type { Role } from "@/types/usuario";
 import { cn } from "@/lib/utils";
 
 type BottomNavProps = {
