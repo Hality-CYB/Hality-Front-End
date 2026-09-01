@@ -92,6 +92,17 @@ export const seedPacientes: Paciente[] = [
     consentimentoTreinamentoIA: { aceito: true, data: isoDate("01/08/2026") },
     criadoEm: isoDate("01/08/2026"),
   },
+  {
+    id: "paciente-6",
+    nome: "Paciente Demo",
+    email: "paciente@hality.com",
+    role: "paciente",
+    telefone: "(11) 99999-0006",
+    profissionalVinculadoId: "profissional-1",
+    consentimentoDadosSaude: { aceito: true, data: isoDate("01/08/2026") },
+    consentimentoTreinamentoIA: { aceito: true, data: isoDate("01/08/2026") },
+    criadoEm: isoDate("01/08/2026"),
+  },
 ];
 
 export const seedAnamneses: Anamnese[] = [

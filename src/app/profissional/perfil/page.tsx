@@ -103,8 +103,8 @@ export default function ProfissionalPerfilPage() {
         </Card>
 
         <Button
-          variant="outline"
-          className="border-destructive text-destructive hover:bg-destructive/10 w-full"
+          variant="danger"
+          className="w-full"
           onClick={() => logout.mutate()}
           disabled={logout.isPending}
         >

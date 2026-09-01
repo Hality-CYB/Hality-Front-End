@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Eye, EyeOff } from "lucide-react";
+import { Alert } from "@/components/alert";
 import { useLogin } from "@/hooks/use-auth";
 import cybFullLogo from "@/assets/images/full-logo-check-your-breath.png";
 
@@ -87,8 +88,12 @@ export function LoginForm() {
           </div>
 
           {login.isError && (
-            <div className="bg-destructive/10 text-destructive mb-4 rounded-xl px-3.5 py-2.5 text-sm">
-              {login.error instanceof Error ? login.error.message : "E-mail ou senha incorretos."}
+            <div className="mb-4">
+              <Alert
+                message={
+                  login.error instanceof Error ? login.error.message : "E-mail ou senha incorretos."
+                }
+              />
             </div>
           )}
 
@@ -109,7 +114,7 @@ export function LoginForm() {
 
         <button
           type="button"
-          onClick={() => login.mutate({ email: "usuario@gmail.com", senha: "123456" })}
+          onClick={() => login.mutate({ email: "paciente@hality.com", senha: "123456" })}
           className="font-heading flex w-full items-center justify-center gap-2.5 rounded-4xl border-[1.5px] border-[#E5E7EB] bg-white py-3.75 text-base font-semibold text-[#3C4043]"
         >
           <svg width="20" height="20" viewBox="0 0 48 48" className="shrink-0">
@@ -135,10 +140,11 @@ export function LoginForm() {
 
         <div className="mt-5 rounded-[10px] bg-[rgba(11,107,130,0.06)] px-3.5 py-2.5">
           <p className="text-muted-foreground text-[11.5px] leading-relaxed">
-            <strong className="text-foreground">Demo:</strong> qualquer email +{" "}
-            <strong>123456</strong>
+            <strong className="text-foreground">Demo:</strong> senha <strong>123456</strong> pra
+            qualquer um dos e-mails abaixo
             <br />
-            <strong>prof@hality.com</strong> · <strong>admin@hality.com</strong>
+            <strong>paciente@hality.com</strong> · <strong>prof@hality.com</strong> ·{" "}
+            <strong>admin@hality.com</strong>
           </p>
         </div>
 

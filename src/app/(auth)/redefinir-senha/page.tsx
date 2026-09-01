@@ -2,8 +2,9 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { Lock, CircleCheck } from "lucide-react";
+import { Lock } from "lucide-react";
 import { AuthCard } from "@/components/auth-card";
+import { Alert } from "@/components/alert";
 import { PasswordField } from "@/components/auth-fields";
 import { Button } from "@/components/ui/button";
 
@@ -29,9 +30,7 @@ export default function RedefinirSenhaPage() {
       <p className="text-muted-foreground mb-6 text-sm">Crie uma nova senha segura</p>
       {concluido ? (
         <div className="flex flex-col gap-3.5">
-          <div className="flex items-center gap-2 rounded-xl bg-[#D1FAE5] px-3.5 py-2.5 text-sm text-[#065F46]">
-            <CircleCheck className="h-4 w-4 shrink-0" /> Senha redefinida com sucesso!
-          </div>
+          <Alert type="success" message="Senha redefinida com sucesso!" />
           <Button asChild>
             <Link href="/login">Ir para o login</Link>
           </Button>
@@ -50,11 +49,7 @@ export default function RedefinirSenhaPage() {
             onChange={setNovaSenha2}
             autoComplete="new-password"
           />
-          {naoCoincidem && (
-            <div className="bg-destructive/10 text-destructive rounded-xl px-3.5 py-2.5 text-sm">
-              As senhas não coincidem.
-            </div>
-          )}
+          {naoCoincidem && <Alert message="As senhas não coincidem." />}
           <Button type="submit" size="lg" disabled={naoCoincidem}>
             Salvar nova senha
           </Button>

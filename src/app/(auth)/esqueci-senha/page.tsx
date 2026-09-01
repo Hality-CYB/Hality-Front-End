@@ -2,8 +2,9 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { KeyRound, CircleCheck } from "lucide-react";
+import { KeyRound } from "lucide-react";
 import { AuthCard } from "@/components/auth-card";
+import { Alert } from "@/components/alert";
 import { Field } from "@/components/auth-fields";
 import { Button } from "@/components/ui/button";
 
@@ -32,10 +33,7 @@ export default function EsqueciSenhaPage() {
       </p>
       {enviado ? (
         <div className="flex flex-col gap-3.5">
-          <div className="flex items-center gap-2 rounded-xl bg-[#D1FAE5] px-3.5 py-2.5 text-sm text-[#065F46]">
-            <CircleCheck className="h-4 w-4 shrink-0" /> Link enviado. Verifique sua caixa de
-            entrada.
-          </div>
+          <Alert type="success" message="Link enviado. Verifique sua caixa de entrada." />
           <Button variant="secondary" asChild>
             <Link href="/redefinir-senha">Tenho o código — Redefinir senha</Link>
           </Button>

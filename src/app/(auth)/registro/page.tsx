@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { AuthCard } from "@/components/auth-card";
+import { Alert } from "@/components/alert";
 import { Field, PasswordField } from "@/components/auth-fields";
 import { Button } from "@/components/ui/button";
 import { useRegistrar } from "@/hooks/use-auth";
@@ -87,9 +88,7 @@ export default function RegistroPage() {
           </span>
         </label>
         {(erro || registrar.isError) && (
-          <div className="bg-destructive/10 text-destructive rounded-xl px-3.5 py-2.5 text-sm">
-            {erro || "Não foi possível criar a conta."}
-          </div>
+          <Alert message={erro || "Não foi possível criar a conta."} />
         )}
         <Button type="submit" size="lg" disabled={registrar.isPending}>
           {registrar.isPending ? "Criando conta…" : "Criar conta"}
