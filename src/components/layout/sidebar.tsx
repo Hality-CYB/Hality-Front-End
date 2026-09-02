@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { NAV_ITEMS, perfilHref } from "@/lib/nav-items";
+import { NAV_ITEMS, perfilHref, isNavItemActive } from "@/lib/nav-items";
 import type { Role } from "@/types/usuario";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { BrandWordmark } from "@/components/brand-wordmark";
@@ -45,7 +45,7 @@ export function Sidebar({ role, nome, email }: SidebarProps) {
       </div>
       <div className="flex flex-1 flex-col gap-0.5">
         {items.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const active = isNavItemActive(pathname, item.href, role);
           const Icon = item.icon;
           return (
             <Link

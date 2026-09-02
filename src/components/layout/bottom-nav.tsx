@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NAV_ITEMS } from "@/lib/nav-items";
+import { NAV_ITEMS, isNavItemActive } from "@/lib/nav-items";
 import type { Role } from "@/types/usuario";
 import { cn } from "@/lib/utils";
 
@@ -21,7 +21,7 @@ export function BottomNav({ role }: BottomNavProps) {
   const items = NAV_ITEMS[role];
   const variant = role === "paciente" ? "pill" : "flat";
 
-  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  const isActive = (href: string) => isNavItemActive(pathname, href, role);
 
   if (variant === "pill") {
     return (

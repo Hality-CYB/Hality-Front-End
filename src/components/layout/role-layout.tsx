@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { verifySession } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
+import { seedUsuarios } from "@/services/mocks/seed-data";
 import type { Role } from "@/types/usuario";
 import type { ReactNode } from "react";
 
@@ -25,17 +26,19 @@ export async function RoleLayout({ role, children }: { role: Role; children: Rea
     redirect(`/${sessao.role}`);
   }
 
-  // TODO fase 2+: buscar nome/email reais via usuario-service a partir de sessao.id
-  const nome =
-    sessao.role === "admin"
-      ? "Admin"
-      : sessao.role === "profissional"
-        ? "Profissional"
-        : "Paciente";
-  const email = "";
+  /**
+   * Busca direto em seedUsuarios (não via usuario-service/apiClient): esta
+   * é uma Server Component rodando fora do navegador, então o worker do
+   * MSW (que só intercepta fetch do lado cliente) nunca entraria em ação
+   * aqui — mesma razão documentada em app/api/auth/login/route.ts. Troca
+   * pra usuario-service quando o back-end tiver endpoint de usuário real.
+   */
+  const usuario = seedUsuarios.find((u) => u.id === sessao.id);
+  const nome = usuario?.nome ?? "Usuário";
+  const email = usuario?.email ?? "";
 
   return (
-    <AppShell role={role} nome={nome} email={email}>
+    <AppShell role={role} usuarioId={sessao.id} nome={nome} email={email}>
       {children}
     </AppShell>
   );

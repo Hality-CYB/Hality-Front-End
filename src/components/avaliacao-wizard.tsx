@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   ScanLine,
@@ -22,8 +23,7 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { StepBar } from "@/components/step-bar";
 import { ScanLoader } from "@/components/scan-loader";
 import { LevelChip } from "@/components/level-chip";
@@ -34,6 +34,7 @@ import { useCriarDiagnostico } from "@/hooks/use-diagnosticos";
 import { useDicas } from "@/hooks/use-dicas";
 import { cn } from "@/lib/utils";
 import type { DiagnosticoNivel } from "@/types/diagnostico";
+import halityLogo from "@/assets/images/logo-hality-inline.png";
 
 /**
  * Fluxo de avaliação — 9 passos internos, uma rota só (como em Design/'s
@@ -111,15 +112,24 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
   }
 
   async function confirmarAnamneseECaptura() {
-    const respostas = questoes.map((q) => ({ perguntaId: q.id, valor: answers[q.id] ?? "" }));
-    const anamnese = await criarAnamnese.mutateAsync(respostas);
-    const diagnostico = await criarDiagnostico.mutateAsync({
-      pacienteId,
-      imagemUrl: "",
-      anamneseId: anamnese.id,
-    });
-    setResultado({ nivel: diagnostico.nivel ?? 1, confiancaIA: diagnostico.confiancaIA });
     setStep(6);
+    const respostas = questoes.map((q) => ({ perguntaId: q.id, valor: answers[q.id] ?? "" }));
+    const trabalho = (async () => {
+      const anamnese = await criarAnamnese.mutateAsync(respostas);
+      return criarDiagnostico.mutateAsync({
+        pacienteId,
+        imagemUrl: "",
+        anamneseId: anamnese.id,
+      });
+    })();
+    // Igual Design/'s DiagnosisFlow (startProcessing): a ScanLoader fica visível
+    // por um tempo mínimo, já que a mutação mockada resolve rápido demais pra
+    // dar tempo da animação de análise aparecer.
+    const [diagnostico] = await Promise.all([
+      trabalho,
+      new Promise((resolve) => setTimeout(resolve, 2500)),
+    ]);
+    setResultado({ nivel: diagnostico.nivel ?? 1, confiancaIA: diagnostico.confiancaIA });
   }
 
   const dicasFiltradas = (dicasDoResultado.data ?? []).filter(
@@ -135,7 +145,7 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
       <div className="flex-1 overflow-y-auto p-4">
         {/* 0 — Intro */}
         {step === 0 && (
-          <div className="flex flex-col gap-5">
+          <div className="shell:mx-auto shell:w-full shell:max-w-135 flex flex-col gap-5">
             <div className="pt-5 pb-2 text-center">
               <div className="bg-secondary text-primary mx-auto mb-4 flex h-18 w-18 items-center justify-center rounded-[22px]">
                 <ScanLine className="h-9 w-9" />
@@ -172,7 +182,7 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
 
         {/* 1 — Anamnese */}
         {step === 1 && questaoAtual && (
-          <div className="flex flex-col gap-5">
+          <div className="shell:mx-auto shell:w-full shell:max-w-135 flex flex-col gap-5">
             <div>
               <div className="mb-1.5 flex justify-between">
                 <h2 className="text-lg">Anamnese</h2>
@@ -238,10 +248,11 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
 
               {questaoAtual.tipo === "texto" && (
                 <div className="flex flex-col gap-3">
-                  <Input
+                  <input
                     placeholder="Digite sua resposta..."
                     value={answers[questaoAtual.id] ?? ""}
                     onChange={(e) => responder(e.target.value)}
+                    className="border-border bg-background focus:bg-card focus:border-primary focus:ring-primary/10 w-full rounded-xl border-[1.5px] p-3.5 text-[15px] transition-colors outline-none focus:ring-3"
                   />
                   <Button onClick={nextAns}>Próximo</Button>
                 </div>
@@ -285,7 +296,7 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
 
         {/* 2 — Revisão da anamnese */}
         {step === 2 && (
-          <div className="flex flex-col gap-4">
+          <div className="shell:mx-auto shell:w-full shell:max-w-135 flex flex-col gap-4">
             <div className="pb-1 text-center">
               <div className="bg-secondary text-primary mx-auto mb-3.5 flex h-14 w-14 items-center justify-center rounded-[18px]">
                 <ClipboardList className="h-7 w-7" />
@@ -376,7 +387,7 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
 
         {/* 3 — Orientações de captura */}
         {step === 3 && (
-          <div className="flex flex-col gap-4">
+          <div className="shell:mx-auto shell:w-full shell:max-w-135 flex flex-col gap-4">
             <div>
               <h2 className="mb-1 text-xl">Orientações para a captura</h2>
               <p className="text-muted-foreground text-sm">
@@ -407,78 +418,84 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
             <p className="text-muted-foreground text-center text-sm">
               Posicione sua língua dentro da área indicada
             </p>
-            <div className="relative aspect-square overflow-hidden rounded-[20px] bg-[#0a3d4a]">
-              <div
-                className="absolute inset-0"
-                style={{
-                  background:
-                    "radial-gradient(circle at 30% 70%, rgba(22,163,74,0.15), transparent 60%)",
-                }}
-              />
-              <div className="relative flex h-full items-center justify-center">
-                <div className="aspect-[1.4] w-[70%] rounded-[30px] border border-dashed border-white/20" />
+            <div className="shell:flex-row shell:items-center shell:justify-center shell:gap-8 flex flex-col gap-4">
+              <div className="shell:w-100 shell:shrink-0 relative aspect-square overflow-hidden rounded-[20px] bg-[#0a3d4a]">
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background:
+                      "radial-gradient(circle at 30% 70%, rgba(22,163,74,0.15), transparent 60%)",
+                  }}
+                />
+                <div className="relative flex h-full items-center justify-center">
+                  <div className="aspect-[1.4] w-[70%] rounded-[30px] border border-dashed border-white/20" />
+                </div>
+                <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5 rounded-4xl bg-[#4ade80] px-3 py-1">
+                  <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                  <span className="font-heading text-[11px] font-bold text-[#065F46]">Pronto</span>
+                </div>
               </div>
-              <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5 rounded-4xl bg-[#4ade80] px-3 py-1">
-                <div className="h-1.5 w-1.5 rounded-full bg-white" />
-                <span className="font-heading text-[11px] font-bold text-[#065F46]">Pronto</span>
+
+              <div className="shell:w-80 flex flex-col gap-3">
+                <Button size="lg" onClick={next} className="bg-[#16A34A] hover:bg-[#15803d]">
+                  <Camera className="h-4.5 w-4.5" /> Capturar foto
+                </Button>
+                <button
+                  onClick={next}
+                  className="border-border text-primary font-heading border-1.5 bg-background flex items-center justify-center gap-2 rounded-2xl border-dashed p-3.5 text-sm font-semibold"
+                >
+                  <ImageUp className="h-4.5 w-4.5" />
+                  Escolher da galeria
+                </button>
+                <Button variant="ghost" onClick={back}>
+                  <ChevronLeft className="h-4 w-4" /> Voltar
+                </Button>
               </div>
             </div>
-            <Button size="lg" onClick={next} className="bg-[#16A34A] hover:bg-[#15803d]">
-              <Camera className="h-4.5 w-4.5" /> Capturar foto
-            </Button>
-            <button
-              onClick={next}
-              className="border-border text-primary font-heading border-1.5 bg-background flex items-center justify-center gap-2 rounded-2xl border-dashed p-3.5 text-sm font-semibold"
-            >
-              <ImageUp className="h-4.5 w-4.5" />
-              Escolher da galeria
-            </button>
-            <Button variant="ghost" onClick={back}>
-              <ChevronLeft className="h-4 w-4" /> Voltar
-            </Button>
           </div>
         )}
 
         {/* 5 — Revisar imagem */}
         {step === 5 && (
           <div className="flex flex-col gap-4">
-            <div>
+            <div className="shell:text-center">
               <h2 className="mb-1 text-xl">A imagem está boa?</h2>
               <p className="text-muted-foreground text-sm">
                 Verifique se a língua está nítida e bem enquadrada
               </p>
             </div>
-            <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-[20px] bg-[#0a3d4a]">
-              <div
-                className="absolute inset-0"
-                style={{
-                  background:
-                    "radial-gradient(ellipse at center, rgba(11,107,130,0.25), transparent 70%)",
-                }}
-              />
-              <div className="relative flex flex-col items-center gap-1.5">
-                <div className="h-17.5 w-30 rounded-[50%_50%_40%_40%] border border-white/12 bg-white/6" />
-                <div className="font-heading text-[11px] text-white/35">Imagem capturada</div>
+            <div className="shell:flex-row shell:items-center shell:justify-center shell:gap-8 flex flex-col gap-4">
+              <div className="shell:w-100 shell:shrink-0 relative flex aspect-square items-center justify-center overflow-hidden rounded-[20px] bg-[#0a3d4a]">
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background:
+                      "radial-gradient(ellipse at center, rgba(11,107,130,0.25), transparent 70%)",
+                  }}
+                />
+                <div className="relative flex flex-col items-center gap-1.5">
+                  <div className="h-17.5 w-30 rounded-[50%_50%_40%_40%] border border-white/12 bg-white/6" />
+                  <div className="font-heading text-[11px] text-white/35">Imagem capturada</div>
+                </div>
+              </div>
+
+              <div className="shell:w-80 flex flex-col gap-3">
+                <Button
+                  size="lg"
+                  onClick={confirmarAnamneseECaptura}
+                  className="bg-[#16A34A] hover:bg-[#15803d]"
+                >
+                  <Check className="h-4 w-4" /> Usar esta foto
+                </Button>
+                <Button variant="secondary" onClick={() => setStep(4)}>
+                  <Camera className="h-4 w-4" /> Tirar novamente
+                </Button>
               </div>
             </div>
-            <Button
-              size="lg"
-              onClick={confirmarAnamneseECaptura}
-              disabled={criarAnamnese.isPending || criarDiagnostico.isPending}
-              className="bg-[#16A34A] hover:bg-[#15803d]"
-            >
-              <Check className="h-4 w-4" />
-              {criarAnamnese.isPending || criarDiagnostico.isPending
-                ? "Enviando…"
-                : "Usar esta foto"}
-            </Button>
-            <Button variant="secondary" onClick={() => setStep(4)}>
-              <Camera className="h-4 w-4" /> Tirar novamente
-            </Button>
           </div>
         )}
 
-        {/* 6 — Processando (mostrado só brevemente: a "análise" do mock já volta pronta) */}
+        {/* 6 — Processando */}
         {step === 6 && !resultado && (
           <ScanLoader
             title="Analisando sua imagem"
@@ -488,7 +505,7 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
 
         {/* 7 — Resultado */}
         {step === 6 && resultado && (
-          <div className="flex flex-col gap-4">
+          <div className="shell:mx-auto shell:w-full shell:max-w-135 flex flex-col gap-4">
             <div className="flex items-start gap-2.5 rounded-2xl border border-[#FFC107] bg-[#FFF3CD] px-4 py-3">
               <TriangleAlert className="h-4.5 w-4.5 shrink-0 text-[#92400E]" />
               <div>
@@ -537,7 +554,7 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
                     {new Date().toLocaleDateString("pt-BR")}
                   </div>
                 </div>
-                <Badge className="ml-auto">Aguardando revisão</Badge>
+                <StatusBadge className="ml-auto" label="Aguardando revisão" status="pending" />
               </div>
               <div className="bg-secondary text-primary rounded-xl px-3.5 py-2.5 text-[13px]">
                 Um especialista Hality irá revisar este pré-diagnóstico em breve.
@@ -555,13 +572,17 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
 
         {/* 8 — Orientações / Dicas */}
         {step === 7 && resultado && (
-          <div className="flex flex-col gap-4">
+          <div className="shell:mx-auto shell:w-full shell:max-w-135 flex flex-col gap-4">
             <div
               className="relative overflow-hidden rounded-[18px] p-4.5"
               style={{ background: "linear-gradient(135deg, #0a3d4a, #0b6b82)" }}
             >
               <div className="relative">
-                <div className="font-heading mb-2.5 text-lg font-extrabold text-white">Hality</div>
+                <Image
+                  src={halityLogo}
+                  alt="Hality"
+                  className="mb-2.5 h-5.5 w-auto object-contain brightness-0 invert"
+                />
                 <p className="mb-3 text-[13px] leading-relaxed text-white/75">
                   Especialistas em diagnóstico e tratamento do mau hálito com tecnologia e
                   conhecimento. Pioneira no Brasil no exame de cromatografia gasosa da respiração.

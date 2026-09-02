@@ -4,16 +4,17 @@ import { useState } from "react";
 import Link from "next/link";
 import { Beaker, Clock, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { LevelChip } from "@/components/level-chip";
 import { AvatarWithRole } from "@/components/avatar-with-role";
+import { CustomPeriodDialog } from "@/components/custom-period-dialog";
 import { useDiagnosticos } from "@/hooks/use-diagnosticos";
-import { PERIODS, periodLabel, inPeriod, type Period } from "@/lib/date-period";
+import { useSessaoAtual } from "@/lib/auth/session-context";
+import { nivelBadgeStatus } from "@/lib/level-format";
+import { PERIODS, periodLabel, inPeriod, type Period, type CustomRange } from "@/lib/date-period";
 import { cn } from "@/lib/utils";
 import type { StatusDiagnostico } from "@/types/diagnostico";
-
-const PROFISSIONAL_ID_PLACEHOLDER = "profissional-1";
 
 const FILTROS_STATUS: { valor: StatusDiagnostico | "todos"; label: string }[] = [
   { valor: "todos", label: "Todos" },
@@ -21,14 +22,23 @@ const FILTROS_STATUS: { valor: StatusDiagnostico | "todos"; label: string }[] = 
   { valor: "concluido", label: "Revisado" },
 ];
 
+const STATUS_LABEL: Record<string, string> = {
+  processando: "Aguardando análise",
+  aguardando_revisao: "Aguardando revisão",
+  concluido: "Revisado",
+};
+
 export default function DiagnosticosProfissionalPage() {
+  const { id: profissionalId } = useSessaoAtual();
   const [filtroStatus, setFiltroStatus] = useState<StatusDiagnostico | "todos">("todos");
   const [period, setPeriod] = useState<Period>("Todos");
-  const { data: diagnosticos } = useDiagnosticos({ profissionalId: PROFISSIONAL_ID_PLACEHOLDER });
+  const [customRange, setCustomRange] = useState<CustomRange | null>(null);
+  const [customDialogOpen, setCustomDialogOpen] = useState(false);
+  const { data: diagnosticos } = useDiagnosticos({ profissionalId });
 
   const filtrados = (diagnosticos ?? [])
     .filter((d) => filtroStatus === "todos" || d.status === filtroStatus)
-    .filter((d) => inPeriod(new Date(d.criadoEm).toLocaleDateString("pt-BR"), period, null));
+    .filter((d) => inPeriod(new Date(d.criadoEm).toLocaleDateString("pt-BR"), period, customRange));
 
   return (
     <div className="flex flex-col">
@@ -63,10 +73,30 @@ export default function DiagnosticosProfissionalPage() {
               {periodLabel(p, null)}
             </button>
           ))}
+          <button
+            onClick={() => setCustomDialogOpen(true)}
+            className={cn(
+              "font-heading border-1.5 flex shrink-0 items-center gap-1 rounded-4xl px-3 py-1.5 text-[11px] font-semibold whitespace-nowrap text-white",
+              period === "custom" ? "border-white bg-white/20" : "border-white/30",
+            )}
+          >
+            <Clock className="h-3 w-3" /> {periodLabel("custom", customRange)}
+          </button>
         </div>
       </div>
 
-      <div className="shell:cyb-grid flex flex-col gap-2.5 p-4">
+      <CustomPeriodDialog
+        open={customDialogOpen}
+        onOpenChange={setCustomDialogOpen}
+        initial={customRange}
+        onApply={(range) => {
+          setCustomRange(range);
+          setPeriod("custom");
+          setCustomDialogOpen(false);
+        }}
+      />
+
+      <div className="cyb-grid gap-2.5 p-4">
         {filtrados.length === 0 && (
           <EmptyState
             icon={<Beaker className="h-7 w-7" />}
@@ -85,7 +115,10 @@ export default function DiagnosticosProfissionalPage() {
                 <div className="text-muted-foreground mb-1.5 truncate text-xs">
                   {new Date(d.criadoEm).toLocaleDateString("pt-BR")}
                 </div>
-                <Badge>{d.status}</Badge>
+                <StatusBadge
+                  label={STATUS_LABEL[d.status] ?? d.status}
+                  status={d.status === "concluido" ? nivelBadgeStatus(d.nivel) : "pending"}
+                />
               </div>
               <div className="flex flex-col items-end gap-1.5">
                 {d.nivel !== null ? (

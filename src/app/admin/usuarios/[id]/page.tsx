@@ -4,9 +4,10 @@ import { use } from "react";
 import Link from "next/link";
 import { ChevronLeft, Mail } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { useUsuario } from "@/hooks/use-usuarios";
+import { roleLabel, roleBadgeStatus } from "@/lib/role-format";
 
 export default function UsuarioDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -31,7 +32,8 @@ export default function UsuarioDetailPage({ params }: { params: Promise<{ id: st
           />
           <div>
             <div className="font-heading text-lg font-extrabold text-white">{usuario.nome}</div>
-            <div className="text-sm text-white/60">{usuario.email}</div>
+            <div className="mb-1.5 text-sm text-white/60">{usuario.email}</div>
+            <StatusBadge label={roleLabel(usuario.role)} status={roleBadgeStatus(usuario.role)} />
           </div>
         </div>
       </div>
@@ -48,7 +50,7 @@ export default function UsuarioDetailPage({ params }: { params: Promise<{ id: st
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Papel</span>
-              <Badge>{usuario.role}</Badge>
+              <StatusBadge label={roleLabel(usuario.role)} status={roleBadgeStatus(usuario.role)} />
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Cadastro em</span>

@@ -10,13 +10,11 @@ import { TipCard } from "@/components/tip-card";
 import { useDiagnosticos } from "@/hooks/use-diagnosticos";
 import { useDicas } from "@/hooks/use-dicas";
 import { nivelColor } from "@/lib/level-format";
-
-// TODO: substituir pelo paciente logado (ver TODO em avaliacao/page.tsx)
-const PACIENTE_ID_PLACEHOLDER = "paciente-1";
-const NOME_PLACEHOLDER = "Ana Paula";
+import { useSessaoAtual } from "@/lib/auth/session-context";
 
 export default function PacienteHomePage() {
-  const { data: diagnosticos } = useDiagnosticos({ pacienteId: PACIENTE_ID_PLACEHOLDER });
+  const { id: pacienteId, nome } = useSessaoAtual();
+  const { data: diagnosticos } = useDiagnosticos({ pacienteId });
   const { data: dicas } = useDicas({ publicado: true });
 
   const ultimo = diagnosticos?.find((d) => d.nivel !== null);
@@ -30,7 +28,7 @@ export default function PacienteHomePage() {
       >
         <div className="relative mb-5">
           <p className="mb-0.5 text-[13px] text-white/55">Olá,</p>
-          <h1 className="text-2xl text-white">{NOME_PLACEHOLDER}</h1>
+          <h1 className="text-2xl text-white">{nome.split(" ").slice(0, 2).join(" ")}</h1>
         </div>
 
         <Link
@@ -54,7 +52,7 @@ export default function PacienteHomePage() {
       </div>
 
       <div className="flex flex-col gap-3.5 p-4">
-        <Card className="rounded-lg p-5 shadow-sm ring-0">
+        <Card className="gap-0 rounded-lg p-5 shadow-sm ring-0">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg">Último Diagnóstico</h2>
             <Link
@@ -67,7 +65,7 @@ export default function PacienteHomePage() {
           {ultimo ? (
             <div className="flex items-center gap-4">
               <div
-                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl"
+                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md"
                 style={{ background: `${nivelColor(ultimo.nivel)}18` }}
               >
                 <ScanLine className="h-6.5 w-6.5" style={{ color: nivelColor(ultimo.nivel) }} />
@@ -93,7 +91,7 @@ export default function PacienteHomePage() {
 
         <div>
           <h3 className="mb-3 text-[17px]">Dicas para você</h3>
-          <div className="flex flex-col gap-2.5">
+          <div className="cyb-grid gap-2.5">
             {dicasHome.map((dica) => (
               <TipCard
                 key={dica.id}

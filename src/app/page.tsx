@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import cybFullLogo from "@/assets/images/full-logo-check-your-breath.png";
+import cybIcon from "@/assets/images/icon-check-your-breath.png";
 
 /**
  * Porta Design/src/components/LandingPage.tsx quase 1:1 — inclusive a
@@ -133,7 +134,11 @@ export default function LandingPage() {
                 style={{ background: "linear-gradient(180deg, #0B6B82 0%, #0a4f61 100%)" }}
               >
                 <div className="flex w-full items-center justify-between">
-                  <span className="text-[11px] text-white">Check Your Breath</span>
+                  <Image
+                    src={cybIcon}
+                    alt="Check Your Breath"
+                    className="h-9 w-auto object-contain brightness-0 invert"
+                  />
                   <div className="h-2 w-2 rounded-full bg-[#4ade80]" />
                 </div>
                 <div className="flex flex-1 flex-col items-center justify-center gap-3">

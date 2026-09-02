@@ -4,23 +4,30 @@ import { useState } from "react";
 import Link from "next/link";
 import { ScanLine, ChevronRight, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
+import { CustomPeriodDialog } from "@/components/custom-period-dialog";
 import { useDiagnosticos } from "@/hooks/use-diagnosticos";
-import { nivelColor, nivelLabel } from "@/lib/level-format";
-import { PERIODS, periodLabel, inPeriod, type Period } from "@/lib/date-period";
+import { useSessaoAtual } from "@/lib/auth/session-context";
+import { nivelColor, nivelLabel, nivelBadgeStatus } from "@/lib/level-format";
+import { PERIODS, periodLabel, inPeriod, type Period, type CustomRange } from "@/lib/date-period";
 import { cn } from "@/lib/utils";
 
-// TODO: trocar pelo id do paciente logado (ver TODO em avaliacao/page.tsx)
-const PACIENTE_ID_PLACEHOLDER = "paciente-1";
+const STATUS_LABEL: Record<string, string> = {
+  processando: "Aguardando análise",
+  aguardando_revisao: "Aguardando revisão",
+};
 
 export default function DiagnosticosPage() {
+  const { id: pacienteId } = useSessaoAtual();
   const [period, setPeriod] = useState<Period>("Todos");
-  const { data: diagnosticos } = useDiagnosticos({ pacienteId: PACIENTE_ID_PLACEHOLDER });
+  const [customRange, setCustomRange] = useState<CustomRange | null>(null);
+  const [customDialogOpen, setCustomDialogOpen] = useState(false);
+  const { data: diagnosticos } = useDiagnosticos({ pacienteId });
 
   const items = diagnosticos ?? [];
   const filtrados = items.filter((d) =>
-    inPeriod(new Date(d.criadoEm).toLocaleDateString("pt-BR"), period, null),
+    inPeriod(new Date(d.criadoEm).toLocaleDateString("pt-BR"), period, customRange),
   );
 
   return (
@@ -46,10 +53,32 @@ export default function DiagnosticosPage() {
               {periodLabel(p, null)}
             </button>
           ))}
+          <button
+            onClick={() => setCustomDialogOpen(true)}
+            className={cn(
+              "font-heading border-1.5 flex shrink-0 items-center gap-1.5 rounded-4xl px-3.5 py-1.5 text-xs font-bold whitespace-nowrap",
+              period === "custom"
+                ? "border-primary bg-primary text-white"
+                : "border-border text-muted-foreground bg-card",
+            )}
+          >
+            <Clock className="h-3.5 w-3.5" /> {periodLabel("custom", customRange)}
+          </button>
         </div>
       )}
 
-      <div className="shell:cyb-grid flex flex-col gap-2.5 p-4">
+      <CustomPeriodDialog
+        open={customDialogOpen}
+        onOpenChange={setCustomDialogOpen}
+        initial={customRange}
+        onApply={(range) => {
+          setCustomRange(range);
+          setPeriod("custom");
+          setCustomDialogOpen(false);
+        }}
+      />
+
+      <div className="cyb-grid gap-2.5 p-4">
         {items.length === 0 && (
           <EmptyState
             icon={<ScanLine className="h-7 w-7" />}
@@ -66,7 +95,7 @@ export default function DiagnosticosPage() {
         )}
         {filtrados.map((d) => (
           <Link key={d.id} href={`/paciente/diagnosticos/${d.id}`}>
-            <Card className="flex-row items-center gap-3.5 rounded-lg p-4 shadow-sm ring-0">
+            <Card className="diag-list-card flex-row items-center gap-3.5 rounded-lg p-4 shadow-sm ring-0">
               <div
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px]"
                 style={{ background: `${nivelColor(d.nivel)}18` }}
@@ -79,7 +108,14 @@ export default function DiagnosticosPage() {
                   {new Date(d.criadoEm).toLocaleDateString("pt-BR")}
                 </div>
               </div>
-              <Badge>{d.status === "concluido" ? nivelLabel(d.nivel) : d.status}</Badge>
+              <StatusBadge
+                label={
+                  d.status === "concluido"
+                    ? nivelLabel(d.nivel)
+                    : (STATUS_LABEL[d.status] ?? d.status)
+                }
+                status={nivelBadgeStatus(d.nivel)}
+              />
               <ChevronRight className="text-gray-3 h-4 w-4" />
             </Card>
           </Link>

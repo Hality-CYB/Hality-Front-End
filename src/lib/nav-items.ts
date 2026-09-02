@@ -50,3 +50,16 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
 export function perfilHref(role: Role): string {
   return `/${role}/perfil`;
 }
+
+/**
+ * Se `href` deve aparecer ativo pra `pathname`. Precisa saber a raiz do
+ * papel (`/paciente`, `/profissional`, `/admin`) porque um `startsWith`
+ * ingênuo faria o item "Home" (href = raiz) ficar marcado ativo em
+ * qualquer outra rota do mesmo papel (ex.: "/paciente/perfil" começa com
+ * "/paciente/").
+ */
+export function isNavItemActive(pathname: string, href: string, role: Role): boolean {
+  if (pathname === href) return true;
+  if (href === `/${role}`) return false;
+  return pathname.startsWith(`${href}/`);
+}

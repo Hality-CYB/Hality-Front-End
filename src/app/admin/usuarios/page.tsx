@@ -5,10 +5,11 @@ import Link from "next/link";
 import { Search, Plus, ChevronRight, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { useUsuarios } from "@/hooks/use-usuarios";
+import { roleLabel, roleBadgeStatus } from "@/lib/role-format";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types/usuario";
 
@@ -66,7 +67,7 @@ export default function UsuariosPage() {
           </Link>
         </Button>
 
-        <div className="user-list-card shell:cyb-grid flex flex-col gap-2.5">
+        <div className="cyb-grid gap-2.5">
           {filtrados.length === 0 && (
             <EmptyState icon={<Users className="h-7 w-7" />} title="Nenhum usuário encontrado" />
           )}
@@ -82,7 +83,7 @@ export default function UsuariosPage() {
                   <div className="font-heading truncate text-sm font-bold">{u.nome}</div>
                   <div className="text-muted-foreground mb-1.5 truncate text-xs">{u.email}</div>
                   <div className="flex flex-wrap gap-1.5">
-                    <Badge>{u.role}</Badge>
+                    <StatusBadge label={roleLabel(u.role)} status={roleBadgeStatus(u.role)} />
                   </div>
                 </div>
                 <ChevronRight className="text-gray-3 h-4 w-4" />
