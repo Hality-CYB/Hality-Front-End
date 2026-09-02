@@ -8,6 +8,9 @@ Frontend em Next.js (React + TypeScript), gerenciado com npm.
 - [Arquitetura](#arquitetura)
 - [Detalhamento](#detalhamento)
 - [Convenções](#convenções)
+- [UI, componentes e fidelidade com o Design/](#ui-componentes-e-fidelidade-com-o-design)
+- [Sessão / usuário logado](#sessão--usuário-logado)
+- [Mock da API (MSW)](#mock-da-api-msw)
 
 ## Como iniciar o projeto
 
@@ -95,19 +98,36 @@ Testes ficam ao lado do arquivo que testam (`<arquivo>.test.ts(x)`), não numa p
 src/
   app/
     layout.tsx
-    page.tsx
+    page.tsx                     # Land Page real (rota "/")
     globals.css
+    providers.tsx                # "use client" — QueryClientProvider
+    proxy.ts                     # gate otimista de rota por papel (ver seção de sessão)
+    (auth)/                      # /login, /registro, /esqueci-senha, /redefinir-senha
+    paciente/  profissional/  admin/
+      layout.tsx                 # Server Component: verifySession() + AppShell
+      page.tsx                   # Home do papel
+      .../page.tsx                # demais telas do papel
+    api/auth/
+      login/route.ts  logout/route.ts  register/route.ts
   components/
+    ui/                          # primitivas shadcn, restilizadas com os tokens CYB
+    layout/                      # AppShell, Sidebar, TopBar, BottomNav, RoleLayout
+    <componente>.tsx              # componentes compartilhados entre papéis
   hooks/
-    use-health.ts
-    use-health.test.ts
+    use-<recurso>.ts
   lib/
-    config.ts
-    api-client.ts
+    config.ts  api-client.ts  utils.ts
+    level-format.ts  role-format.ts  date-period.ts  nav-items.ts
+    auth/
+      session.ts                 # DAL server-only da sessão (JWT em cookie httpOnly)
+      session-context.tsx        # useSessaoAtual() — ver seção de sessão
   services/
+    <recurso>-service.ts
+    mocks/                       # handlers + seed data do MSW
   types/
-    health.ts
+    <recurso>.ts
 public/
+assets/images/                   # logos/ícones importados via next/image
 .github/
   workflows/
     ci-pipeline.yml
@@ -117,25 +137,43 @@ vitest.config.mts
 vitest.setup.ts
 ```
 
-- **`src/app/layout.tsx`** — layout raiz da aplicação (fontes, `<html>`/`<body>`, providers globais quando existirem).
+- **`src/app/layout.tsx`** — layout raiz da aplicação (fontes via `next/font`, `<html>`/`<body>`, `providers.tsx`).
 
-- **`src/app/page.tsx`** — rota `/`. Ainda é o template padrão gerado pelo `create-next-app` — será substituída pela Land Page real, conforme o mapa de telas já validado com o time.
+- **`src/app/page.tsx`** — rota `/`, a Land Page real (porta `Design/src/components/LandingPage.tsx`).
 
-- **`src/app/globals.css`** — estilos globais e diretivas do Tailwind CSS.
+- **`src/app/globals.css`** — tokens de tema (`@theme`), reset, animações (`page-enter`/`modal-sheet`/…) e utilitários globais como `.cyb-grid`. Ver [UI, componentes e fidelidade com o Design/](#ui-componentes-e-fidelidade-com-o-design).
 
-- **`src/components/`** — componentes de UI reutilizáveis, sem chamada de API. Ainda vazia — será populada conforme as telas forem construídas (ex.: `components/button.tsx`, `components/tongue-photo-frame.tsx`).
+- **`src/app/proxy.ts`** — Next 16 renomeou Middleware pra Proxy; é o gate _otimista_ de rota por papel (redireciona `/paciente`, `/profissional`, `/admin` com base no JWT, sem round-trip ao backend). Não é a barreira de segurança real — isso é reforçado em cada `app/<role>/layout.tsx` e, no fim, em cada endpoint do backend.
 
-- **`src/hooks/`** — hooks React customizados, ligando `services/` ao ciclo de vida de um componente (estado, efeitos). Contém `use-health.ts` como exemplo de padrão, com seu teste em `use-health.test.ts`.
+- **`src/app/<role>/layout.tsx`** (`paciente`/`profissional`/`admin`) — Server Component fino: só chama `<RoleLayout role="...">` (`components/layout/role-layout.tsx`), que verifica a sessão, redireciona se não bater o papel, e monta o `AppShell` (sidebar/topbar/bottomnav) em volta da tela.
+
+- **`src/components/ui/`** — primitivas do shadcn (`button.tsx`, `dialog.tsx`, `card.tsx`, ...), sempre restilizadas com os tokens da marca — nunca ficam com a aparência padrão do shadcn. Ver [UI, componentes e fidelidade com o Design/](#ui-componentes-e-fidelidade-com-o-design).
+
+- **`src/components/layout/`** — casco do app por papel (`AppShell`, `Sidebar`, `TopBar`, `BottomNav`) e o `RoleLayout` que os monta.
+
+- **`src/components/`** (raiz) — componentes compartilhados entre papéis, compostos sobre `components/ui/` (ex.: `status-badge.tsx`, `avatar-with-role.tsx`, `about-dialog.tsx`).
+
+- **`src/hooks/`** — hooks React customizados, ligando `services/` ao ciclo de vida de um componente (estado, efeitos, TanStack Query). Um por recurso (`use-diagnosticos.ts`, `use-dicas.ts`, ...), seguindo o padrão de `use-health.ts` + `use-health.test.ts`.
 
 - **`src/lib/config.ts`** — configuração da aplicação lida via variáveis de ambiente (`.env`).
 
 - **`src/lib/api-client.ts`** — cliente HTTP fino sobre `fetch`; único ponto do frontend que conhece a URL base da API. `services/` chamam este cliente — nunca `fetch` diretamente.
 
-- **`src/services/`** — funções que chamam o backend através do `api-client`, uma por recurso (ex.: `auth-service.ts`, `diagnostico-service.ts`). Ainda vazia — será populada quando as telas passarem a consumir a API de verdade.
+- **`src/lib/level-format.ts` / `role-format.ts` / `date-period.ts` / `nav-items.ts`** — lógica pequena e reaproveitada entre os 3 papéis (cor/rótulo de nível de diagnóstico, cor/rótulo de papel de usuário, filtro de período, itens de navegação). Existiam duplicados (às vezes com pequenas diferenças acidentais) em cada um dos 3 apps do `Design/` original — aqui é uma implementação só. Se for mexer em algo assim, mexe aqui, não copia pra dentro da tela.
 
-- **`src/types/`** — tipos TypeScript que espelham o contrato de entrada/saída da API. Contém `health.ts` como exemplo, referente ao `GET /api/v1/health`.
+- **`src/lib/auth/session.ts`** — DAL (_data-access layer_) server-only da sessão: cria/verifica o JWT (`jose`) guardado num cookie httpOnly, e é o único lugar que faz isso — nada mais deve reimplementar essa checagem. `import "server-only"` garante que o build quebra se isso vazar pra um Client Component.
 
-- **`public/`** — assets estáticos (imagens, ícones) servidos diretamente pela raiz do site.
+- **`src/lib/auth/session-context.tsx`** — `useSessaoAtual()`. Ver [Sessão / usuário logado](#sessão--usuário-logado).
+
+- **`src/services/`** — funções que chamam o backend através do `api-client`, uma por recurso (ex.: `auth-service.ts`, `diagnostico-service.ts`).
+
+- **`src/services/mocks/`** — handlers e dados de seed do MSW (Mock Service Worker). Ver [Mock da API (MSW)](#mock-da-api-msw).
+
+- **`src/types/`** — tipos TypeScript (com schema `zod` ao lado) que espelham o contrato de entrada/saída da API — **contrato proposto**, já que o backend ainda não publicou o real (só tem `/health`). Um arquivo por recurso.
+
+- **`public/`** — assets estáticos servidos diretamente pela raiz do site (favicon etc.).
+
+- **`src/assets/images/`** — imagens importadas via `next/image` (logos, ícones) — diferente de `public/`, essas passam pela otimização/hashing do Next.
 
 - **`.env.example`** — modelo de variáveis de ambiente; copie para `.env` (que fica fora do git) antes de rodar o projeto.
 
@@ -187,3 +225,32 @@ Arquivos e pastas em **kebab-case** (tudo minúsculo, palavras separadas por `-`
 - **`src/types/<recurso>.ts`** — mesmo nome do recurso; dentro do arquivo ficam as interfaces/types relacionados (ex.: `types/diagnostico.ts` define `Diagnostico`, `DiagnosticoNivel`, etc.).
 - **`<arquivo>.test.ts` / `<arquivo>.test.tsx`** — teste do arquivo de mesmo nome, na mesma pasta (ex.: `use-health.test.ts` testa `use-health.ts`). É essa nomenclatura que o Vitest usa para descobrir os testes automaticamente.
 - **Arquivos de configuração na raiz** (`package.json`, `tsconfig.json`, `.env.example`, `.gitignore`, `next.config.ts`) usam o nome exato que a ferramenta correspondente exige — não seguem a convenção kebab-case do projeto.
+
+## UI, componentes e fidelidade com o Design/
+
+O visual do app inteiro vem de um protótipo Figma Make (`Design/`, outro repo/pasta do projeto — não faz parte deste). **`Design/` é a fonte da verdade visual**: antes de construir ou corrigir uma tela, compare direto com o componente correspondente por lá (`Design/src/components/PatientApp.tsx`, `ProfessionalApp.tsx`, `AdminApp.tsx`, `shared/UI.tsx`) em vez de reinventar em cima do que o shadcn faz "por padrão" — foi exatamente aí que a maior parte do retrabalho desta primeira leva de telas aconteceu.
+
+- **`components/ui/` são primitivas do shadcn, sempre restilizadas** — nunca ficam com a cara padrão do shadcn/Radix. Isso vale principalmente pro `Dialog`: no `Design/`, **todo modal é um bottom sheet** (sobe de baixo, cantos arredondados só em cima, puxador no topo), em qualquer tamanho de tela — não existe a versão "dialog centralizado com zoom" que o shadcn usa por padrão. `components/ui/dialog.tsx` já implementa isso; não crie modal novo sem reusar esse componente.
+- **Inputs de texto cru** (não os de dentro de formulários do shadcn) seguem o estilo do `Design/`'s `Input`/inputs inline: borda `1.5px solid var(--border)`, `rounded-xl`, padding `14px`, sem o visual pequeno/fino do `<Input>` do shadcn. Se uma tela tiver um campo de texto que "não bate" com o Design, é provável que esteja usando o `Input` genérico em vez de replicar o estilo cru.
+- **Badges de status com cor por significado** (nível de diagnóstico, papel de usuário, etc.) usam `components/status-badge.tsx` — **não** o `Badge` genérico de `components/ui/badge.tsx`, que só tem uma variante sólida sem esse mapeamento de cor.
+- **Grid responsivo**: listas/cards que devem virar múltiplas colunas em telas largas usam a classe `.cyb-grid` (definida em `globals.css`) — coluna única abaixo de `--breakpoint-shell`, grid `auto-fill` acima. Não reinvente isso com `grid-cols-*` direto na tela.
+- **Breakpoint próprio `shell:`** (860px, `--breakpoint-shell` em `globals.css`) — é o ponto onde o app troca do layout "frame de celular" (coluna única, bottom nav) pro layout desktop (sidebar + conteúdo largo), replicando o breakpoint que já era validado no `Design/`. Use `shell:` em vez de `md:`/`lg:` do Tailwind pra qualquer ajuste que dependa desse layout mudar (ex.: `shell:flex-row`, `shell:max-w-135`).
+- **Animações**: `.page-enter` (troca de rota), `.modal-sheet`/`.modal-backdrop` (abertura de modal) — definidas em `globals.css`, portadas do `index.css` do `Design/`. Se uma tela nova "parece estática" comparado ao Design, provavelmente falta aplicar uma dessas classes.
+
+## Sessão / usuário logado
+
+Cada `app/<role>/layout.tsx` verifica a sessão no servidor (`lib/auth/session.ts`) e expõe o usuário logado pro resto da árvore via `SessaoProvider`. Dentro de qualquer página/componente cliente sob `app/paciente/`, `app/profissional/` ou `app/admin/`, use:
+
+```ts
+import { useSessaoAtual } from "@/lib/auth/session-context";
+
+const { id, nome, email, role } = useSessaoAtual();
+```
+
+**Não hardcode `id`/`nome` de usuário numa página** (ex.: `const PACIENTE_ID_PLACEHOLDER = "paciente-1"`) — isso já existiu em várias telas na primeira leva do port e é exatamente o tipo de coisa que quebra silenciosamente quando o backend de auth de verdade entrar. Se uma tela precisa saber quem está logado, `useSessaoAtual()` é o único lugar certo pra isso.
+
+## Mock da API (MSW)
+
+Enquanto o backend (`Hality-Back-End`) não publica endpoints reais além de `/health`, o app roda contra o [Mock Service Worker](https://mswjs.io/) — os `services/*.ts` chamam o `apiClient` normalmente, e o MSW intercepta a requisição no navegador e responde com os dados de `services/mocks/seed-data.ts`. Isso significa que trocar mock por API real depois é só desligar o MSW (`NEXT_PUBLIC_API_MOCKING=disabled` em `.env`) — nenhum código de tela ou hook deveria precisar mudar.
+
+Uma exceção conhecida: `app/api/auth/*` roda no servidor (Route Handlers), onde o MSW de navegador não intercepta nada — por isso essas rotas leem `seed-data.ts` diretamente quando `NEXT_PUBLIC_API_MOCKING` está ligado, em vez de passar pelo `apiClient`/MSW. Está comentado no próprio arquivo (`app/api/auth/login/route.ts`).
