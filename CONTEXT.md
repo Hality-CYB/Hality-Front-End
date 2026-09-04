@@ -37,4 +37,5 @@ Check Your Breath (CYB) é o app da Hality Diagnóstico do Hálito: usa IA para 
 
 <!-- Adicionar uma entrada nova no topo antes de cada push relevante. Formato: data — resumo. -->
 
+- **2026-09-04** — Adicionado `.github/PULL_REQUEST_TEMPLATE.md`: template obrigatório de PR em português, cobrindo issue relacionada (obrigatória), tipo de mudança, evidência visual (obrigatória quando mexe em UI, com antes/depois quando altera UI existente), passo a passo de teste e checklist alinhado ao `ci-pipeline.yml` (lint, format:check, test, build).
 - **2026-08-21** — Scaffold do frontend completo: Next.js + TypeScript + Tailwind, arquitetura em camadas (`app`/`hooks`/`services`/`lib`/`components`/`types`), ESLint + Prettier, testes com Vitest + React Testing Library (exemplo `use-health.test.ts`), CI no GitHub Actions (lint, testes e build em todo PR pra `develop`/`main`) e `.nvmrc` fixando a versão do Node. README do frontend documenta tudo. Backend (`Hality-Back-End`) já estava com scaffold pronto (FastAPI + uv + ruff + pytest) — os dois repos seguem os mesmos padrões de branch e CI.
