@@ -2,179 +2,257 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
-import { ScanLine, Image as ImageIcon, ChevronRight, Lightbulb, ChevronLeft } from "lucide-react";
+import {
+  ChevronDown,
+  FileDown,
+  ImageOff,
+  AlertTriangle,
+  Loader2,
+  BadgeCheck,
+  ChevronLeft,
+} from "lucide-react";
+
 import { Card } from "@/components/ui/card";
-import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/status-badge";
 import { LevelChip } from "@/components/level-chip";
-import { TipCard } from "@/components/tip-card";
+import { ScoreMeter } from "@/components/score-meter";
 import { EmptyState } from "@/components/empty-state";
+
 import { useDiagnostico } from "@/hooks/use-diagnosticos";
 import { useAnamnese, useAnamnesePerguntas } from "@/hooks/use-anamnese";
-import { useDicas } from "@/hooks/use-dicas";
-import { nivelColor, nivelLabel, nivelBadgeStatus } from "@/lib/level-format";
+import { nivelColor, type BadgeStatus } from "@/lib/level-format";
 import { cn } from "@/lib/utils";
 
-const ORIENTACAO_POR_NIVEL: Record<1 | 2 | 3, string> = {
-  1: "Seu hálito está normal. Mantenha a rotina de higiene bucal e hidratação adequada.",
-  2: "Identificamos halitose íntima. Recomendamos limpeza lingual diária e avaliação periodontal.",
-  3: "Mau hálito social detectado. Encaminhamento para avaliação especializada recomendado.",
+import type { Diagnostico } from "@/types/diagnostico";
+
+// textos de orientação por nível (1, 2 ou 3) - o resumo aparece sempre,
+// o completo só quando clica em "ver orientação completa"
+const ORIENTACAO: Record<1 | 2 | 3, { resumo: string; completa: string }> = {
+  1: {
+    resumo: "Seu hálito está dentro do normal. Continue com a rotina de higiene bucal.",
+    completa:
+      "Seu hálito está dentro do normal. Continue escovando os dentes após as refeições, " +
+      "usando fio dental diariamente e mantendo boa hidratação. Consultas de rotina ao " +
+      "dentista a cada 6 meses ajudam a manter esse resultado.",
+  },
+  2: {
+    resumo: "Identificamos halitose íntima. Recomendamos limpeza lingual diária.",
+    completa:
+      "Identificamos halitose íntima (percebida a curta distância). Recomendamos limpeza " +
+      "lingual diária com raspador próprio, reforço na hidratação ao longo do dia e uma " +
+      "avaliação periodontal para descartar causas gengivais.",
+  },
+  3: {
+    resumo: "Mau hálito social detectado. Avaliação especializada é recomendada.",
+    completa:
+      "Mau hálito social detectado (perceptível à distância normal de conversa). " +
+      "Recomendamos encaminhamento para avaliação odontológica especializada o quanto " +
+      "antes, além de reforçar a limpeza lingual e a hidratação enquanto isso.",
+  },
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  processando: "Aguardando análise",
-  aguardando_revisao: "Aguardando revisão",
-};
+// monta o texto/cor do badge de status. reparei que "corrigido pelo
+// profissional" não é um status separado nos dados, é só um diagnóstico
+// concluido que também tem revisadoPor preenchido
+function statusExibido(diagnostico: Diagnostico): { label: string; status: BadgeStatus } {
+  if (diagnostico.status === "processando") {
+    return { label: "Processando", status: "neutral" };
+  }
+  if (diagnostico.status === "aguardando_revisao") {
+    return { label: "Aguardando revisão", status: "warning" };
+  }
+  if (diagnostico.revisadoPor) {
+    return { label: "Corrigido pelo profissional", status: "info" };
+  }
+  return { label: "Concluído", status: "success" };
+}
 
 export default function DiagnosticoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [detailTab, setDetailTab] = useState<"detalhes" | "orientacoes">("detalhes");
-  const [anamOpen, setAnamOpen] = useState(false);
 
-  const { data: diagnostico } = useDiagnostico(id);
+  const [anamOpen, setAnamOpen] = useState(false);
+  const [orientacaoAberta, setOrientacaoAberta] = useState(false);
+  const [imagemCarregada, setImagemCarregada] = useState(false);
+
+  const { data: diagnostico, isLoading, isError } = useDiagnostico(id);
   const { data: anamnese } = useAnamnese(diagnostico?.anamneseId);
   const { data: perguntas } = useAnamnesePerguntas();
-  const { data: dicas } = useDicas({ publicado: true });
 
-  if (!diagnostico) return null;
+  // se der erro (id que não existe ou é de outro paciente) mostra essa
+  // tela em vez de quebrar tudo
+  if (isError) {
+    return (
+      <EmptyState
+        icon={<AlertTriangle className="h-7 w-7" />}
+        title="Não foi possível abrir este diagnóstico"
+        description="Ele pode não existir mais, ou pertencer a outro paciente."
+        action={
+          <Button variant="secondary" asChild>
+            <Link href="/paciente/diagnosticos">
+              <ChevronLeft className="h-4 w-4" /> Voltar ao histórico
+            </Link>
+          </Button>
+        }
+      />
+    );
+  }
+
+  if (isLoading || !diagnostico) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-20 text-center">
+        <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
+        <p className="text-muted-foreground text-sm">Carregando diagnóstico...</p>
+      </div>
+    );
+  }
 
   const nivel = diagnostico.nivel;
-  const orientacoes = (dicas ?? []).filter((d) => nivel && d.niveis.includes(nivel));
+  const status = statusExibido(diagnostico);
   const textoPergunta = (perguntaId: string) =>
     perguntas?.find((p) => p.id === perguntaId)?.texto ?? perguntaId;
 
   return (
     <div className="flex flex-col">
+      {/* cabeçalho */}
       <div
-        className="relative flex items-end justify-between p-5"
+        className="flex items-end justify-between p-5"
         style={{ background: "var(--gradient-brand)" }}
       >
         <div>
-          <h1 className="mb-0.5 text-xl text-white">Diagnóstico #{diagnostico.id.slice(-4)}</h1>
+          <h1 className="mb-0.5 text-xl text-white">
+            Diagnóstico #{diagnostico.id.replace(/\D/g, "").slice(-4) || "1"}
+          </h1>
           <p className="text-sm text-white/60">
             {new Date(diagnostico.criadoEm).toLocaleDateString("pt-BR")}
           </p>
         </div>
-        <StatusBadge
-          label={
-            diagnostico.status === "concluido"
-              ? nivelLabel(nivel)
-              : (STATUS_LABEL[diagnostico.status] ?? diagnostico.status)
-          }
-          status={nivelBadgeStatus(nivel)}
-        />
+        <StatusBadge label={status.label} status={status.status} />
       </div>
 
-      <div className="p-4">
-        <div className="bg-background flex gap-0.5 rounded-xl p-1">
-          {(["detalhes", "orientacoes"] as const).map((v) => (
-            <button
-              key={v}
-              onClick={() => setDetailTab(v)}
-              className={cn(
-                "font-heading flex-1 rounded-[9px] px-1.5 py-2.25 text-[13px] font-bold transition-all",
-                detailTab === v ? "bg-card text-primary shadow-sm" : "text-muted-foreground",
-              )}
-            >
-              {v === "detalhes" ? "Detalhes" : "Orientações"}
-            </button>
-          ))}
-        </div>
+      <div className="flex flex-col gap-3.5 p-4">
+        {/* aviso quando o diagnóstico foi revisado por um profissional */}
+        {diagnostico.revisadoPor && (
+          <div className="flex items-center gap-2 rounded-xl border border-[var(--color-teal-100)] bg-[var(--color-teal-50)] p-3 text-[13px]">
+            <BadgeCheck className="h-4 w-4 shrink-0 text-[var(--color-teal-800)]" />
+            <span className="text-[var(--color-teal-800)]">
+              Revisado e corrigido por um profissional
+              {diagnostico.revisadoEm &&
+                ` em ${new Date(diagnostico.revisadoEm).toLocaleDateString("pt-BR")}`}
+              .
+            </span>
+          </div>
+        )}
 
-        {detailTab === "detalhes" && (
-          <div className="shell:flex-row shell:items-stretch mt-3.5 flex flex-col gap-3.5">
-            <Card className="shell:flex-1 rounded-lg p-5 shadow-sm ring-0">
-              <div className="mb-4 text-center">
-                <div
-                  className="mx-auto mb-3.5 flex h-20 w-20 items-center justify-center rounded-[22px]"
-                  style={{ background: `${nivelColor(nivel)}18` }}
-                >
-                  <ScanLine className="h-9 w-9" style={{ color: nivelColor(nivel) }} />
+        {/* score + imagem */}
+        <Card className="rounded-lg p-5 shadow-sm ring-0">
+          <div className="mb-4 flex flex-col items-center gap-2 text-center">
+            {nivel ? (
+              <>
+                <div className="relative flex h-25 w-25 items-center justify-center">
+                  <ScoreMeter
+                    score={diagnostico.confiancaIA ?? 0}
+                    color={nivelColor(nivel)}
+                    size={100}
+                  />
+                  <div className="absolute flex flex-col items-center">
+                    <span className="font-heading text-xl font-extrabold">
+                      {diagnostico.confiancaIA ?? "--"}
+                    </span>
+                    <span className="text-gray-3 text-[11px]">score</span>
+                  </div>
                 </div>
                 <LevelChip nivel={nivel} size="lg" />
-              </div>
-              <div className="border-border bg-background flex aspect-4/3 flex-col items-center justify-center gap-2 rounded-2xl border">
-                <ImageIcon className="text-gray-3 h-8 w-8" />
-                <span className="font-heading text-gray-3 text-xs">Imagem capturada</span>
-              </div>
-            </Card>
+              </>
+            ) : (
+              <LevelChip nivel={null} size="lg" />
+            )}
+          </div>
 
-            <div className="shell:flex-1 shell:min-h-0 flex flex-col gap-3.5">
-              {nivel && (
-                <div className="border-secondary rounded-xl border bg-[var(--color-teal-50)] p-3.5">
-                  <div className="font-heading mb-1.5 text-[13px] font-bold">Orientação</div>
-                  <p className="text-muted-foreground text-[13px] leading-relaxed">
-                    {ORIENTACAO_POR_NIVEL[nivel]}
-                  </p>
+          {/* imagem, com loading enquanto carrega e fallback se não tiver */}
+          {diagnostico.imagemUrl ? (
+            <div className="border-border bg-background relative aspect-4/3 overflow-hidden rounded-2xl border">
+              {!imagemCarregada && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Loader2 className="text-gray-3 h-6 w-6 animate-spin" />
                 </div>
               )}
-
-              <Card className="shell:flex-1 shell:flex shell:flex-col overflow-hidden rounded-lg p-0 shadow-sm ring-0">
-                <button
-                  onClick={() => setAnamOpen((o) => !o)}
-                  className="shell:pointer-events-none flex w-full shrink-0 items-center justify-between p-5 text-left"
-                >
-                  <div className="font-heading text-sm font-extrabold">Anamnese</div>
-                  <ChevronRight
-                    className={cn(
-                      "text-gray-3 shell:rotate-90 h-4 w-4 transition-transform",
-                      anamOpen && "rotate-90",
-                    )}
-                  />
-                </button>
-                <div
-                  className={cn(
-                    "shell:flex shell:min-h-0 shell:flex-1 shell:overflow-y-auto flex-col gap-1.5 px-5 pb-5",
-                    anamOpen ? "flex" : "hidden",
-                  )}
-                >
-                  {anamnese?.respostas.map((r) => (
-                    <div
-                      key={r.perguntaId}
-                      className="bg-background flex justify-between rounded-[10px] px-3 py-2"
-                    >
-                      <span className="text-muted-foreground text-[13px]">
-                        {textoPergunta(r.perguntaId)}
-                      </span>
-                      <span className="font-heading text-[13px] font-semibold">{r.valor}</span>
-                    </div>
-                  ))}
-                </div>
-              </Card>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={diagnostico.imagemUrl}
+                alt="Imagem capturada para o diagnóstico"
+                className={cn(
+                  "h-full w-full object-cover transition-opacity",
+                  imagemCarregada ? "opacity-100" : "opacity-0",
+                )}
+                onLoad={() => setImagemCarregada(true)}
+                onError={() => setImagemCarregada(true)}
+              />
             </div>
+          ) : (
+            <div className="border-border bg-background flex aspect-4/3 flex-col items-center justify-center gap-2 rounded-2xl border">
+              <ImageOff className="text-gray-3 h-8 w-8" />
+              <span className="font-heading text-gray-3 text-xs">Sem imagem disponível</span>
+            </div>
+          )}
+        </Card>
+
+        {/* orientação: resumo + botão pra expandir o texto completo */}
+        {nivel && (
+          <div className="border-secondary rounded-xl border bg-[var(--color-teal-50)] p-3.5">
+            <div className="font-heading mb-1.5 text-[13px] font-bold">Orientação</div>
+            <p className="text-muted-foreground text-[13px] leading-relaxed">
+              {orientacaoAberta ? ORIENTACAO[nivel].completa : ORIENTACAO[nivel].resumo}
+            </p>
+            <button
+              onClick={() => setOrientacaoAberta((o) => !o)}
+              className="font-heading text-primary mt-1.5 text-[12px] font-bold underline underline-offset-2"
+            >
+              {orientacaoAberta ? "Ver menos" : "Ver orientação completa"}
+            </button>
           </div>
         )}
 
-        {detailTab === "orientacoes" && (
-          <div className="cyb-grid mt-3.5 gap-3.5">
-            {!nivel && (
-              <EmptyState
-                icon={<Lightbulb className="h-7 w-7" />}
-                title="Ainda sem orientações"
-                description="As orientações aparecem depois que o diagnóstico for concluído."
-              />
-            )}
-            {nivel && orientacoes.length === 0 && (
-              <EmptyState
-                icon={<Lightbulb className="h-7 w-7" />}
-                title="Nenhuma orientação cadastrada"
-                description="Ainda não há dicas para essa classificação."
-              />
-            )}
-            {orientacoes.map((dica) => (
-              <TipCard
-                key={dica.id}
-                titulo={dica.titulo}
-                categoria={dica.categoria}
-                corpo={dica.corpo}
-                formato={dica.formato}
-                midiaUrl={dica.midiaUrl}
-              />
-            ))}
-          </div>
-        )}
+        {/* anamnese, abre e fecha ao clicar */}
+        <Card className="overflow-hidden rounded-lg p-0 shadow-sm ring-0">
+          <button
+            onClick={() => setAnamOpen((o) => !o)}
+            className="flex w-full items-center justify-between p-5 text-left"
+          >
+            <div className="font-heading text-sm font-extrabold">Anamnese</div>
+            <ChevronDown
+              className={cn("text-gray-3 h-4 w-4 transition-transform", anamOpen && "rotate-180")}
+            />
+          </button>
+          {anamOpen && (
+            <div className="flex flex-col gap-1.5 px-5 pb-5">
+              {anamnese?.respostas.length ? (
+                anamnese.respostas.map((r) => (
+                  <div
+                    key={r.perguntaId}
+                    className="bg-background flex justify-between rounded-[10px] px-3 py-2"
+                  >
+                    <span className="text-muted-foreground text-[13px]">
+                      {textoPergunta(r.perguntaId)}
+                    </span>
+                    <span className="font-heading text-[13px] font-semibold">{r.valor}</span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-muted-foreground text-[13px]">
+                  Nenhuma resposta de anamnese encontrada.
+                </p>
+              )}
+            </div>
+          )}
+        </Card>
 
-        <Button variant="secondary" className="mt-3.5 w-full" asChild>
+        {/* exportar pdf - por enquanto só visual, sem funcionalidade real */}
+        <Button variant="outline" className="w-full" disabled>
+          <FileDown className="h-4 w-4" /> Exportar PDF
+        </Button>
+
+        <Button variant="secondary" className="w-full" asChild>
           <Link href="/paciente/diagnosticos">
             <ChevronLeft className="h-4 w-4" /> Voltar
           </Link>
