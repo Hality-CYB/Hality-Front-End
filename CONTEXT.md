@@ -37,4 +37,16 @@ Check Your Breath (CYB) é o app da Hality Diagnóstico do Hálito: usa IA para 
 
 <!-- Adicionar uma entrada nova no topo antes de cada push relevante. Formato: data — resumo. -->
 
+- **2026-09-09** — Tela de login do paciente (`/login`): campos de e-mail/senha com toggle de
+  mostrar/ocultar senha (`components/auth/password-input.tsx`), mensagem de erro genérica em
+  credencial inválida, link para recuperação de senha (US-013, placeholder em `/recuperar-senha`)
+  e para cadastro (placeholder em `/cadastro`). Autenticação via `services/auth-service.ts` +
+  `hooks/use-auth.ts`; token emitido no login persiste em `localStorage`
+  (`lib/session.ts`) e passa a ser anexado automaticamente (`Authorization: Bearer`) em toda
+  chamada feita pelo `lib/api-client.ts`, cumprindo o requisito de token "consumido por todas as
+  demais rotas". Sessão ativa redireciona automaticamente da tela de login para a Home; login
+  bem-sucedido também redireciona para a Home. Paleta "brand" (teal) adicionada ao
+  `app/globals.css`. Testes novos: `lib/session.test.ts`, `hooks/use-auth.test.ts`. Cadastro e
+  fluxo completo de recuperação de senha ficam para outras USs deste épico.
+
 - **2026-08-21** — Scaffold do frontend completo: Next.js + TypeScript + Tailwind, arquitetura em camadas (`app`/`hooks`/`services`/`lib`/`components`/`types`), ESLint + Prettier, testes com Vitest + React Testing Library (exemplo `use-health.test.ts`), CI no GitHub Actions (lint, testes e build em todo PR pra `develop`/`main`) e `.nvmrc` fixando a versão do Node. README do frontend documenta tudo. Backend (`Hality-Back-End`) já estava com scaffold pronto (FastAPI + uv + ruff + pytest) — os dois repos seguem os mesmos padrões de branch e CI.

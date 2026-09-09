@@ -10,6 +10,14 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Paleta "teal" da marca Check Your Breath / Hality, usada nas telas de
+     autenticação (botão de login, links, ícones). */
+  --color-brand-50: #eaf5f6;
+  --color-brand-100: #cfe9ec;
+  --color-brand-500: #1a8b96;
+  --color-brand-700: #0e6e77;
+  --color-brand-800: #0b5960;
 }
 
 @media (prefers-color-scheme: dark) {
