@@ -14,4 +14,5 @@ function getEnv(name: string, fallback?: string): string {
 
 export const config = {
   apiBaseUrl: getEnv("NEXT_PUBLIC_API_URL", "http://localhost:8000"),
+  apiMocking: getEnv("NEXT_PUBLIC_API_MOCKING", "enabled") === "enabled",
 } as const;

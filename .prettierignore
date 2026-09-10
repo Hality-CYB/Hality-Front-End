@@ -1,0 +1,3 @@
+# Arquivo autogerado pelo MSW (`npx msw init public/`) — não deve ser
+# formatado à mão, senão o Prettier fica brigando com toda regeneração.
+public/mockServiceWorker.js
