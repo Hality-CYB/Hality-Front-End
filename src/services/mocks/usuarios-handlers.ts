@@ -13,6 +13,11 @@ const criarUsuarioSchema = z.object({
   role: roleSchema,
 });
 
+const atualizarUsuarioSchema = z.object({
+  nome: z.string().min(1),
+  email: z.string().email(),
+});
+
 export const usuariosHandlers = [
   http.get(url("/api/v1/usuarios"), () => HttpResponse.json(usuarios)),
 
@@ -31,5 +36,16 @@ export const usuariosHandlers = [
     };
     usuarios.push(usuario);
     return HttpResponse.json(usuario, { status: 201 });
+  }),
+
+  http.put(url("/api/v1/usuarios/:id"), async ({ params, request }) => {
+    const index = usuarios.findIndex((u) => u.id === params.id);
+    if (index === -1) return new HttpResponse(null, { status: 404 });
+    const body = atualizarUsuarioSchema.parse(await request.json());
+    const atual = usuarios[index];
+    if (!atual) return new HttpResponse(null, { status: 404 });
+    const atualizado: Usuario = { ...atual, ...body };
+    usuarios[index] = atualizado;
+    return HttpResponse.json(atualizado);
   }),
 ];
