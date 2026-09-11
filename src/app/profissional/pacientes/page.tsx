@@ -5,16 +5,16 @@ import Link from "next/link";
 import { Search, ChevronRight, Camera } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { LevelChip } from "@/components/level-chip";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { usePacientes } from "@/hooks/use-pacientes";
-
-const PROFISSIONAL_ID_PLACEHOLDER = "profissional-1";
+import { useSessaoAtual } from "@/lib/auth/session-context";
 
 export default function PacientesPage() {
+  const { id: profissionalId } = useSessaoAtual();
   const [busca, setBusca] = useState("");
-  const { data: pacientes } = usePacientes({ profissionalId: PROFISSIONAL_ID_PLACEHOLDER });
+  const { data: pacientes } = usePacientes({ profissionalId });
 
   const filtrados = (pacientes ?? []).filter((p) =>
     p.nome.toLowerCase().includes(busca.toLowerCase()),
@@ -42,7 +42,7 @@ export default function PacientesPage() {
           </Link>
         </Button>
 
-        <div className="shell:cyb-grid flex flex-col gap-2.5">
+        <div className="cyb-grid gap-2.5">
           {filtrados.map((p) => (
             <Link key={p.id} href={`/profissional/pacientes/${p.id}`}>
               <Card className="patient-list-card flex-row items-center gap-3.5 rounded-lg p-4 shadow-sm ring-0">
@@ -58,7 +58,7 @@ export default function PacientesPage() {
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   {!p.consentimentoDadosSaude.aceito && (
-                    <Badge variant="outline">Cadastro pendente</Badge>
+                    <StatusBadge label="Cadastro pendente" status="pending" />
                   )}
                   {p.ultimoNivel !== null && <LevelChip nivel={p.ultimoNivel} size="sm" />}
                   <ChevronRight className="text-gray-3 h-4 w-4" />

@@ -5,13 +5,14 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, Camera, ScanLine } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { LevelChip } from "@/components/level-chip";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { usePaciente } from "@/hooks/use-pacientes";
 import { useDiagnosticos } from "@/hooks/use-diagnosticos";
 import { nivelColor } from "@/lib/level-format";
+import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/status-format";
 
 export default function PacienteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -62,7 +63,12 @@ export default function PacienteDetailPage({ params }: { params: Promise<{ id: s
         </Card>
 
         <div>
-          <h2 className="mb-3 text-lg">Histórico de diagnósticos</h2>
+          <div className="mb-3 flex items-baseline justify-between">
+            <h2 className="text-lg">Histórico de diagnósticos</h2>
+            <span className="text-muted-foreground text-xs">
+              {(diagnosticos ?? []).length} exames
+            </span>
+          </div>
           <div className="flex flex-col gap-2.5">
             {(diagnosticos ?? []).length === 0 && (
               <EmptyState
@@ -71,7 +77,10 @@ export default function PacienteDetailPage({ params }: { params: Promise<{ id: s
               />
             )}
             {diagnosticos?.map((d) => (
-              <Link key={d.id} href={`/profissional/diagnosticos/${d.id}`}>
+              <Link
+                key={d.id}
+                href={`/profissional/diagnosticos/${d.id}?voltar=/profissional/pacientes/${id}`}
+              >
                 <Card className="flex-row items-center gap-3.5 rounded-lg p-4 shadow-sm ring-0">
                   <div
                     className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
@@ -83,7 +92,11 @@ export default function PacienteDetailPage({ params }: { params: Promise<{ id: s
                     <div className="font-heading text-sm font-bold">
                       {new Date(d.criadoEm).toLocaleDateString("pt-BR")}
                     </div>
-                    <Badge className="mt-1">{d.status}</Badge>
+                    <StatusBadge
+                      className="mt-1"
+                      label={statusDiagnosticoLabel(d.status)}
+                      status={statusDiagnosticoBadgeStatus(d.status)}
+                    />
                   </div>
                   {d.nivel !== null && <LevelChip nivel={d.nivel} size="sm" />}
                   <ChevronRight className="text-gray-3 h-4 w-4" />

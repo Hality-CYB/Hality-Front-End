@@ -4,11 +4,12 @@ import Link from "next/link";
 import { Clock, CircleCheck, Users, Beaker, Camera, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { LevelChip } from "@/components/level-chip";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { useDiagnosticos } from "@/hooks/use-diagnosticos";
 import { usePacientes } from "@/hooks/use-pacientes";
+import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/status-format";
 
 // TODO: substituir pelo profissional logado
 const PROFISSIONAL_ID_PLACEHOLDER = "profissional-1";
@@ -101,7 +102,9 @@ export default function ProfissionalHomePage() {
                   </div>
                   {d.nivel !== null && <LevelChip nivel={d.nivel} size="sm" />}
                   <Button size="sm" asChild>
-                    <Link href={`/profissional/diagnosticos/${d.id}`}>Revisar</Link>
+                    <Link href={`/profissional/diagnosticos/${d.id}?voltar=/profissional`}>
+                      Revisar
+                    </Link>
                   </Button>
                 </div>
               ))}
@@ -123,7 +126,7 @@ export default function ProfissionalHomePage() {
             {items.slice(0, 4).map((d, i) => (
               <Link
                 key={d.id}
-                href={`/profissional/diagnosticos/${d.id}`}
+                href={`/profissional/diagnosticos/${d.id}?voltar=/profissional`}
                 className={`flex items-center gap-3 py-3 ${i < 3 ? "border-border border-b" : ""}`}
               >
                 <AvatarWithRole nome={d.pacienteId} size={36} />
@@ -137,7 +140,10 @@ export default function ProfissionalHomePage() {
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   {d.nivel !== null && <LevelChip nivel={d.nivel} size="sm" />}
-                  <Badge>{d.status}</Badge>
+                  <StatusBadge
+                    label={statusDiagnosticoLabel(d.status)}
+                    status={statusDiagnosticoBadgeStatus(d.status)}
+                  />
                 </div>
               </Link>
             ))}

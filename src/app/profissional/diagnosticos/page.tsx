@@ -11,7 +11,7 @@ import { AvatarWithRole } from "@/components/avatar-with-role";
 import { CustomPeriodDialog } from "@/components/custom-period-dialog";
 import { useDiagnosticos } from "@/hooks/use-diagnosticos";
 import { useSessaoAtual } from "@/lib/auth/session-context";
-import { nivelBadgeStatus } from "@/lib/level-format";
+import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/status-format";
 import { PERIODS, periodLabel, inPeriod, type Period, type CustomRange } from "@/lib/date-period";
 import { cn } from "@/lib/utils";
 import type { StatusDiagnostico } from "@/types/diagnostico";
@@ -21,12 +21,6 @@ const FILTROS_STATUS: { valor: StatusDiagnostico | "todos"; label: string }[] = 
   { valor: "aguardando_revisao", label: "Aguardando revisão" },
   { valor: "concluido", label: "Revisado" },
 ];
-
-const STATUS_LABEL: Record<string, string> = {
-  processando: "Aguardando análise",
-  aguardando_revisao: "Aguardando revisão",
-  concluido: "Revisado",
-};
 
 export default function DiagnosticosProfissionalPage() {
   const { id: profissionalId } = useSessaoAtual();
@@ -66,7 +60,7 @@ export default function DiagnosticosProfissionalPage() {
               key={p}
               onClick={() => setPeriod(p)}
               className={cn(
-                "font-heading border-1.5 shrink-0 rounded-4xl px-3 py-1.5 text-[11px] font-semibold whitespace-nowrap text-white",
+                "font-heading shrink-0 rounded-4xl border-[1.5px] px-3 py-1.5 text-[11px] font-semibold whitespace-nowrap text-white",
                 period === p ? "border-white bg-white/20" : "border-white/30",
               )}
             >
@@ -76,7 +70,7 @@ export default function DiagnosticosProfissionalPage() {
           <button
             onClick={() => setCustomDialogOpen(true)}
             className={cn(
-              "font-heading border-1.5 flex shrink-0 items-center gap-1 rounded-4xl px-3 py-1.5 text-[11px] font-semibold whitespace-nowrap text-white",
+              "font-heading flex shrink-0 items-center gap-1 rounded-4xl border-[1.5px] px-3 py-1.5 text-[11px] font-semibold whitespace-nowrap text-white",
               period === "custom" ? "border-white bg-white/20" : "border-white/30",
             )}
           >
@@ -116,8 +110,8 @@ export default function DiagnosticosProfissionalPage() {
                   {new Date(d.criadoEm).toLocaleDateString("pt-BR")}
                 </div>
                 <StatusBadge
-                  label={STATUS_LABEL[d.status] ?? d.status}
-                  status={d.status === "concluido" ? nivelBadgeStatus(d.nivel) : "pending"}
+                  label={statusDiagnosticoLabel(d.status)}
+                  status={statusDiagnosticoBadgeStatus(d.status)}
                 />
               </div>
               <div className="flex flex-col items-end gap-1.5">

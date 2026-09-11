@@ -1,17 +1,33 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AvaliacaoWizard } from "@/components/avaliacao-wizard";
+import { SelecionarPaciente } from "@/components/selecionar-paciente";
 
 /**
- * Espera `?paciente=<id>` (setado por quem navega pra cá — Design/'s
- * EvaluatePatient tinha um passo próprio de "selecionar paciente" antes
- * disso; simplificado aqui assumindo que o paciente já foi escolhido em
- * PatientsList/PatientDetail).
+ * Porta Design/'s EvaluatePatient: se `?paciente=<id>` já vier setado (ex.:
+ * botão "Avaliar este paciente" dentro do detalhe do paciente), pula direto
+ * pro wizard de anamnese/captura — senão mostra a seleção/cadastro de
+ * paciente primeiro, igual Design/.
  */
 export function AvaliacaoContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const pacienteId = searchParams.get("paciente") ?? "paciente-1";
+  const [pacienteId, setPacienteId] = useState<string | null>(searchParams.get("paciente"));
 
-  return <AvaliacaoWizard pacienteId={pacienteId} voltarHref="/profissional" />;
+  if (!pacienteId) {
+    return (
+      <div className="bg-background flex min-h-full flex-col p-4">
+        <SelecionarPaciente
+          onSelecionar={setPacienteId}
+          onCancelar={() => router.push("/profissional")}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <AvaliacaoWizard pacienteId={pacienteId} voltarHref="/profissional" perfil="profissional" />
+  );
 }

@@ -1,20 +1,29 @@
 "use client";
 
 import { useState } from "react";
-import { Mail, IdCard, Stethoscope, Key, Info, ChevronRight, LogOut } from "lucide-react";
+import { Mail, IdCard, Stethoscope, Pencil, Key, Info, ChevronRight, LogOut } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { AboutDialog } from "@/components/about-dialog";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
+import {
+  EditProfissionalPerfilDialog,
+  type PerfilProfissional,
+} from "@/components/edit-profissional-perfil-dialog";
 import { useLogout } from "@/hooks/use-auth";
 import { useSessaoAtual } from "@/lib/auth/session-context";
 import { cn } from "@/lib/utils";
 
-// Registro/especialidade não existem em types/usuario.ts ainda.
-const DADOS_PLACEHOLDER = { registro: "CRO-SP 123456", especialidade: "Odontologia" };
-
 const ITENS_CONFIGURACAO = [
+  {
+    Icon: Pencil,
+    label: "Editar perfil",
+    sub: "Nome, e-mail, especialidade e registro",
+    dialog: "editar" as const,
+    bg: "bg-secondary",
+    iconColor: "text-primary",
+  },
   {
     Icon: Key,
     label: "Alterar senha",
@@ -35,7 +44,15 @@ const ITENS_CONFIGURACAO = [
 
 export default function ProfissionalPerfilPage() {
   const sessao = useSessaoAtual();
-  const [dialogAberto, setDialogAberto] = useState<"senha" | "sobre" | null>(null);
+  // Especialidade/registro não existem em types/usuario.ts ainda — ficam
+  // local-only aqui, igual Design/'s EditProfileModal (sem persistência real).
+  const [perfil, setPerfil] = useState<PerfilProfissional>({
+    nome: sessao.nome,
+    email: sessao.email,
+    especialidade: "Odontologia",
+    registro: "CRO-SP 123456",
+  });
+  const [dialogAberto, setDialogAberto] = useState<"editar" | "senha" | "sobre" | null>(null);
   const logout = useLogout();
 
   return (
@@ -44,9 +61,9 @@ export default function ProfissionalPerfilPage() {
         className="flex flex-col items-center p-8 pb-13 text-center"
         style={{ background: "var(--gradient-brand)" }}
       >
-        <AvatarWithRole nome={sessao.nome} size={72} role="profissional" className="mb-2.5" />
-        <div className="font-heading mb-1 text-xl font-extrabold text-white">{sessao.nome}</div>
-        <div className="text-sm text-white/55">{DADOS_PLACEHOLDER.especialidade}</div>
+        <AvatarWithRole nome={perfil.nome} size={72} role="profissional" className="mb-2.5" />
+        <div className="font-heading mb-1 text-xl font-extrabold text-white">{perfil.nome}</div>
+        <div className="text-sm text-white/55">{perfil.especialidade}</div>
       </div>
 
       <div className="mt-6 flex flex-col gap-3.5 px-4">
@@ -59,7 +76,7 @@ export default function ProfissionalPerfilPage() {
                 <div className="text-gray-3 font-heading mb-0.5 text-[10px] font-bold tracking-wide uppercase">
                   E-mail
                 </div>
-                <div className="text-[15px]">{sessao.email}</div>
+                <div className="text-[15px]">{perfil.email}</div>
               </div>
             </div>
             <div className="bg-background flex items-center gap-2.5 rounded-[13px] p-3.5">
@@ -68,7 +85,7 @@ export default function ProfissionalPerfilPage() {
                 <div className="text-gray-3 font-heading mb-0.5 text-[10px] font-bold tracking-wide uppercase">
                   Registro
                 </div>
-                <div className="text-[15px]">{DADOS_PLACEHOLDER.registro}</div>
+                <div className="text-[15px]">{perfil.registro}</div>
               </div>
             </div>
             <div className="bg-background flex items-center gap-2.5 rounded-[13px] p-3.5">
@@ -77,13 +94,13 @@ export default function ProfissionalPerfilPage() {
                 <div className="text-gray-3 font-heading mb-0.5 text-[10px] font-bold tracking-wide uppercase">
                   Especialidade
                 </div>
-                <div className="text-[15px]">{DADOS_PLACEHOLDER.especialidade}</div>
+                <div className="text-[15px]">{perfil.especialidade}</div>
               </div>
             </div>
           </div>
         </Card>
 
-        <Card className="overflow-hidden rounded-lg p-0 shadow-sm ring-0">
+        <Card className="gap-0 overflow-hidden rounded-lg p-0 shadow-sm ring-0">
           {ITENS_CONFIGURACAO.map(({ Icon, label, sub, dialog, bg, iconColor }, i) => (
             <button
               key={label}
@@ -120,6 +137,15 @@ export default function ProfissionalPerfilPage() {
         <div className="h-2" />
       </div>
 
+      <EditProfissionalPerfilDialog
+        open={dialogAberto === "editar"}
+        onOpenChange={(open) => setDialogAberto(open ? "editar" : null)}
+        initial={perfil}
+        onSave={(v) => {
+          setPerfil(v);
+          setDialogAberto(null);
+        }}
+      />
       <ChangePasswordDialog
         open={dialogAberto === "senha"}
         onOpenChange={(open) => setDialogAberto(open ? "senha" : null)}

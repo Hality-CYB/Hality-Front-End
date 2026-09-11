@@ -30,25 +30,34 @@ import { LevelChip } from "@/components/level-chip";
 import { TipCard } from "@/components/tip-card";
 import { nivelColor, nivelLabel } from "@/lib/level-format";
 import { useAnamnesePerguntas, useCriarAnamnese } from "@/hooks/use-anamnese";
-import { useCriarDiagnostico } from "@/hooks/use-diagnosticos";
+import { useCriarDiagnostico, useRevisarDiagnostico } from "@/hooks/use-diagnosticos";
 import { useDicas } from "@/hooks/use-dicas";
+import { usePaciente } from "@/hooks/use-pacientes";
+import { useSessaoAtual } from "@/lib/auth/session-context";
 import { cn } from "@/lib/utils";
 import type { DiagnosticoNivel } from "@/types/diagnostico";
 import halityLogo from "@/assets/images/logo-hality-inline.png";
 
 /**
- * Fluxo de avaliação — 9 passos internos, uma rota só (como em Design/'s
- * DiagnosisFlow), com o estado do wizard em memória. Sem persistência em
- * sessionStorage ainda (o plano original previa rota por passo +
- * sessionStorage — simplificado aqui pra cobrir a tela toda primeiro; dá
- * pra evoluir depois sem mudar a UI).
+ * Fluxo de avaliação — passos internos, uma rota só (como em Design/'s
+ * DiagnosisFlow/EvaluatePatient), com o estado do wizard em memória. Sem
+ * persistência em sessionStorage ainda (o plano original previa rota por
+ * passo + sessionStorage — simplificado aqui pra cobrir a tela toda
+ * primeiro; dá pra evoluir depois sem mudar a UI).
  *
  * Compartilhado entre paciente (autoavaliação) e profissional (avalia um
- * paciente selecionado) — só o `pacienteId`/`voltarHref` mudam.
+ * paciente já selecionado em SelecionarPaciente) — `perfil` muda a barra de
+ * passos (profissional ganha "Paciente" já concluído na frente, e não tem
+ * a tela de introdução) e a etapa final: paciente só acompanha o
+ * pré-diagnóstico "aguardando revisão"; profissional confirma a
+ * classificação e salva na hora (igual Design/'s EvaluatePatient passo 3,
+ * diferente do DiagnosisFlow do paciente).
  */
 
-const VISUAL_STEPS = ["Anamnese", "Captura", "Pré-diagnóstico"];
-const toVisual = (step: number) => (step === 0 ? -1 : step <= 2 ? 0 : step <= 5 ? 1 : 2);
+const VISUAL_STEPS_PACIENTE = ["Anamnese", "Captura", "Pré-diagnóstico"];
+const VISUAL_STEPS_PROFISSIONAL = ["Paciente", "Anamnese", "Captura", "Revisão"];
+const toVisualPaciente = (step: number) => (step === 0 ? -1 : step <= 2 ? 0 : step <= 5 ? 1 : 2);
+const toVisualProfissional = (step: number) => (step <= 2 ? 1 : step <= 5 ? 2 : 3);
 
 const PREPARO = [
   {
@@ -78,25 +87,40 @@ const ORIENTACOES_CAPTURA = [
 type AvaliacaoWizardProps = {
   pacienteId: string;
   voltarHref: string;
+  perfil?: "paciente" | "profissional";
 };
 
-export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps) {
+export function AvaliacaoWizard({
+  pacienteId,
+  voltarHref,
+  perfil = "paciente",
+}: AvaliacaoWizardProps) {
+  const isProfissional = perfil === "profissional";
   const router = useRouter();
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(isProfissional ? 1 : 0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [aIdx, setAIdx] = useState(0);
   const [resultado, setResultado] = useState<{
+    id: string;
     nivel: DiagnosticoNivel;
     confiancaIA?: number;
   } | null>(null);
+  const [classificacaoConfirmada, setClassificacaoConfirmada] = useState<DiagnosticoNivel | null>(
+    null,
+  );
+  const [observacoes, setObservacoes] = useState("");
 
+  const { id: profissionalId } = useSessaoAtual();
+  const paciente = usePaciente(pacienteId);
   const perguntas = useAnamnesePerguntas();
   const criarAnamnese = useCriarAnamnese();
   const criarDiagnostico = useCriarDiagnostico();
+  const revisarDiagnostico = useRevisarDiagnostico();
   const dicasDoResultado = useDicas({ publicado: true });
 
   const next = () => setStep((s) => s + 1);
-  const back = () => (step > 0 ? setStep((s) => s - 1) : router.push(voltarHref));
+  const primeiroStep = isProfissional ? 1 : 0;
+  const back = () => (step > primeiroStep ? setStep((s) => s - 1) : router.push(voltarHref));
 
   const questoes = perguntas.data ?? [];
   const questaoAtual = questoes[aIdx];
@@ -129,7 +153,22 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
       trabalho,
       new Promise((resolve) => setTimeout(resolve, 2500)),
     ]);
-    setResultado({ nivel: diagnostico.nivel ?? 1, confiancaIA: diagnostico.confiancaIA });
+    setResultado({
+      id: diagnostico.id,
+      nivel: diagnostico.nivel ?? 1,
+      confiancaIA: diagnostico.confiancaIA,
+    });
+  }
+
+  const classificacaoAtual = classificacaoConfirmada ?? resultado?.nivel ?? null;
+
+  function salvarRevisaoProfissional() {
+    if (!resultado || !classificacaoAtual) return;
+    revisarDiagnostico.mutate({
+      id: resultado.id,
+      nivel: classificacaoAtual,
+      revisadoPor: profissionalId,
+    });
   }
 
   const dicasFiltradas = (dicasDoResultado.data ?? []).filter(
@@ -139,12 +178,16 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
   return (
     <div className="bg-background flex min-h-full flex-col">
       <div className="border-border shrink-0 border-b bg-white p-3.5">
-        <StepBar steps={VISUAL_STEPS} current={toVisual(step)} />
+        {isProfissional ? (
+          <StepBar steps={VISUAL_STEPS_PROFISSIONAL} current={toVisualProfissional(step)} />
+        ) : (
+          <StepBar steps={VISUAL_STEPS_PACIENTE} current={toVisualPaciente(step)} />
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
-        {/* 0 — Intro */}
-        {step === 0 && (
+        {/* 0 — Intro (só paciente — profissional já veio de SelecionarPaciente) */}
+        {!isProfissional && step === 0 && (
           <div className="shell:mx-auto shell:w-full shell:max-w-135 flex flex-col gap-5">
             <div className="pt-5 pb-2 text-center">
               <div className="bg-secondary text-primary mx-auto mb-4 flex h-18 w-18 items-center justify-center rounded-[22px]">
@@ -442,7 +485,7 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
                 </Button>
                 <button
                   onClick={next}
-                  className="border-border text-primary font-heading border-1.5 bg-background flex items-center justify-center gap-2 rounded-2xl border-dashed p-3.5 text-sm font-semibold"
+                  className="border-border text-primary font-heading bg-background flex items-center justify-center gap-2 rounded-2xl border-[1.5px] border-dashed p-3.5 text-sm font-semibold"
                 >
                   <ImageUp className="h-4.5 w-4.5" />
                   Escolher da galeria
@@ -503,8 +546,124 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
           />
         )}
 
-        {/* 7 — Resultado */}
-        {step === 6 && resultado && (
+        {/* 7 — Revisão (profissional) — Design/'s EvaluatePatient passo 3:
+            confirma a classificação e salva na hora, diferente do
+            DiagnosisFlow do paciente (que só acompanha "aguardando
+            revisão"). */}
+        {isProfissional && step === 6 && resultado && (
+          <div className="shell:mx-auto shell:w-full shell:max-w-135 flex flex-col gap-3.5">
+            <Card
+              className="rounded-lg border border-[rgba(11,107,130,0.12)] p-5 shadow-sm ring-0"
+              style={{
+                background: "linear-gradient(135deg,rgba(11,107,130,0.05),rgba(22,163,74,0.04))",
+              }}
+            >
+              <div className="mb-3 flex items-center gap-3">
+                <div className="bg-secondary text-primary flex h-8 w-8 items-center justify-center rounded-[9px]">
+                  <Sparkles className="h-4 w-4" />
+                </div>
+                <div className="font-heading text-primary text-sm font-extrabold">
+                  Resultado da IA — {paciente.data?.nome ?? "paciente"}
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div
+                  className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[18px]"
+                  style={{ background: `${nivelColor(resultado.nivel)}18` }}
+                >
+                  <ScanLine className="h-7 w-7" style={{ color: nivelColor(resultado.nivel) }} />
+                </div>
+                <div>
+                  <LevelChip nivel={resultado.nivel} />
+                  {resultado.confiancaIA && (
+                    <div className="text-muted-foreground mt-1.5 text-xs">
+                      Confiança: {resultado.confiancaIA}%
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Card>
+
+            <Card className="border-primary rounded-lg border-2 p-5 shadow-sm ring-0">
+              <div className="mb-4 flex items-center gap-2.5">
+                <div className="bg-secondary text-primary flex h-7.5 w-7.5 items-center justify-center rounded-[9px]">
+                  <Stethoscope className="h-4 w-4" />
+                </div>
+                <div className="font-heading text-primary text-[15px] font-extrabold">
+                  Sua avaliação
+                </div>
+              </div>
+              <div className="mb-3.5">
+                <label className="text-muted-foreground font-heading mb-1.5 block text-xs font-bold tracking-wide uppercase">
+                  Classificação confirmada
+                </label>
+                <div className="flex flex-col gap-2">
+                  {([1, 2, 3] as DiagnosticoNivel[]).map((l) => (
+                    <button
+                      key={l}
+                      type="button"
+                      onClick={() => setClassificacaoConfirmada(l)}
+                      className="flex items-center gap-2.5 rounded-xl border-2 p-3.5 text-left"
+                      style={{
+                        borderColor: classificacaoAtual === l ? nivelColor(l) : "var(--border)",
+                        background: classificacaoAtual === l ? `${nivelColor(l)}10` : "var(--card)",
+                      }}
+                    >
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ background: nivelColor(l) }}
+                      />
+                      <span className="font-heading text-sm font-bold">
+                        {l} — {nivelLabel(l)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <textarea
+                placeholder="Descreva suas observações clínicas..."
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.target.value)}
+                rows={4}
+                className="placeholder:text-muted-foreground bg-background focus:bg-card focus:border-primary focus:ring-primary/10 w-full rounded-[13px] border-[1.5px] border-transparent p-4 text-[15px] transition-colors outline-none focus:ring-3"
+              />
+              {revisarDiagnostico.isSuccess && (
+                <div className="mt-3 flex items-center gap-2 rounded-xl border border-[#6EE7B7] bg-[#D1FAE5] px-3.5 py-2.5 text-[13px] font-semibold text-[#065F46]">
+                  <Check className="h-4 w-4" /> Diagnóstico salvo e enviado ao paciente!
+                </div>
+              )}
+              <Button
+                size="lg"
+                className="mt-3.5 bg-[#16A34A] hover:bg-[#15803d]"
+                disabled={!classificacaoAtual || revisarDiagnostico.isPending}
+                onClick={salvarRevisaoProfissional}
+              >
+                <Check className="h-4 w-4" /> Salvar diagnóstico
+              </Button>
+            </Card>
+
+            {revisarDiagnostico.isSuccess && (
+              <div className="flex flex-col gap-2.5">
+                <Button
+                  size="lg"
+                  onClick={() => router.push(`/profissional/pacientes/${pacienteId}`)}
+                >
+                  Concluir e ir ao paciente
+                </Button>
+                <Button
+                  size="lg"
+                  variant="secondary"
+                  onClick={() => router.push("/profissional/pacientes")}
+                >
+                  Ver todos os pacientes
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 7 — Resultado (paciente) */}
+        {!isProfissional && step === 6 && resultado && (
           <div className="shell:mx-auto shell:w-full shell:max-w-135 flex flex-col gap-4">
             <div className="flex items-start gap-2.5 rounded-2xl border border-[#FFC107] bg-[#FFF3CD] px-4 py-3">
               <TriangleAlert className="h-4.5 w-4.5 shrink-0 text-[#92400E]" />
@@ -570,8 +729,8 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
           </div>
         )}
 
-        {/* 8 — Orientações / Dicas */}
-        {step === 7 && resultado && (
+        {/* 8 — Orientações / Dicas (paciente) */}
+        {!isProfissional && step === 7 && resultado && (
           <div className="shell:mx-auto shell:w-full shell:max-w-135 flex flex-col gap-4">
             <div
               className="relative overflow-hidden rounded-[18px] p-4.5"
