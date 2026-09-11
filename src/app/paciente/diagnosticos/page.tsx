@@ -44,7 +44,7 @@ export default function DiagnosticosPage() {
               key={p}
               onClick={() => setPeriod(p)}
               className={cn(
-                "font-heading border-1.5 shrink-0 rounded-4xl px-3.5 py-1.5 text-xs font-bold whitespace-nowrap",
+                "font-heading shrink-0 rounded-4xl border-[1.5px] px-3.5 py-1.5 text-xs font-bold whitespace-nowrap",
                 period === p
                   ? "border-primary bg-primary text-white"
                   : "border-border text-muted-foreground bg-card",
@@ -56,7 +56,7 @@ export default function DiagnosticosPage() {
           <button
             onClick={() => setCustomDialogOpen(true)}
             className={cn(
-              "font-heading border-1.5 flex shrink-0 items-center gap-1.5 rounded-4xl px-3.5 py-1.5 text-xs font-bold whitespace-nowrap",
+              "font-heading flex shrink-0 items-center gap-1.5 rounded-4xl border-[1.5px] px-3.5 py-1.5 text-xs font-bold whitespace-nowrap",
               period === "custom"
                 ? "border-primary bg-primary text-white"
                 : "border-border text-muted-foreground bg-card",

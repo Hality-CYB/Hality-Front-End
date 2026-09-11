@@ -126,7 +126,7 @@ export default function PerfilPage() {
           )}
         </Card>
 
-        <Card className="overflow-hidden rounded-lg p-0 shadow-sm ring-0">
+        <Card className="gap-0 overflow-hidden rounded-lg p-0 shadow-sm ring-0">
           {ITENS_CONFIGURACAO.map(({ Icon, label, sub, dialog, bg, iconColor }, i) => (
             <button
               key={label}

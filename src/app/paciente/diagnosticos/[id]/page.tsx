@@ -109,7 +109,7 @@ export default function DiagnosticoDetailPage({ params }: { params: Promise<{ id
                 </div>
               )}
 
-              <Card className="shell:flex-1 shell:flex shell:flex-col overflow-hidden rounded-lg p-0 shadow-sm ring-0">
+              <Card className="shell:flex-1 shell:flex shell:flex-col gap-0 overflow-hidden rounded-lg p-0 shadow-sm ring-0">
                 <button
                   onClick={() => setAnamOpen((o) => !o)}
                   className="shell:pointer-events-none flex w-full shrink-0 items-center justify-between p-5 text-left"
