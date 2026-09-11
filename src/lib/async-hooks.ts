@@ -34,9 +34,11 @@ export function useAsyncQuery<T>({ queryKey, queryFn, enabled = true }: QueryOpt
   const enabledRef = useRef(enabled);
   const keySignature = JSON.stringify(queryKey);
 
-  keyRef.current = queryKey;
-  queryFnRef.current = queryFn;
-  enabledRef.current = enabled;
+  useEffect(() => {
+    keyRef.current = queryKey;
+    queryFnRef.current = queryFn;
+    enabledRef.current = enabled;
+  }, [enabled, queryFn, queryKey]);
 
   const load = useCallback(async () => {
     if (!enabledRef.current) {
