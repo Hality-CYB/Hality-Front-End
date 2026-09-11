@@ -66,7 +66,9 @@ export function useAsyncQuery<T>({ queryKey, queryFn, enabled = true }: QueryOpt
       if (isMatchingKey(keyRef.current, invalidatedKey)) void load();
     };
     invalidationListeners.add(listener);
-    return () => invalidationListeners.delete(listener);
+    return () => {
+      invalidationListeners.delete(listener);
+    };
   }, [load]);
 
   return { data, error, isLoading, isPending: isLoading, refetch: load };
@@ -105,5 +107,5 @@ export function useAsyncMutation<TData, TVariables = void>({
     [mutateAsync],
   );
 
-  return { error, isPending, mutate, mutateAsync };
+  return { error, isError: error !== null, isPending, mutate, mutateAsync };
 }
