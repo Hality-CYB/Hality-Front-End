@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Search, Plus, ChevronRight, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { AvatarWithRole } from "@/components/avatar-with-role";
-import { useUsuarios } from "@/hooks/use-usuarios";
+import { CriarUsuarioDialog } from "@/components/criar-usuario-dialog";
+import { useUsuarios, useCriarUsuario } from "@/hooks/use-usuarios";
 import { roleLabel, roleBadgeStatus } from "@/lib/role-format";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types/usuario";
@@ -21,9 +22,12 @@ const FILTROS: { valor: Role | "todos"; label: string }[] = [
 ];
 
 export default function UsuariosPage() {
+  const searchParams = useSearchParams();
   const [busca, setBusca] = useState("");
   const [filtroRole, setFiltroRole] = useState<Role | "todos">("todos");
+  const [criarAberto, setCriarAberto] = useState(() => searchParams.get("criar") === "1");
   const { data: usuarios } = useUsuarios();
+  const criar = useCriarUsuario();
 
   const filtrados = (usuarios ?? [])
     .filter((u) => filtroRole === "todos" || u.role === filtroRole)
@@ -32,7 +36,15 @@ export default function UsuariosPage() {
   return (
     <div className="flex flex-col">
       <div className="p-5" style={{ background: "var(--gradient-brand)" }}>
-        <h1 className="mb-3 text-xl text-white">Usuários</h1>
+        <div className="mb-3 flex items-center justify-between">
+          <h1 className="text-xl text-white">Usuários</h1>
+          <button
+            onClick={() => setCriarAberto(true)}
+            className="font-heading flex items-center gap-1.5 rounded-[10px] bg-white px-3 py-2 text-[13px] font-bold text-[var(--primary)]"
+          >
+            <Plus className="h-3.5 w-3.5" /> Criar
+          </button>
+        </div>
         <div className="relative mb-3">
           <Search className="absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-white/50" />
           <input
@@ -61,18 +73,12 @@ export default function UsuariosPage() {
       </div>
 
       <div className="flex flex-col gap-2.5 p-4">
-        <Button asChild>
-          <Link href="/admin/usuarios/novo">
-            <Plus className="h-4 w-4" /> Criar usuário
-          </Link>
-        </Button>
-
         <div className="cyb-grid gap-2.5">
           {filtrados.length === 0 && (
             <EmptyState icon={<Users className="h-7 w-7" />} title="Nenhum usuário encontrado" />
           )}
           {filtrados.map((u) => (
-            <Link key={u.id} href={`/admin/usuarios/${u.id}`}>
+            <Link key={u.id} href={`/admin/usuarios/${u.id}?voltar=/admin/usuarios`}>
               <Card className="user-list-card flex-row items-center gap-3.5 rounded-lg p-4 shadow-sm ring-0">
                 <AvatarWithRole
                   nome={u.nome}
@@ -92,6 +98,13 @@ export default function UsuariosPage() {
           ))}
         </div>
       </div>
+
+      <CriarUsuarioDialog
+        open={criarAberto}
+        onOpenChange={setCriarAberto}
+        salvando={criar.isPending}
+        onCreate={(v) => criar.mutate(v, { onSuccess: () => setCriarAberto(false) })}
+      />
     </div>
   );
 }

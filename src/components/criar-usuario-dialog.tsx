@@ -1,12 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { User, Stethoscope, Shield, Check } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useCriarUsuario } from "@/hooks/use-usuarios";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types/usuario";
 
@@ -16,42 +13,61 @@ const OPCOES_ROLE: { valor: Role; label: string; Icon: typeof User; bg: string }
   { valor: "admin", label: "Admin", Icon: Shield, bg: "bg-[#FEF3C7]" },
 ];
 
-export default function NovoUsuarioPage() {
-  const router = useRouter();
+type CriarUsuarioDialogProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreate: (v: { nome: string; email: string; role: Role }) => void;
+  salvando?: boolean;
+};
+
+/** Porta Design/'s CreateUserModal — criar usuário é um modal a partir da lista, não uma rota própria. */
+export function CriarUsuarioDialog({
+  open,
+  onOpenChange,
+  onCreate,
+  salvando,
+}: CriarUsuarioDialogProps) {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("paciente");
-  const criar = useCriarUsuario();
 
-  async function handleSubmit() {
-    await criar.mutateAsync({ nome: nome.trim(), email: email.trim(), role });
-    router.push("/admin/usuarios");
+  function handleOpenChange(next: boolean) {
+    if (!next) {
+      setNome("");
+      setEmail("");
+      setRole("paciente");
+    }
+    onOpenChange(next);
   }
 
   return (
-    <div className="flex flex-col p-4">
-      <h1 className="mb-4 text-xl">Criar usuário</h1>
-      <Card className="rounded-lg p-5 shadow-sm ring-0">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Criar usuário</DialogTitle>
+        </DialogHeader>
         <div className="flex flex-col gap-3.5">
           <div>
             <label className="text-muted-foreground font-heading mb-1.5 block text-xs font-bold tracking-wide uppercase">
               Nome completo
             </label>
-            <Input
+            <input
               value={nome}
               onChange={(e) => setNome(e.target.value)}
               placeholder="Nome do usuário..."
+              className="border-border w-full rounded-xl border-[1.5px] px-3.5 py-3 text-sm outline-none"
             />
           </div>
           <div>
             <label className="text-muted-foreground font-heading mb-1.5 block text-xs font-bold tracking-wide uppercase">
               E-mail
             </label>
-            <Input
+            <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="email@exemplo.com"
+              className="border-border w-full rounded-xl border-[1.5px] px-3.5 py-3 text-sm outline-none"
             />
           </div>
           <div>
@@ -62,9 +78,10 @@ export default function NovoUsuarioPage() {
               {OPCOES_ROLE.map(({ valor, label, Icon, bg }) => (
                 <button
                   key={valor}
+                  type="button"
                   onClick={() => setRole(valor)}
                   className={cn(
-                    "border-1.5 flex items-center gap-3 rounded-xl p-3.5 text-left",
+                    "flex items-center gap-3 rounded-xl border-[1.5px] p-3.5 text-left",
                     role === valor ? "border-primary bg-secondary" : "border-border bg-card",
                   )}
                 >
@@ -83,13 +100,13 @@ export default function NovoUsuarioPage() {
           </div>
           <Button
             size="lg"
-            disabled={!nome.trim() || !email.trim() || criar.isPending}
-            onClick={handleSubmit}
+            disabled={!nome.trim() || !email.trim() || salvando}
+            onClick={() => onCreate({ nome: nome.trim(), email: email.trim(), role })}
           >
             <Check className="h-4 w-4" /> Criar usuário
           </Button>
         </div>
-      </Card>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

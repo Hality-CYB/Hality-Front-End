@@ -3,14 +3,15 @@
 import Link from "next/link";
 import { Shield, Users, Beaker, CircleCheck, Lightbulb, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { LevelChip } from "@/components/level-chip";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { useUsuarios } from "@/hooks/use-usuarios";
 import { useDiagnosticos } from "@/hooks/use-diagnosticos";
 import { useDicas } from "@/hooks/use-dicas";
-
-const NOME_PLACEHOLDER = "Marcelo";
+import { useSessaoAtual } from "@/lib/auth/session-context";
+import { roleLabel, roleBadgeStatus } from "@/lib/role-format";
+import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/status-format";
 
 const ACOES_RAPIDAS = [
   {
@@ -25,7 +26,7 @@ const ACOES_RAPIDAS = [
     Icon: Beaker,
     bg: "bg-[#EDE9FE]",
     color: "text-[#7C3AED]",
-    href: "/admin/validacao",
+    href: "/admin/diagnosticos",
   },
   {
     label: "Criar dica",
@@ -39,11 +40,12 @@ const ACOES_RAPIDAS = [
     Icon: Plus,
     bg: "bg-[#D1FAE5]",
     color: "text-[#16A34A]",
-    href: "/admin/usuarios/novo",
+    href: "/admin/usuarios?criar=1",
   },
 ];
 
 export default function AdminHomePage() {
+  const { nome } = useSessaoAtual();
   const { data: usuarios } = useUsuarios();
   const { data: diagnosticos } = useDiagnosticos();
   const { data: dicas } = useDicas();
@@ -73,7 +75,7 @@ export default function AdminHomePage() {
           <Shield className="h-3.5 w-3.5 text-white/50" />
           <span className="text-xs text-white/50">Painel administrativo</span>
         </div>
-        <h1 className="mb-5 text-[22px] text-white">Olá, {NOME_PLACEHOLDER}</h1>
+        <h1 className="mb-5 text-[22px] text-white">Olá, {nome.split(" ")[0]}</h1>
         <div className="grid grid-cols-2 gap-2.5">
           {stats.map(({ valor, label, Icon }) => (
             <div
@@ -122,7 +124,7 @@ export default function AdminHomePage() {
             {usuarios?.slice(0, 3).map((u, i) => (
               <Link
                 key={u.id}
-                href={`/admin/usuarios/${u.id}`}
+                href={`/admin/usuarios/${u.id}?voltar=/admin`}
                 className={`flex items-center gap-3 py-3 ${i < 2 ? "border-border border-b" : ""}`}
               >
                 <AvatarWithRole
@@ -136,7 +138,7 @@ export default function AdminHomePage() {
                     {new Date(u.criadoEm).toLocaleDateString("pt-BR")}
                   </div>
                 </div>
-                <Badge>{u.role}</Badge>
+                <StatusBadge label={roleLabel(u.role)} status={roleBadgeStatus(u.role)} />
               </Link>
             ))}
           </div>
@@ -146,7 +148,7 @@ export default function AdminHomePage() {
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg">Diagnósticos recentes</h2>
             <Link
-              href="/admin/validacao"
+              href="/admin/diagnosticos"
               className="font-heading text-primary text-[13px] font-bold"
             >
               Ver todos
@@ -156,7 +158,7 @@ export default function AdminHomePage() {
             {diagnosticos?.slice(0, 3).map((d, i) => (
               <Link
                 key={d.id}
-                href={`/admin/validacao/${d.id}`}
+                href={`/admin/diagnosticos/${d.id}?voltar=/admin`}
                 className={`flex items-center gap-3 py-3 ${i < 2 ? "border-border border-b" : ""}`}
               >
                 <div className="bg-background flex h-9 w-9 items-center justify-center rounded-[10px]">
@@ -164,14 +166,18 @@ export default function AdminHomePage() {
                 </div>
                 <div className="flex-1">
                   <div className="font-heading text-[13px] font-bold">
-                    Paciente {d.pacienteId.slice(-1)}
+                    {usuarios?.find((u) => u.id === d.pacienteId)?.nome ??
+                      `Paciente ${d.pacienteId.slice(-1)}`}
                   </div>
                   <div className="text-muted-foreground text-[11px]">
                     {new Date(d.criadoEm).toLocaleDateString("pt-BR")}
                   </div>
                 </div>
                 <LevelChip nivel={d.nivel} size="sm" />
-                <Badge>{d.status}</Badge>
+                <StatusBadge
+                  label={statusDiagnosticoLabel(d.status)}
+                  status={statusDiagnosticoBadgeStatus(d.status)}
+                />
               </Link>
             ))}
           </div>
