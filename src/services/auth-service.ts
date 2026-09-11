@@ -23,7 +23,15 @@ export const authService = {
     return usuarioSchema.parse(await response.json());
   },
 
-  async registrar(input: { nome: string; email: string; senha: string }): Promise<Usuario> {
+  async registrar(input: {
+    nome: string;
+    email: string;
+    telefone: string;
+    senha: string;
+    profissionalIndicador?: string;
+    consentimentoDados: boolean;
+    consentimentoComunicacoes: boolean;
+  }): Promise<Usuario> {
     const response = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
