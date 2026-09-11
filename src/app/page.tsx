@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import RegistroPage from "./registro";
+import RegistroPage from "./registro/page";
 
 export default function Home() {
   const pathname = usePathname();
