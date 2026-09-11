@@ -41,3 +41,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# msw (autogerado por `npx msw init public/`, ver .prettierignore)
+/public/mockServiceWorker.js
