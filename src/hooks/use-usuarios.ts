@@ -1,17 +1,17 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { usuarioService } from "@/services/usuario-service";
+import { invalidateAsyncQueries, useAsyncMutation, useAsyncQuery } from "@/lib/async-hooks";
 
 export function useUsuarios() {
-  return useQuery({
+  return useAsyncQuery({
     queryKey: ["usuarios"],
     queryFn: () => usuarioService.listar(),
   });
 }
 
 export function useUsuario(id: string) {
-  return useQuery({
+  return useAsyncQuery({
     queryKey: ["usuarios", id],
     queryFn: () => usuarioService.buscar(id),
     enabled: !!id,
@@ -19,9 +19,8 @@ export function useUsuario(id: string) {
 }
 
 export function useCriarUsuario() {
-  const queryClient = useQueryClient();
-  return useMutation({
+  return useAsyncMutation({
     mutationFn: usuarioService.criar,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["usuarios"] }),
+    onSuccess: () => invalidateAsyncQueries(["usuarios"]),
   });
 }

@@ -1,17 +1,17 @@
 "use client";
 
-import { useQuery, useMutation } from "@tanstack/react-query";
 import { anamneseService } from "@/services/anamnese-service";
+import { useAsyncMutation, useAsyncQuery } from "@/lib/async-hooks";
 
 export function useAnamnesePerguntas() {
-  return useQuery({
+  return useAsyncQuery({
     queryKey: ["anamnese", "perguntas"],
     queryFn: () => anamneseService.listarPerguntas(),
   });
 }
 
 export function useAnamnese(id: string | undefined) {
-  return useQuery({
+  return useAsyncQuery({
     queryKey: ["anamnese", id],
     queryFn: () => anamneseService.buscar(id!),
     enabled: !!id,
@@ -19,7 +19,7 @@ export function useAnamnese(id: string | undefined) {
 }
 
 export function useCriarAnamnese() {
-  return useMutation({
+  return useAsyncMutation({
     mutationFn: anamneseService.criar,
   });
 }

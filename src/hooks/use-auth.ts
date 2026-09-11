@@ -1,14 +1,14 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authService } from "@/services/auth-service";
+import { useAsyncMutation } from "@/lib/async-hooks";
 
 export function useLogin() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  return useMutation({
+  return useAsyncMutation({
     mutationFn: ({ email, senha }: { email: string; senha: string }) =>
       authService.login(email, senha),
     onSuccess: (usuario) => {
@@ -22,7 +22,7 @@ export function useLogin() {
 export function useRegistrar() {
   const router = useRouter();
 
-  return useMutation({
+  return useAsyncMutation({
     mutationFn: (input: Parameters<typeof authService.registrar>[0]) =>
       authService.registrar(input),
     onSuccess: (usuario) => {
@@ -35,7 +35,7 @@ export function useRegistrar() {
 export function useLogout() {
   const router = useRouter();
 
-  return useMutation({
+  return useAsyncMutation({
     mutationFn: () => authService.logout(),
     onSuccess: () => {
       router.push("/login");
