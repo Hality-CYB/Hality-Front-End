@@ -1,12 +1,24 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { Plus, Lightbulb, ChevronRight, Image as ImageIcon, Video, FileText } from "lucide-react";
+import {
+  Plus,
+  Lightbulb,
+  ChevronRight,
+  Image as ImageIcon,
+  Video,
+  FileText,
+  Home,
+  ScanLine,
+} from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { LevelChip } from "@/components/level-chip";
+import { PreviewHomeDialog } from "@/components/preview-home-dialog";
+import { PreviewOrientacoesDialog } from "@/components/preview-orientacoes-dialog";
 import { useDicas } from "@/hooks/use-dicas";
 
 const ICONE_FORMATO = { texto: FileText, imagem: ImageIcon, video: Video };
@@ -14,6 +26,8 @@ const ICONE_FORMATO = { texto: FileText, imagem: ImageIcon, video: Video };
 export default function DicasAdminPage() {
   const { data: dicas } = useDicas();
   const ordenadas = [...(dicas ?? [])].sort((a, b) => a.ordem - b.ordem);
+  const [previewHome, setPreviewHome] = useState(false);
+  const [previewOrientacoes, setPreviewOrientacoes] = useState(false);
 
   return (
     <div className="flex flex-col">
@@ -28,7 +42,27 @@ export default function DicasAdminPage() {
           </Link>
         </Button>
 
-        <div className="content-tip-card shell:cyb-grid flex flex-col gap-2.5">
+        <div className="flex gap-2.5">
+          <Button variant="secondary" className="flex-1" onClick={() => setPreviewHome(true)}>
+            <Home className="h-4 w-4" /> Preview: Home
+          </Button>
+          <Button
+            variant="secondary"
+            className="flex-1"
+            onClick={() => setPreviewOrientacoes(true)}
+          >
+            <ScanLine className="h-4 w-4" /> Preview: Classificações
+          </Button>
+        </div>
+
+        <PreviewHomeDialog open={previewHome} onOpenChange={setPreviewHome} dicas={dicas ?? []} />
+        <PreviewOrientacoesDialog
+          open={previewOrientacoes}
+          onOpenChange={setPreviewOrientacoes}
+          dicas={dicas ?? []}
+        />
+
+        <div className="content-tip-card cyb-grid flex flex-col gap-2.5">
           {ordenadas.length === 0 && (
             <EmptyState icon={<Lightbulb className="h-7 w-7" />} title="Nenhuma dica cadastrada" />
           )}
@@ -49,13 +83,14 @@ export default function DicasAdminPage() {
                       {dica.niveis.map((n) => (
                         <LevelChip key={n} nivel={n} size="sm" />
                       ))}
-                      {dica.mostrarNaHome && <Badge variant="secondary">Na home</Badge>}
+                      {dica.mostrarNaHome && <StatusBadge label="Na home" status="info" />}
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1.5">
-                    <Badge variant={dica.publicado ? "default" : "outline"}>
-                      {dica.publicado ? "Publicado" : "Rascunho"}
-                    </Badge>
+                    <StatusBadge
+                      label={dica.publicado ? "Publicado" : "Rascunho"}
+                      status={dica.publicado ? "success" : "neutral"}
+                    />
                     <ChevronRight className="text-gray-3 h-4 w-4" />
                   </div>
                 </Card>
