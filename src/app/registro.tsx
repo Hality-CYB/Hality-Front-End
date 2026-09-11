@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Alert } from "@/components/alert";
 import { AuthCard } from "@/components/auth-card";
 import { Field, PasswordField } from "@/components/auth-fields";
@@ -213,18 +214,18 @@ export default function RegistroPage() {
         </Button>
       </form>
 
-      <a
+      <Link
         href="/"
         className="text-muted-foreground mt-4 block text-center text-[13px] hover:underline"
       >
         ← Página inicial
-      </a>
+      </Link>
 
       <div className="text-muted-foreground mt-3 text-center text-[13px]">
         <span>Já tem conta? </span>
-        <a href="/login" className="font-heading font-bold text-primary hover:underline">
+        <Link href="/login" className="font-heading font-bold text-primary hover:underline">
           Entrar
-        </a>
+        </Link>
       </div>
     </AuthCard>
   );
