@@ -37,9 +37,7 @@ const initialForm: FormState = {
 function validar(form: FormState): FormErrors {
   const errors: FormErrors = {};
   const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email);
-  const telefoneValido = /^(?:\+55\s?)?(?:\(?\d{2}\)?\s?)?9?\d{4}[-\s]?\d{4}$/.test(
-    form.telefone,
-  );
+  const telefoneValido = /^(?:\+55\s?)?(?:\(?\d{2}\)?\s?)?9?\d{4}[-\s]?\d{4}$/.test(form.telefone);
   const senhaValida =
     form.senha.length >= 8 &&
     /[A-Z]/.test(form.senha) &&
@@ -101,10 +99,10 @@ export default function RegistroPage() {
   const podeEnviar =
     Boolean(
       form.nome.trim() &&
-        form.email.trim() &&
-        form.telefone.trim() &&
-        form.senha &&
-        form.confirmacaoSenha,
+      form.email.trim() &&
+      form.telefone.trim() &&
+      form.senha &&
+      form.confirmacaoSenha,
     ) && form.consentimentoDados;
 
   return (
@@ -178,7 +176,7 @@ export default function RegistroPage() {
           )}
         </div>
 
-        <div className="flex flex-col pt-1 text-xs text-muted-foreground">
+        <div className="text-muted-foreground flex flex-col pt-1 text-xs">
           <label className="flex items-start gap-2">
             <Checkbox
               checked={form.consentimentoDados}
@@ -189,7 +187,7 @@ export default function RegistroPage() {
               Li e aceito o tratamento dos meus dados conforme a{" "}
               <a
                 href="#"
-                className="font-semibold text-primary underline"
+                className="text-primary font-semibold underline"
                 onClick={(event) => event.preventDefault()}
               >
                 Política de Privacidade
@@ -200,14 +198,13 @@ export default function RegistroPage() {
           {errors.consentimentoDados && (
             <p className="-mt-2 ml-6 text-xs text-[#C0392B]">{errors.consentimentoDados}</p>
           )}
-          <label className="flex items-start gap-2">
-          </label>
+          <label className="flex items-start gap-2"></label>
         </div>
 
         <Button
           type="submit"
           size="lg"
-          className=" w-full"
+          className="w-full"
           disabled={!podeEnviar || registrar.isPending}
         >
           {registrar.isPending ? "Criando conta..." : "Criar conta"}
@@ -223,7 +220,7 @@ export default function RegistroPage() {
 
       <div className="text-muted-foreground mt-3 text-center text-[13px]">
         <span>Já tem conta? </span>
-        <Link href="/login" className="font-heading font-bold text-primary hover:underline">
+        <Link href="/login" className="font-heading text-primary font-bold hover:underline">
           Entrar
         </Link>
       </div>
