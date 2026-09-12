@@ -95,13 +95,28 @@ export default function LandingPage() {
   return (
     <div className="min-h-full bg-white">
       {/* Hero */}
-      <section className="shell:px-6 shell:pt-24 shell:pb-28 relative overflow-hidden px-4 pt-16 pb-20">
+      <section className="shell:px-6 shell:pt-24 shell:pb-28 relative isolate overflow-hidden px-4 pt-16 pb-20">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 -z-10"
           style={{
-            background: "radial-gradient(60% 50% at 50% 0%, rgba(11,107,130,0.08), transparent)",
+            background: "radial-gradient(60% 50% at 50% 0%, rgba(11,107,130,0.06), transparent)",
           }}
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute top-[-10%] right-[2%] -z-10 h-125 w-125 rounded-full"
+          style={{ background: "rgba(13,138,166,0.3)", filter: "blur(90px)" }}
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute top-[15%] left-[-8%] -z-10 h-90 w-90 rounded-full"
+          style={{ background: "rgba(22,163,74,0.22)", filter: "blur(80px)" }}
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute bottom-[-20%] left-[20%] -z-10 h-110 w-110 rounded-full"
+          style={{ background: "rgba(13,138,166,0.16)", filter: "blur(100px)" }}
         />
         <div className="shell:grid-cols-[1.1fr_0.9fr] shell:gap-16 mx-auto grid max-w-6xl items-center gap-14">
           <ScrollReveal>
@@ -302,7 +317,7 @@ export default function LandingPage() {
 
       {/* CTA profissionais */}
       <section
-        className="shell:px-6 shell:py-28 relative overflow-hidden px-4 py-20"
+        className="shell:px-6 shell:py-28 relative isolate overflow-hidden px-4 py-20"
         style={{ background: "linear-gradient(135deg, #0a3d4a, #0B6B82)" }}
       >
         <div
