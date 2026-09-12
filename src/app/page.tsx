@@ -106,7 +106,7 @@ export default function LandingPage() {
         <div
           aria-hidden
           className="pointer-events-none absolute top-[-10%] right-[2%] -z-10 h-125 w-125 rounded-full"
-          style={{ background: "rgba(13,138,166,0.3)", filter: "blur(90px)" }}
+          style={{ background: "rgba(13,138,166,0.3)", filter: "blur(240px)" }}
         />
         <div
           aria-hidden
@@ -213,7 +213,20 @@ export default function LandingPage() {
       </section>
 
       {/* Como funciona */}
-      <section id="como-funciona" className="shell:px-6 shell:py-28 bg-[#F0F9FF] px-4 py-20">
+      <section
+        id="como-funciona"
+        className="shell:px-6 shell:py-28 relative isolate overflow-hidden bg-[#F0F9FF] px-4 py-20"
+      >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute top-[-15%] right-[8%] -z-10 h-100 w-100 rounded-full"
+          style={{ background: "rgba(13,138,166,0.16)", filter: "blur(110px)" }}
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute bottom-[-20%] left-[-5%] -z-10 h-90 w-90 rounded-full"
+          style={{ background: "rgba(22,163,74,0.14)", filter: "blur(100px)" }}
+        />
         <div className="mx-auto max-w-6xl">
           <ScrollReveal>
             <div className="mb-16 text-center">
@@ -279,7 +292,17 @@ export default function LandingPage() {
       </section>
 
       {/* Recomendações */}
-      <section className="shell:px-6 shell:py-28 bg-[#F0F9FF] px-4 py-20">
+      <section className="shell:px-6 shell:py-28 relative isolate overflow-hidden bg-[#F0F9FF] px-4 py-20">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute top-[-10%] left-[10%] -z-10 h-90 w-90 rounded-full"
+          style={{ background: "rgba(22,163,74,0.14)", filter: "blur(100px)" }}
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute right-[5%] bottom-[-25%] -z-10 h-100 w-100 rounded-full"
+          style={{ background: "rgba(13,138,166,0.16)", filter: "blur(110px)" }}
+        />
         <div className="mx-auto max-w-3xl">
           <ScrollReveal>
             <div className="mb-10 text-center">
