@@ -6,7 +6,7 @@ import { AuthCard } from "@/components/auth-card";
 import { Alert } from "@/components/alert";
 import { Field, PasswordField } from "@/components/auth-fields";
 import { Button } from "@/components/ui/button";
-import { useRegistrar } from "@/hooks/use-auth";
+import { useRegistrar, useRedirectIfAuthenticated } from "@/hooks/use-auth";
 
 export default function RegistroPage() {
   const [nome, setNome] = useState("");
@@ -18,22 +18,44 @@ export default function RegistroPage() {
   const [erro, setErro] = useState("");
   const registrar = useRegistrar();
 
+  useRedirectIfAuthenticated();
+
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setErro("");
-    if (!nome || !email || !senha || !senha2) {
+
+    if (!nome.trim() || !email.trim() || !senha || !senha2) {
       setErro("Preencha todos os campos obrigatórios.");
       return;
     }
+
+    const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+    if (!emailValido) {
+      setErro("Informe um e-mail válido.");
+      return;
+    }
+
+    if (senha.length < 8) {
+      setErro("A senha deve ter pelo menos 8 caracteres.");
+      return;
+    }
+
     if (senha !== senha2) {
       setErro("As senhas não coincidem.");
       return;
     }
+
     if (!aceitaTermos) {
       setErro("Aceite os termos para continuar.");
       return;
     }
-    registrar.mutate({ nome, email, senha });
+
+    registrar.mutate({
+      nome: nome.trim(),
+      email: email.trim(),
+      senha,
+      telefone: telefone.trim() || undefined,
+    });
   }
 
   return (
@@ -88,7 +110,14 @@ export default function RegistroPage() {
           </span>
         </label>
         {(erro || registrar.isError) && (
-          <Alert message={erro || "Não foi possível criar a conta."} />
+          <Alert
+            message={
+              erro ||
+              (registrar.error instanceof Error
+                ? registrar.error.message
+                : "Não foi possível criar a conta.")
+            }
+          />
         )}
         <Button type="submit" size="lg" disabled={registrar.isPending}>
           {registrar.isPending ? "Criando conta…" : "Criar conta"}

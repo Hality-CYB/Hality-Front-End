@@ -16,15 +16,22 @@ const PREFIXO_PARA_ROLE: Record<string, Role> = {
   "/admin": "admin",
 };
 
+const ROTAS_PUBLICAS_AUTH = ["/login", "/registro"];
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const token = request.cookies.get(COOKIE_NAME)?.value;
+  const sessao = token ? await verificarSessionToken(token) : null;
+
+  // Se já está logado e acessa /login ou /registro, manda direto pra tela do perfil
+  if (sessao && ROTAS_PUBLICAS_AUTH.includes(pathname)) {
+    return NextResponse.redirect(new URL(`/${sessao.role}`, request.url));
+  }
+
   const prefixo = Object.keys(PREFIXO_PARA_ROLE).find(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
   if (!prefixo) return NextResponse.next();
-
-  const token = request.cookies.get(COOKIE_NAME)?.value;
-  const sessao = token ? await verificarSessionToken(token) : null;
 
   if (!sessao) {
     const url = new URL("/login", request.url);
@@ -40,5 +47,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/paciente/:path*", "/profissional/:path*", "/admin/:path*"],
+  matcher: ["/paciente/:path*", "/profissional/:path*", "/admin/:path*", "/login", "/registro"],
 };

@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Eye, EyeOff } from "lucide-react";
 import { Alert } from "@/components/alert";
-import { useLogin } from "@/hooks/use-auth";
+import { useLogin, useRedirectIfAuthenticated } from "@/hooks/use-auth";
 import cybFullLogo from "@/assets/images/full-logo-check-your-breath.png";
 
 /** Porta Design/AuthFlow.tsx's tela de login — layout próprio, sem card. */
@@ -16,6 +16,8 @@ export function LoginForm() {
   const [emailFocado, setEmailFocado] = useState(false);
   const [senhaFocada, setSenhaFocada] = useState(false);
   const login = useLogin();
+
+  useRedirectIfAuthenticated();
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();

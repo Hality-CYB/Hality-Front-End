@@ -26,10 +26,15 @@ function getSecret(): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
-export type Sessao = { id: string; role: Role };
+export type Sessao = { id: string; role: Role; accessToken?: string };
 
 export async function criarSessionToken(sessao: Sessao): Promise<string> {
-  return new SignJWT({ role: sessao.role })
+  const payload: Record<string, unknown> = { role: sessao.role };
+  if (sessao.accessToken) {
+    payload.accessToken = sessao.accessToken;
+  }
+
+  return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(sessao.id)
     .setIssuedAt()
@@ -44,7 +49,11 @@ export async function verificarSessionToken(token: string): Promise<Sessao | nul
     const { payload } = await jwtVerify(token, getSecret());
     const role = roleSchema.safeParse(payload.role);
     if (!payload.sub || !role.success) return null;
-    return { id: payload.sub, role: role.data };
+    return {
+      id: payload.sub,
+      role: role.data,
+      accessToken: typeof payload.accessToken === "string" ? payload.accessToken : undefined,
+    };
   } catch {
     return null;
   }
@@ -60,6 +69,11 @@ export const verifySession = cache(async (): Promise<Sessao | null> => {
   const token = cookieStore.get(COOKIE_NAME)?.value;
   if (!token) return null;
   return verificarSessionToken(token);
+});
+
+export const getAccessToken = cache(async (): Promise<string | null> => {
+  const sessao = await verifySession();
+  return sessao?.accessToken ?? null;
 });
 
 export async function definirCookieSessao(token: string): Promise<void> {

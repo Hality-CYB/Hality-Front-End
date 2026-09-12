@@ -1,21 +1,16 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { config } from "@/lib/config";
-import { apiClient } from "@/lib/api-client";
 import { criarSessionToken, definirCookieSessao } from "@/lib/auth/session";
 import { seedUsuarios } from "@/services/mocks/seed-data";
-import { usuarioSchema, type Usuario } from "@/types/usuario";
+import { type Usuario, type BackendUser, adaptBackendUser } from "@/types/usuario";
 
 /**
- * Rota Next (não `services/`) de propósito — glue de fronteira de sessão,
- * não lógica de negócio. Roda no servidor, então o service worker do MSW
- * (que só intercepta fetch do navegador) nunca veria essa chamada de
- * qualquer forma; por isso o modo mock é tratado aqui direto contra
- * seed-data.ts, sem passar pelo apiClient.
- *
- * Senha "123456" pra todo mundo é só conveniência de dev, igual Design/
- * fazia — nenhuma senha de verdade existe ainda porque o back-end não
- * tem endpoint de auth.
+ * Rota Next (BFF de fronteira de sessão):
+ * - Roda no servidor e traduz as credenciais para o formato OAuth2 exigido
+ *   pelo FastAPI-Users (application/x-www-form-urlencoded).
+ * - Armazena o access_token do FastAPI e os dados de perfil no cookie httpOnly.
+ * - Suporta fallback transparente para seed-data.ts quando apiMocking está ativado.
  */
 
 const credenciaisSchema = z.object({
@@ -30,9 +25,42 @@ async function loginMock(email: string, senha: string): Promise<Usuario | null> 
   return seedUsuarios.find((u) => u.email === email) ?? null;
 }
 
-async function loginReal(email: string, senha: string): Promise<Usuario> {
-  const data = await apiClient.post<unknown>("/api/v1/auth/login", { email, senha });
-  return usuarioSchema.parse(data);
+async function loginReal(
+  email: string,
+  senha: string,
+): Promise<{ usuario: Usuario; accessToken: string }> {
+  const formBody = new URLSearchParams();
+  formBody.append("username", email.trim().toLowerCase());
+  formBody.append("password", senha);
+
+  const response = await fetch(`${config.apiBaseUrl}/api/v1/auth/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: formBody.toString(),
+  });
+
+  if (!response.ok) {
+    throw new Error("Falha no login");
+  }
+
+  const tokenData: { access_token: string; token_type: string } = await response.json();
+
+  const userRes = await fetch(`${config.apiBaseUrl}/api/v1/users/me`, {
+    headers: {
+      Authorization: `Bearer ${tokenData.access_token}`,
+    },
+  });
+
+  if (!userRes.ok) {
+    throw new Error("Falha ao obter perfil do usuário");
+  }
+
+  const backendUser: BackendUser = await userRes.json();
+  const usuario = adaptBackendUser(backendUser);
+
+  return { usuario, accessToken: tokenData.access_token };
 }
 
 export async function POST(request: Request) {
@@ -41,16 +69,34 @@ export async function POST(request: Request) {
     return NextResponse.json({ erro: "Credenciais inválidas." }, { status: 400 });
   }
 
-  const usuario = config.apiMocking
-    ? await loginMock(body.data.email, body.data.senha)
-    : await loginReal(body.data.email, body.data.senha).catch(() => null);
+  try {
+    let usuario: Usuario | null = null;
+    let accessToken: string | undefined = undefined;
 
-  if (!usuario) {
+    if (config.apiMocking) {
+      usuario = await loginMock(body.data.email, body.data.senha);
+    } else {
+      const real = await loginReal(body.data.email, body.data.senha);
+      usuario = real.usuario;
+      accessToken = real.accessToken;
+    }
+
+    if (!usuario) {
+      return NextResponse.json({ erro: "E-mail ou senha incorretos." }, { status: 401 });
+    }
+
+    const sessionToken = await criarSessionToken({
+      id: usuario.id,
+      role: usuario.role,
+      accessToken,
+    });
+    await definirCookieSessao(sessionToken);
+
+    return NextResponse.json({
+      ...usuario,
+      ...(accessToken ? { accessToken } : {}),
+    });
+  } catch {
     return NextResponse.json({ erro: "E-mail ou senha incorretos." }, { status: 401 });
   }
-
-  const token = await criarSessionToken({ id: usuario.id, role: usuario.role });
-  await definirCookieSessao(token);
-
-  return NextResponse.json(usuario);
 }
