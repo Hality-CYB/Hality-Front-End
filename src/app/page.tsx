@@ -94,43 +94,6 @@ const RECOMENDACOES = [
 export default function LandingPage() {
   return (
     <div className="min-h-full bg-white">
-      {/* Header */}
-      <header className="border-border/60 sticky top-0 z-50 border-b bg-white/75 backdrop-blur-lg">
-        <div className="shell:px-6 mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <Link href="/" className="flex items-center gap-2">
-            <Image src={cybIcon} alt="" className="h-7 w-auto object-contain" />
-            <span className="font-heading text-sm font-extrabold text-[#0F2A35]">
-              Check <span className="text-primary">Your</span> Breath
-            </span>
-          </Link>
-          <nav className="shell:flex hidden items-center gap-8">
-            <a
-              href="#como-funciona"
-              className="text-muted-foreground hover:text-foreground text-sm font-medium transition-colors"
-            >
-              Como funciona
-            </a>
-            <a
-              href="#causas"
-              className="text-muted-foreground hover:text-foreground text-sm font-medium transition-colors"
-            >
-              Causas
-            </a>
-          </nav>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/login"
-              className="text-muted-foreground hover:text-foreground shell:inline-block hidden text-sm font-semibold transition-colors"
-            >
-              Entrar
-            </Link>
-            <Button size="sm" asChild>
-              <Link href="/registro">Começar</Link>
-            </Button>
-          </div>
-        </div>
-      </header>
-
       {/* Hero */}
       <section className="shell:px-6 shell:pt-24 shell:pb-28 relative overflow-hidden px-4 pt-16 pb-20">
         <div
@@ -143,9 +106,12 @@ export default function LandingPage() {
         <div className="shell:grid-cols-[1.1fr_0.9fr] shell:gap-16 mx-auto grid max-w-6xl items-center gap-14">
           <ScrollReveal>
             <div className="shell:text-left text-center">
-              <p className="text-primary mb-4 text-sm font-semibold tracking-wide">
-                Hality · Pioneira no diagnóstico de halitose no Brasil
-              </p>
+              <Image
+                src={cybFullLogo}
+                alt="Check Your Breath"
+                className="shell:mx-0 mx-auto mb-8 h-32 w-auto object-contain"
+                priority
+              />
               <h1 className="font-heading shell:mx-0 mx-auto max-w-xl text-[clamp(34px,6vw,64px)] leading-[1.05] font-extrabold text-[#0F2A35]">
                 Entenda seu hálito.
                 <br />
@@ -336,18 +302,26 @@ export default function LandingPage() {
 
       {/* CTA profissionais */}
       <section
-        className="shell:px-6 shell:py-28 px-4 py-20"
+        className="shell:px-6 shell:py-28 relative overflow-hidden px-4 py-20"
         style={{ background: "linear-gradient(135deg, #0a3d4a, #0B6B82)" }}
       >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute top-[-20%] left-[-10%] h-90 w-90 rounded-full"
+          style={{ background: "rgba(22,163,74,0.25)", filter: "blur(90px)" }}
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute right-[-10%] bottom-[-25%] h-100 w-100 rounded-full"
+          style={{ background: "rgba(13,138,166,0.35)", filter: "blur(100px)" }}
+        />
         <ScrollReveal>
-          <div className="mx-auto max-w-2xl text-center">
-            <div className="mb-6 inline-block rounded-2xl bg-white px-4.5 py-2.5">
-              <Image
-                src={cybFullLogo}
-                alt="Check Your Breath"
-                className="block h-8 w-auto object-contain"
-              />
-            </div>
+          <div className="relative mx-auto max-w-2xl text-center">
+            <Image
+              src={cybFullLogo}
+              alt="Check Your Breath"
+              className="mx-auto mb-8 h-12 w-auto object-contain brightness-0 invert"
+            />
             <h2 className="font-heading shell:text-4xl mb-4 text-[28px] font-extrabold text-white">
               Caro Dr(a), faça parte dessa revolução
             </h2>
