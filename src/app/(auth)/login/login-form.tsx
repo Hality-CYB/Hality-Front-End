@@ -109,9 +109,7 @@ export function LoginForm() {
         </form>
 
         {/*
-          Login com Google — desativado até a integração com o backend existir.
-          Quem for integrar: descomentar este bloco (divisor + botão) e trocar o
-          onClick pelo fluxo OAuth real; hoje ele não tem handler nenhum.
+          Login com Google — comentado até ser integrado.
 
           <div className="my-5 flex items-center gap-3">
             <div className="h-px flex-1 bg-[#E5E7EB]" />
