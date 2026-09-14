@@ -22,6 +22,28 @@ export const pacienteService = {
     const data = await apiClient.get<unknown>(`/api/v1/pacientes/${id}`);
     return pacienteComResumoSchema.parse(data);
   },
+
+  /** Cadastro básico feito pelo profissional, pra liberar uma avaliação na hora. */
+  async criar(input: {
+    nome: string;
+    email: string;
+    telefone?: string;
+    profissionalVinculadoId?: string;
+  }): Promise<PacienteComResumo> {
+    const data = await apiClient.post<unknown>("/api/v1/pacientes", input);
+    return pacienteComResumoSchema.parse(data);
+  },
+
+  async vincularProfissional(
+    pacienteId: string,
+    profissionalId: string,
+  ): Promise<PacienteComResumo> {
+    const data = await apiClient.put<unknown>(
+      `/api/v1/pacientes/${pacienteId}/vincular-profissional`,
+      { profissionalId },
+    );
+    return pacienteComResumoSchema.parse(data);
+  },
 };
 
 export type { Paciente };
