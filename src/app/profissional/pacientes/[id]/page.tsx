@@ -56,7 +56,7 @@ export default function PacienteDetailPage({ params }: { params: Promise<{ id: s
             <div className="flex justify-between">
               <span className="text-muted-foreground">Cadastro em</span>
               <span className="font-heading font-semibold">
-                {new Date(paciente.criadoEm).toLocaleDateString("pt-BR")}
+                {paciente.criadoEm ? new Date(paciente.criadoEm).toLocaleDateString("pt-BR") : "—"}
               </span>
             </div>
           </div>
