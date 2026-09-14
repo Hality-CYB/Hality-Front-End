@@ -11,7 +11,8 @@ import {
 import type { Role } from "@/types/usuario";
 
 export type NavItem = {
-  href: string;
+  /** Ausente enquanto a tela correspondente não existe — o item aparece sem navegação. */
+  href?: string;
   icon: LucideIcon;
   label: string;
 };
@@ -27,10 +28,10 @@ export type NavItem = {
  */
 export const NAV_ITEMS: Record<Role, NavItem[]> = {
   paciente: [
-    { href: "/paciente", icon: Home, label: "Home" },
-    { href: "/paciente/avaliacao", icon: Camera, label: "Diagnóstico" },
-    { href: "/paciente/diagnosticos", icon: ChartColumn, label: "Progresso" },
-    { href: "/paciente/perfil", icon: User, label: "Usuário" },
+    { href: "/", icon: Home, label: "Home" },
+    { icon: Camera, label: "Diagnóstico" },
+    { icon: ChartColumn, label: "Progresso" },
+    { icon: User, label: "Usuário" },
   ],
   profissional: [
     { href: "/profissional", icon: ChartColumn, label: "Início" },

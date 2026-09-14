@@ -21,37 +21,49 @@ export function BottomNav({ role }: BottomNavProps) {
   const items = NAV_ITEMS[role];
   const variant = role === "paciente" ? "pill" : "flat";
 
-  const isActive = (href: string) => isNavItemActive(pathname, href, role);
+  const isActive = (href?: string) => (href ? isNavItemActive(pathname, href, role) : false);
 
   if (variant === "pill") {
     return (
-      <nav className="bg-background shell:hidden shrink-0 px-6.25 pt-4 pb-6.25">
-        <div className="bg-card/85 flex items-center rounded-[296px] px-0.5 shadow-[0px_8px_40px_0px_rgba(0,0,0,0.12)] backdrop-blur-xl">
+      <nav className="bg-background shell:hidden shrink-0 px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+        <div className="bg-nav-pill flex items-center rounded-[296px] px-0.5 shadow-[0px_8px_40px_0px_rgba(0,0,0,0.12)]">
           {items.map((item) => {
             const active = isActive(item.href);
             const Icon = item.icon;
+            const itemContent = (
+              <div
+                className={cn(
+                  "relative flex w-full flex-col items-center gap-0.25 rounded-full px-2 pt-1.5 pb-1.75",
+                  active && "bg-nav-active",
+                )}
+              >
+                <Icon className="relative z-1 h-5.5 w-5.5 text-[#1a1a1a]" />
+                <span
+                  className={cn(
+                    "relative z-1 text-[10px] leading-3 whitespace-nowrap text-[#1a1a1a]",
+                    active ? "font-semibold" : "font-normal",
+                  )}
+                >
+                  {item.label}
+                </span>
+              </div>
+            );
+
+            if (!item.href) {
+              return (
+                <div key={item.label} className="flex flex-1 justify-center px-1 py-0.5">
+                  {itemContent}
+                </div>
+              );
+            }
+
             return (
               <Link
-                key={item.href}
+                key={item.label}
                 href={item.href}
                 className="flex flex-1 justify-center px-1 py-0.5"
               >
-                <div
-                  className={cn(
-                    "relative flex w-full flex-col items-center gap-0.25 rounded-full px-2 pt-1.5 pb-1.75",
-                    active && "bg-muted",
-                  )}
-                >
-                  <Icon className="relative z-1 h-5.5 w-5.5 text-[#1a1a1a]" />
-                  <span
-                    className={cn(
-                      "relative z-1 text-[10px] leading-3 whitespace-nowrap text-[#1a1a1a]",
-                      active ? "font-semibold" : "font-normal",
-                    )}
-                  >
-                    {item.label}
-                  </span>
-                </div>
+                {itemContent}
               </Link>
             );
           })}
@@ -63,6 +75,7 @@ export function BottomNav({ role }: BottomNavProps) {
   return (
     <nav className="border-border bg-card shell:hidden flex shrink-0 items-center border-t px-2 pt-2.5 pb-6.5">
       {items.map((item) => {
+        if (!item.href) return null;
         const active = isActive(item.href);
         const Icon = item.icon;
         return (

@@ -5,7 +5,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter);
+  --font-sans: var(--font-outfit);
   --font-heading: var(--font-outfit);
   --font-mono: ui-monospace, SFMono-Regular, monospace;
   --color-sidebar-ring: var(--sidebar-ring);
@@ -55,6 +55,12 @@
   /* Lighter neutral than muted-foreground — inactive icons, disabled/faint
      states (e.g. an unreached step in a StepBar, a chevron affordance). */
   --color-gray-3: #aeaeb2;
+  /* A hair off #ffffff/--card — the floating pill of BottomNav's mobile
+     nav, so it reads as its own surface over --background. */
+  --color-nav-pill: #fdfdfe;
+  /* Active item highlight inside the BottomNav pill — a shade darker than
+     --color-nav-pill so the selected tab reads against it. */
+  --color-nav-active: #ededed;
 
   /* CYB's own radius scale (10/14/18/24px), replacing the calc()-derived
      default. 2xl/3xl kept as a reasonable extension for anything that
@@ -229,7 +235,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground bg-white;
   }
   html {
     @apply font-sans;

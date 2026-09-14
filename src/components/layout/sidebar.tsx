@@ -45,6 +45,7 @@ export function Sidebar({ role, nome, email }: SidebarProps) {
       </div>
       <div className="flex flex-1 flex-col gap-0.5">
         {items.map((item) => {
+          if (!item.href) return null;
           const active = isNavItemActive(pathname, item.href, role);
           const Icon = item.icon;
           return (
