@@ -135,7 +135,7 @@ export default function AdminHomePage() {
                 <div className="flex-1">
                   <div className="font-heading text-[13px] font-bold">{u.nome}</div>
                   <div className="text-muted-foreground text-[11px]">
-                    {new Date(u.criadoEm).toLocaleDateString("pt-BR")}
+                    {u.criadoEm ? new Date(u.criadoEm).toLocaleDateString("pt-BR") : "—"}
                   </div>
                 </div>
                 <StatusBadge label={roleLabel(u.role)} status={roleBadgeStatus(u.role)} />

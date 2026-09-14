@@ -105,7 +105,7 @@ export default function UsuarioDetailPage({ params }: { params: Promise<{ id: st
               label: "Cadastro em",
               valor: (
                 <span className="font-heading font-semibold">
-                  {new Date(usuario.criadoEm).toLocaleDateString("pt-BR")}
+                  {usuario.criadoEm ? new Date(usuario.criadoEm).toLocaleDateString("pt-BR") : "—"}
                 </span>
               ),
             },

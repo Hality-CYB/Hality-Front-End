@@ -71,7 +71,7 @@ export default function AdminPerfilPage() {
               ),
               valor: sessao.email,
             },
-            ...(usuario
+            ...(usuario?.criadoEm
               ? [
                   {
                     label: "Acesso desde",
