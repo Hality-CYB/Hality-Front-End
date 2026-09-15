@@ -29,7 +29,7 @@ export const anamneseHandlers = [
     const body = criarAnamneseSchema.parse(await request.json());
     const anamnese: BackendAnamneseDetail = {
       id: proximoId++,
-      paciente_id: 1,
+      paciente_id: "paciente-1",
       data_preenchimento: new Date().toISOString(),
       respostas: body.respostas,
     };

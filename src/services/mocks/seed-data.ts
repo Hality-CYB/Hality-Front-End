@@ -120,7 +120,7 @@ const respostaMock = (
 export const seedAnamneses: BackendAnamneseDetail[] = [
   {
     id: 101,
-    paciente_id: 1,
+    paciente_id: "paciente-1",
     data_preenchimento: isoDate("01/08/2026"),
     respostas: [
       respostaMock("mau_halito_ao_acordar", "Você sente mau hálito ao acordar?", "boolean", true),
@@ -146,7 +146,7 @@ export const seedAnamneses: BackendAnamneseDetail[] = [
   },
   {
     id: 102,
-    paciente_id: 2,
+    paciente_id: "paciente-2",
     data_preenchimento: isoDate("02/08/2026"),
     respostas: [
       respostaMock("mau_halito_ao_acordar", "Você sente mau hálito ao acordar?", "boolean", true),
@@ -172,7 +172,7 @@ export const seedAnamneses: BackendAnamneseDetail[] = [
   },
   {
     id: 103,
-    paciente_id: 3,
+    paciente_id: "paciente-3",
     data_preenchimento: isoDate("03/08/2026"),
     respostas: [
       respostaMock("mau_halito_ao_acordar", "Você sente mau hálito ao acordar?", "boolean", false),
@@ -193,7 +193,7 @@ export const seedAnamneses: BackendAnamneseDetail[] = [
   },
   {
     id: 104,
-    paciente_id: 4,
+    paciente_id: "paciente-4",
     data_preenchimento: isoDate("04/08/2026"),
     respostas: [
       respostaMock("mau_halito_ao_acordar", "Você sente mau hálito ao acordar?", "boolean", true),
@@ -219,7 +219,7 @@ export const seedAnamneses: BackendAnamneseDetail[] = [
   },
   {
     id: 105,
-    paciente_id: 5,
+    paciente_id: "paciente-5",
     data_preenchimento: isoDate("05/08/2026"),
     respostas: [
       respostaMock("mau_halito_ao_acordar", "Você sente mau hálito ao acordar?", "boolean", false),

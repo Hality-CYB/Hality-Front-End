@@ -11,10 +11,14 @@ import { setStoredToken, clearStoredToken } from "@/lib/session";
 import { seedUsuarios } from "@/services/mocks/seed-data";
 
 /**
- * Fala direto com o FastAPI (fastapi-users): sem cookie, sem rota Next no
- * meio. O access_token vive só em localStorage (via lib/session.ts) e é
- * anexado pelo api-client em toda chamada autenticada — mesma fonte de
- * verdade usada pelos outros services.
+ * Fala direto com o FastAPI (fastapi-users): sem BFF do Next no meio.
+ *
+ * access_token (JWT curto) vai em `localStorage`, anexado pelo api-client
+ * em toda chamada autenticada. refresh_token NUNCA passa por aqui como
+ * string manipulável — o back seta ele direto num cookie httpOnly na
+ * resposta de login/registro (por isso `credentials: "include"` em toda
+ * chamada de auth: sem isso o navegador nem recebe nem reenvia esse
+ * cookie). JavaScript não tem como ler nem guardar o que nunca vê.
  */
 
 const SENHA_MOCK = "123456";
@@ -47,11 +51,19 @@ async function obterAccessToken(email: string, senha: string): Promise<string> {
   formBody.append("username", email.trim().toLowerCase());
   formBody.append("password", senha);
 
-  const response = await fetch(`${config.apiBaseUrl}/api/v1/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: formBody.toString(),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${config.apiBaseUrl}/api/v1/auth/login`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: formBody.toString(),
+    });
+  } catch {
+    // Falha de rede (back fora do ar, CORS etc.) — sem isso, o erro cru do
+    // fetch ("Failed to fetch") vaza direto pra tela de login.
+    throw new ApiError(0, "Não foi possível conectar ao servidor.");
+  }
 
   if (!response.ok) {
     throw new ApiError(response.status, "E-mail ou senha incorretos.");
@@ -92,11 +104,16 @@ async function registrarReal(
     phone: input.telefone,
   };
 
-  const response = await fetch(`${config.apiBaseUrl}/api/v1/auth/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${config.apiBaseUrl}/api/v1/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new ApiError(0, "Não foi possível conectar ao servidor.");
+  }
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
@@ -110,9 +127,9 @@ async function registrarReal(
   const usuario = adaptBackendUser(backendUser);
 
   // fastapi-users não loga automaticamente no registro — chama /auth/login
-  // em seguida pra já sair com um access_token utilizável. Se isso falhar
-  // (ex.: verificação de e-mail obrigatória no futuro), segue só com o
-  // usuário criado; a pessoa loga manualmente depois.
+  // em seguida pra já sair com um access_token utilizável (e o cookie de
+  // refresh setado). Se isso falhar (ex.: verificação de e-mail obrigatória
+  // no futuro), segue só com o usuário criado; a pessoa loga manualmente.
   try {
     const accessToken = await obterAccessToken(input.email, input.senha);
     return { usuario, accessToken };
@@ -145,8 +162,20 @@ export const authService = {
   },
 
   async logout(): Promise<void> {
-    // JWT do fastapi-users é stateless (sem blacklist) — não há o que
-    // invalidar no servidor, só o token local mesmo.
+    if (!config.apiMocking) {
+      try {
+        // Encerra a sessão de verdade no back (apaga o refresh_token do
+        // banco e o cookie) — o cookie viaja sozinho via credentials:
+        // "include", não tem nada pra esse código ler ou mandar à mão. Se
+        // isso falhar (back fora do ar), limpa local mesmo assim.
+        await fetch(`${config.apiBaseUrl}/api/v1/auth/logout`, {
+          method: "POST",
+          credentials: "include",
+        });
+      } catch {
+        // Sem back, sem problema — segue só limpando local.
+      }
+    }
     clearStoredToken();
   },
 };
