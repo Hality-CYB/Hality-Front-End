@@ -50,9 +50,7 @@ describe("authService", () => {
 
     const [meUrl, meInit] = vi.mocked(global.fetch).mock.calls[1]!;
     expect(meUrl).toBe("http://localhost:8000/api/v1/users/me");
-    expect((meInit?.headers as Record<string, string>).Authorization).toBe(
-      "Bearer jwt-token-xyz",
-    );
+    expect((meInit?.headers as Record<string, string>).Authorization).toBe("Bearer jwt-token-xyz");
 
     expect(getStoredToken()).toBe("jwt-token-xyz");
     expect(usuario.id).toBe(mockBackendUser.id);
