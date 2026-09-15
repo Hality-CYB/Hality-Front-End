@@ -14,9 +14,9 @@ type ChangePasswordDialogProps = {
 /**
  * Porta Design/'s ChangePasswordModal (byte-idêntico em PatientApp/
  * ProfessionalApp/AdminApp) — home única, compartilhada entre os 3 perfis.
- * Sem chamada real ainda: não existe rota de auth pra troca de senha no
- * back-end (só login/registro/logout em app/api/auth/*), então fica local
- * como no mock até essa rota existir.
+ * Sem chamada real ainda: dá pra trocar senha via PATCH /api/v1/users/me
+ * (rota do fastapi-users), mas ninguém integrou essa tela ainda — fica
+ * local como no mock até isso acontecer.
  */
 export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialogProps) {
   const [atual, setAtual] = useState("");

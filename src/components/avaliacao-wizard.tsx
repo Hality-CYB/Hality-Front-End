@@ -34,6 +34,7 @@ import { useCriarDiagnostico } from "@/hooks/use-diagnosticos";
 import { useDicas } from "@/hooks/use-dicas";
 import { cn } from "@/lib/utils";
 import type { DiagnosticoNivel } from "@/types/diagnostico";
+import type { RespostaAnamnese } from "@/types/anamnese";
 import halityLogo from "@/assets/images/logo-hality-inline.png";
 
 /**
@@ -98,7 +99,7 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
   const next = () => setStep((s) => s + 1);
   const back = () => (step > 0 ? setStep((s) => s - 1) : router.push(voltarHref));
 
-  const questoes = perguntas.data ?? [];
+  const questoes = perguntas.data?.perguntas ?? [];
   const questaoAtual = questoes[aIdx];
 
   function responder(valor: string) {
@@ -113,9 +114,17 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
 
   async function confirmarAnamneseECaptura() {
     setStep(6);
-    const respostas = questoes.map((q) => ({ perguntaId: q.id, valor: answers[q.id] ?? "" }));
+    const respostas: RespostaAnamnese[] = questoes.map((q) => ({
+      perguntaId: q.id,
+      enunciado: q.texto,
+      tipo: q.tipo,
+      valor: answers[q.id] ?? "",
+    }));
     const trabalho = (async () => {
-      const anamnese = await criarAnamnese.mutateAsync(respostas);
+      const anamnese = await criarAnamnese.mutateAsync({
+        versaoQuestionario: perguntas.data?.versao ?? "",
+        respostas,
+      });
       return criarDiagnostico.mutateAsync({
         pacienteId,
         imagemUrl: "",
