@@ -1,33 +1,23 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import {
-  getStoredToken,
-  setStoredToken,
-  clearStoredToken,
-  hasActiveSession,
-  TOKEN_STORAGE_KEY,
-} from "./session";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { hasActiveSession } from "./session";
 
-describe("session utils", () => {
+describe("session utils (cookie-based)", () => {
   beforeEach(() => {
-    localStorage.clear();
+    vi.stubGlobal("document", { cookie: "" });
   });
 
-  it("retorna null e false quando não há token gravado", () => {
-    expect(getStoredToken()).toBeNull();
+  it("retorna false quando não há cookie de sessão", () => {
+    vi.stubGlobal("document", { cookie: "" });
     expect(hasActiveSession()).toBe(false);
   });
 
-  it("grava e recupera o token corretamente", () => {
-    setStoredToken("test-jwt-token-123");
-    expect(getStoredToken()).toBe("test-jwt-token-123");
-    expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBe("test-jwt-token-123");
+  it("retorna true quando o cookie fastapiusersauth está presente", () => {
+    vi.stubGlobal("document", { cookie: "fastapiusersauth=some-jwt-value; Path=/" });
     expect(hasActiveSession()).toBe(true);
   });
 
-  it("limpa o token armazenado", () => {
-    setStoredToken("test-jwt-token-123");
-    clearStoredToken();
-    expect(getStoredToken()).toBeNull();
+  it("retorna false quando há outros cookies mas não o de sessão", () => {
+    vi.stubGlobal("document", { cookie: "outros=valor; Path=/" });
     expect(hasActiveSession()).toBe(false);
   });
 });

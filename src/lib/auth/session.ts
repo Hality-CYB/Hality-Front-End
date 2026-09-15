@@ -1,68 +1,36 @@
 import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
-import { SignJWT, jwtVerify } from "jose";
+import { jwtVerify } from "jose";
 import { roleSchema, type Role } from "@/types/usuario";
 
 /**
- * DAL da sessão — único lugar que lê/verifica o cookie de login, pra
- * ninguém reimplementar essa checagem na mão. `import "server-only"`
- * garante que isso nunca acaba num bundle de Client Component (o build
- * quebra se tentar).
+ * DAL da sessão — lê e verifica o cookie `fastapiusersauth` emitido
+ * diretamente pelo FastAPI (fastapi-users com CookieTransport).
  *
- * AUTH_SECRET nunca deve ter o prefixo NEXT_PUBLIC_ — por isso é lido
- * direto daqui, não do objeto `config` compartilhado (que é importado por
- * componentes cliente também).
+ * Não há mais cookie próprio do Next.js nem JWT assinado pelo front.
+ * `import "server-only"` garante que este módulo nunca acabe num bundle
+ * de Client Component.
+ *
+ * O segredo deve ser o mesmo configurado no backend (SECRET_KEY do .env).
  */
 
-const COOKIE_NAME = "cyb_session";
-const EXPIRACAO = "7d";
+export const COOKIE_NAME = "fastapiusersauth";
 
 function getSecret(): Uint8Array {
   const secret = process.env.AUTH_SECRET;
   if (!secret) {
-    throw new Error("AUTH_SECRET não configurado — copie .env.example pra .env");
+    throw new Error("AUTH_SECRET não configurado — copie .env.example para .env");
   }
   return new TextEncoder().encode(secret);
 }
 
-export type Sessao = { id: string; role: Role; accessToken?: string };
-
-export async function criarSessionToken(sessao: Sessao): Promise<string> {
-  const payload: Record<string, unknown> = { role: sessao.role };
-  if (sessao.accessToken) {
-    payload.accessToken = sessao.accessToken;
-  }
-
-  return new SignJWT(payload)
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(sessao.id)
-    .setIssuedAt()
-    .setExpirationTime(EXPIRACAO)
-    .sign(getSecret());
-}
-
-/** Exportada separadamente do cookie pra proxy.ts poder reusar — proxy
- * lê o cookie via NextRequest.cookies, não via next/headers. */
-export async function verificarSessionToken(token: string): Promise<Sessao | null> {
-  try {
-    const { payload } = await jwtVerify(token, getSecret());
-    const role = roleSchema.safeParse(payload.role);
-    if (!payload.sub || !role.success) return null;
-    return {
-      id: payload.sub,
-      role: role.data,
-      accessToken: typeof payload.accessToken === "string" ? payload.accessToken : undefined,
-    };
-  } catch {
-    return null;
-  }
-}
+export type Sessao = { id: string; role: Role };
 
 /**
- * Lê e verifica a sessão a partir do cookie httpOnly. `cache()` memoiza
- * por render — várias chamadas no mesmo request não re-verificam o token
- * repetidamente.
+ * Lê e verifica a sessão a partir do cookie `fastapiusersauth` emitido
+ * pelo FastAPI. `cache()` memoiza por render — várias chamadas no mesmo
+ * request não re-verificam o token repetidamente.
  */
 export const verifySession = cache(async (): Promise<Sessao | null> => {
   const cookieStore = await cookies();
@@ -71,25 +39,13 @@ export const verifySession = cache(async (): Promise<Sessao | null> => {
   return verificarSessionToken(token);
 });
 
-export const getAccessToken = cache(async (): Promise<string | null> => {
-  const sessao = await verifySession();
-  return sessao?.accessToken ?? null;
-});
-
-export async function definirCookieSessao(token: string): Promise<void> {
-  const cookieStore = await cookies();
-  cookieStore.set(COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7,
-  });
+export async function verificarSessionToken(token: string): Promise<Sessao | null> {
+  try {
+    const { payload } = await jwtVerify(token, getSecret());
+    const role = roleSchema.safeParse(payload["role"]);
+    if (!payload.sub || !role.success) return null;
+    return { id: payload.sub, role: role.data };
+  } catch {
+    return null;
+  }
 }
-
-export async function limparCookieSessao(): Promise<void> {
-  const cookieStore = await cookies();
-  cookieStore.delete(COOKIE_NAME);
-}
-
-export { COOKIE_NAME };
