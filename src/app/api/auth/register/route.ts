@@ -58,7 +58,7 @@ async function registrarReal(
     formBody.append("username", input.email.trim().toLowerCase());
     formBody.append("password", input.senha);
 
-    const loginRes = await fetch(`${config.apiBaseUrl}/api/v1/auth/login`, {
+    const loginRes = await fetch(`${config.apiBaseUrl}/api/v1/auth/jwt/login`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: formBody.toString(),

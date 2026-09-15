@@ -7,19 +7,16 @@ import { AuthCard } from "@/components/auth-card";
 import { Alert } from "@/components/alert";
 import { Field } from "@/components/auth-fields";
 import { Button } from "@/components/ui/button";
+import { useForgotPassword } from "@/hooks/use-auth";
 
-/**
- * Igual Design/AuthFlow.tsx's tela "forgot" — nenhuma chamada de verdade
- * acontece (nenhum e-mail é enviado), só um flip de estado local. Fica
- * assim mesmo por enquanto, não é o foco desta fase.
- */
 export default function EsqueciSenhaPage() {
   const [email, setEmail] = useState("");
-  const [enviado, setEnviado] = useState(false);
+  const forgotPassword = useForgotPassword();
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    setEnviado(true);
+    if (!email.trim()) return;
+    forgotPassword.mutate(email.trim());
   }
 
   return (
@@ -31,9 +28,12 @@ export default function EsqueciSenhaPage() {
       <p className="text-muted-foreground mb-6 text-sm">
         Informe seu e-mail para receber o link de recuperação
       </p>
-      {enviado ? (
+      {forgotPassword.isSuccess ? (
         <div className="flex flex-col gap-3.5">
-          <Alert type="success" message="Link enviado. Verifique sua caixa de entrada." />
+          <Alert
+            type="success"
+            message="Se este e-mail estiver cadastrado, você receberá um link de recuperação em breve."
+          />
           <Button variant="secondary" asChild>
             <Link href="/redefinir-senha">Tenho o código — Redefinir senha</Link>
           </Button>
@@ -47,8 +47,17 @@ export default function EsqueciSenhaPage() {
             type="email"
             placeholder="seu@email.com"
           />
-          <Button type="submit" size="lg">
-            Solicitar recuperação
+          {forgotPassword.isError && (
+            <Alert
+              message={
+                forgotPassword.error instanceof Error
+                  ? forgotPassword.error.message
+                  : "Não foi possível enviar o e-mail."
+              }
+            />
+          )}
+          <Button type="submit" size="lg" disabled={forgotPassword.isPending}>
+            {forgotPassword.isPending ? "Enviando…" : "Solicitar recuperação"}
           </Button>
         </form>
       )}

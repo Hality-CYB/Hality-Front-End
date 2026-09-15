@@ -22,3 +22,17 @@ export type AuthSession = {
   token: string;
   usuario: Usuario;
 };
+
+export type ForgotPasswordInput = {
+  email: string;
+};
+
+export type ResetPasswordInput = {
+  token: string;
+  novaSenha: string;
+};
+
+export type UserUpdateInput = {
+  nome?: string;
+  telefone?: string;
+};

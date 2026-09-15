@@ -33,7 +33,7 @@ async function loginReal(
   formBody.append("username", email.trim().toLowerCase());
   formBody.append("password", senha);
 
-  const response = await fetch(`${config.apiBaseUrl}/api/v1/auth/login`, {
+  const response = await fetch(`${config.apiBaseUrl}/api/v1/auth/jwt/login`, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
