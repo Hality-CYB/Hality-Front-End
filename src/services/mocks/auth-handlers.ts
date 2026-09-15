@@ -9,22 +9,6 @@ const url = (path: string) => `${config.apiBaseUrl}${path}`;
 /** Senha fixa para mock — nunca sai do código de teste. */
 const SENHA_MOCK = "123456";
 
-/** Mapeia e-mail → BackendUser para o mock de autenticação. */
-function toBackendUser(u: ReturnType<typeof seedUsuarios[number] extends infer T ? () => T : never>): BackendUser {
-  const role = u.role === "paciente" ? "patient" : u.role === "profissional" ? "professional" : "admin";
-  return {
-    id: u.id,
-    email: u.email,
-    name: u.nome,
-    phone: u.telefone ?? null,
-    role,
-    is_active: true,
-    is_superuser: u.role === "admin",
-    is_verified: true,
-    created_at: u.criadoEm,
-  };
-}
-
 export const authHandlers = [
   /**
    * POST /api/v1/auth/jwt/login
@@ -93,7 +77,7 @@ export const authHandlers = [
    * POST /api/v1/auth/reset-password — mock simula sempre sucesso
    */
   http.post(url("/api/v1/auth/reset-password"), async ({ request }) => {
-    const body = await request.json() as { token?: string; password?: string };
+    const body = (await request.json()) as { token?: string; password?: string };
     if (!body.token || body.token === "invalid-token") {
       return HttpResponse.json({ detail: "RESET_PASSWORD_BAD_TOKEN" }, { status: 400 });
     }

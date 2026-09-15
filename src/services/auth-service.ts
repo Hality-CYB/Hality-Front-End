@@ -1,4 +1,4 @@
-import { usuarioSchema, backendUserSchema, adaptBackendUser, type Usuario } from "@/types/usuario";
+import { backendUserSchema, adaptBackendUser, type Usuario } from "@/types/usuario";
 import { ApiError } from "@/lib/api-client";
 import { config } from "@/lib/config";
 import type { UserUpdateInput } from "@/types/auth";
