@@ -9,6 +9,7 @@ import { ApiError } from "@/lib/api-client";
 import { config } from "@/lib/config";
 import { setStoredToken, clearStoredToken } from "@/lib/session";
 import { seedUsuarios } from "@/services/mocks/seed-data";
+import { adicionarUsuarioMock } from "@/services/mocks/auth-handlers";
 
 /**
  * Fala direto com o FastAPI (fastapi-users): sem BFF do Next no meio.
@@ -23,6 +24,21 @@ import { seedUsuarios } from "@/services/mocks/seed-data";
 
 const SENHA_MOCK = "123456";
 
+/**
+ * Prefixo do "access_token" mockado — não é um JWT de verdade, só
+ * `mock-token:<usuarioId>`. `RoleLayout` decide se tem sessão olhando só
+ * pra presença de um token (`hasActiveSession()`), então o login mockado
+ * precisa gravar algo aqui também, senão fica preso como "deslogado"
+ * mesmo depois de um login mockado bem-sucedido. O handler MSW de
+ * `GET /api/v1/users/me` (auth-handlers.ts) decodifica esse mesmo prefixo.
+ *
+ * TODO: isso é um workaround pontual pro bug que achamos na revisão da
+ * PR (login mockado nunca deixava a sessão "logada" pro RoleLayout).
+ * Reavaliar quando o mock de auth for revisto/descontinuado — o ideal
+ * seria o login mockado não precisar imitar formato de token nenhum.
+ */
+const MOCK_TOKEN_PREFIX = "mock-token:";
+
 export type RegisterInput = {
   nome: string;
   email: string;
@@ -36,7 +52,7 @@ async function loginMock(email: string, senha: string): Promise<Usuario | null> 
 }
 
 async function registrarMock(input: RegisterInput): Promise<Usuario> {
-  return {
+  const usuario: Usuario = {
     id: `paciente-${crypto.randomUUID()}`,
     nome: input.nome,
     email: input.email,
@@ -44,6 +60,11 @@ async function registrarMock(input: RegisterInput): Promise<Usuario> {
     role: "paciente",
     criadoEm: new Date().toISOString(),
   };
+  // Sem isso, GET /api/v1/users/me (chamado por RoleLayout logo após o
+  // registro) não encontraria esse usuário — ele nunca existiu em
+  // seedUsuarios, só nesse retorno aqui.
+  adicionarUsuarioMock(usuario);
+  return usuario;
 }
 
 async function obterAccessToken(email: string, senha: string): Promise<string> {
@@ -143,6 +164,7 @@ export const authService = {
     if (config.apiMocking) {
       const usuario = await loginMock(email, senha);
       if (!usuario) throw new ApiError(401, "E-mail ou senha incorretos.");
+      setStoredToken(`${MOCK_TOKEN_PREFIX}${usuario.id}`);
       return usuarioSchema.parse(usuario);
     }
 
@@ -153,7 +175,9 @@ export const authService = {
 
   async registrar(input: RegisterInput): Promise<Usuario> {
     if (config.apiMocking) {
-      return usuarioSchema.parse(await registrarMock(input));
+      const usuario = await registrarMock(input);
+      setStoredToken(`${MOCK_TOKEN_PREFIX}${usuario.id}`);
+      return usuarioSchema.parse(usuario);
     }
 
     const { usuario, accessToken } = await registrarReal(input);
