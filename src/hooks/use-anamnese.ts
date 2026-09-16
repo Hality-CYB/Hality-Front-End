@@ -5,7 +5,7 @@ import { anamneseService } from "@/services/anamnese-service";
 
 export function useAnamnesePerguntas() {
   return useQuery({
-    queryKey: ["anamnese", "perguntas"],
+    queryKey: ["anamnese", "questionario"],
     queryFn: () => anamneseService.listarPerguntas(),
   });
 }
