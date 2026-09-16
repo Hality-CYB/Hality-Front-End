@@ -18,4 +18,9 @@ export const usuarioService = {
     const data = await apiClient.post<unknown>("/api/v1/usuarios", input);
     return usuarioSchema.parse(data);
   },
+
+  async atualizar(id: string, input: { nome: string; email: string }): Promise<Usuario> {
+    const data = await apiClient.put<unknown>(`/api/v1/usuarios/${id}`, input);
+    return usuarioSchema.parse(data);
+  },
 };
