@@ -148,7 +148,7 @@ export const authService = {
    * Atualiza nome e/ou telefone do usuário logado via PATCH /api/v1/users/me.
    */
   async atualizarPerfil(dados: UserUpdateInput): Promise<Usuario> {
-    const payload: Record<string, string | undefined> = {};
+    const payload: Record<string, string | null | undefined> = {};
     if (dados.nome !== undefined) payload["name"] = dados.nome;
     if (dados.telefone !== undefined) payload["phone"] = dados.telefone;
 
