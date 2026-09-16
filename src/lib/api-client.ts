@@ -1,10 +1,10 @@
 import { config } from "@/lib/config";
-import { getStoredToken, clearStoredToken } from "@/lib/session";
 
 /**
  * Cliente HTTP fino sobre `fetch`, único ponto do frontend que conhece a
- * URL base da API. Os `services/` chamam este cliente — nunca `fetch`
- * diretamente — para manter a base URL e o tratamento de erro num só lugar.
+ * URL base da API. Todas as requisições incluem `credentials: "include"` para
+ * que o navegador envie o cookie `fastapiusersauth` emitido pelo FastAPI
+ * automaticamente — sem necessidade de gerenciar tokens no lado cliente.
  */
 
 export class ApiError extends Error {
@@ -18,25 +18,18 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = getStoredToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(init?.headers as Record<string, string>),
   };
 
-  if (token && !headers["Authorization"]) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
   const response = await fetch(`${config.apiBaseUrl}${path}`, {
     ...init,
     headers,
+    credentials: "include",
   });
 
   if (!response.ok) {
-    if (response.status === 401) {
-      clearStoredToken();
-    }
     throw new ApiError(response.status, await response.text());
   }
 
@@ -59,6 +52,12 @@ export const apiClient = {
     request<T>(path, {
       ...init,
       method: "PUT",
+      body: body ? JSON.stringify(body) : undefined,
+    }),
+  patch: <T>(path: string, body?: unknown, init?: RequestInit) =>
+    request<T>(path, {
+      ...init,
+      method: "PATCH",
       body: body ? JSON.stringify(body) : undefined,
     }),
   delete: <T>(path: string, init?: RequestInit) => request<T>(path, { ...init, method: "DELETE" }),

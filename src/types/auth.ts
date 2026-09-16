@@ -22,3 +22,9 @@ export type AuthSession = {
   token: string;
   usuario: Usuario;
 };
+
+export type UserUpdateInput = {
+  senha?: string;
+  nome?: string;
+  telefone?: string | null;
+};

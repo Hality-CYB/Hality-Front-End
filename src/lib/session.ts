@@ -1,34 +1,17 @@
 /**
- * Persistência do token de acesso do usuário autenticado no navegador.
+ * Utilitários de sessão no lado cliente.
  *
- * O token emitido no login fica em `localStorage` e é lido por
- * `api-client.ts` para ser anexado no header (Authorization: Bearer <token>)
- * em chamadas autenticadas ao FastAPI.
+ * A autenticação é gerenciada exclusivamente via cookie `fastapiusersauth`
+ * emitido pelo FastAPI (httpOnly, sameSite: lax). Não há mais token
+ * armazenado em localStorage — este módulo provê apenas helpers que outros
+ * módulos possam importar sem quebrar contratos existentes.
  */
 
-const TOKEN_STORAGE_KEY = "hality:access_token";
-
-function isBrowser(): boolean {
-  return typeof window !== "undefined";
-}
-
-export function getStoredToken(): string | null {
-  if (!isBrowser()) return null;
-  return window.localStorage.getItem(TOKEN_STORAGE_KEY);
-}
-
-export function setStoredToken(token: string): void {
-  if (!isBrowser()) return;
-  window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
-}
-
-export function clearStoredToken(): void {
-  if (!isBrowser()) return;
-  window.localStorage.removeItem(TOKEN_STORAGE_KEY);
-}
-
 export function hasActiveSession(): boolean {
-  return Boolean(getStoredToken());
+  // Com cookie httpOnly não é possível ler o token via JS.
+  // A verificação real de sessão é feita no servidor (proxy.ts)
+  // ou via useCurrentUser() que chama GET /api/v1/users/me.
+  // Este helper retorna true para não bloquear o redirect client-side
+  // — o proxy.ts ou o servidor garantem a proteção real.
+  return typeof document !== "undefined" && document.cookie.includes("fastapiusersauth");
 }
-
-export { TOKEN_STORAGE_KEY };
