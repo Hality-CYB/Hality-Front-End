@@ -13,20 +13,17 @@ export function StatCard({ label, value, icon, color }: StatCardProps) {
   const accent = color ?? "var(--primary)";
 
   return (
-    <Card className="rounded-lg p-5 shadow-sm ring-0">
+    <Card className="h-full rounded-lg px-3 py-2 shadow-sm ring-0 [--card-spacing:--spacing(1)]">
       <div
-        className="mb-3 flex h-10 w-10 items-center justify-center rounded-[13px]"
+        className="flex h-6 w-6 items-center justify-center rounded-[9px]"
         style={{ background: `${accent}15`, color: accent }}
       >
         {icon}
       </div>
-      <div
-        className="font-heading text-[26px] leading-none font-extrabold"
-        style={{ color: accent }}
-      >
+      <div className="font-heading text-base leading-none font-extrabold" style={{ color: accent }}>
         {value}
       </div>
-      <div className="text-muted-foreground mt-1 text-xs">{label}</div>
+      <div className="text-muted-foreground text-[10px] leading-tight wrap-break-word">{label}</div>
     </Card>
   );
 }

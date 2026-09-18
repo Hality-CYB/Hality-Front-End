@@ -6,6 +6,8 @@ import { Dialog as DialogPrimitive } from "radix-ui";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { XIcon } from "lucide-react";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { DESKTOP_QUERY } from "@/components/layout/app-shell";
 
 function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />;
@@ -36,12 +38,6 @@ function DialogOverlay({
   );
 }
 
-/**
- * Porta Design/'s Modal (shared/UI.tsx) — sempre um bottom sheet, em
- * qualquer largura de tela, sem virar dialog centralizado no desktop
- * (Design/ nunca tinha essa troca). Mesmos valores: max-width 480px,
- * padding 24px, cantos 22px só em cima, puxador de 36×4px.
- */
 function DialogContent({
   className,
   children,
@@ -50,18 +46,25 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean;
 }) {
+  const isDesktop = useMediaQuery(DESKTOP_QUERY);
+
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "modal-sheet bg-popover text-popover-foreground fixed bottom-0 left-1/2 z-50 grid max-h-[90vh] w-full max-w-120 -translate-x-1/2 gap-4 overflow-y-auto rounded-t-[22px] p-6 text-sm outline-none",
+          "bg-popover text-popover-foreground fixed z-50 grid max-h-[90vh] w-full max-w-120 gap-4 overflow-y-auto p-6 text-sm outline-none",
+          isDesktop
+            ? "pop-in top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-[22px]"
+            : "modal-sheet bottom-0 left-1/2 -translate-x-1/2 rounded-t-[22px]",
           className,
         )}
         {...props}
       >
-        <div className="bg-border mx-auto -mt-2 mb-1 h-1 w-9 shrink-0 rounded-4xl" />
+        {!isDesktop && (
+          <div className="bg-border mx-auto -mt-2 mb-1 h-1 w-9 shrink-0 rounded-4xl" />
+        )}
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close data-slot="dialog-close" asChild>

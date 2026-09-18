@@ -8,6 +8,7 @@ import type { Role } from "@/types/usuario";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { BrandWordmark } from "@/components/brand-wordmark";
 import { cn } from "@/lib/utils";
+import { useNavIndicator, useOptimisticActiveHref } from "@/hooks/use-nav-indicator";
 import cybIcon from "@/assets/images/icon-check-your-breath.png";
 
 const ROLE_LABEL: Record<Role, string | undefined> = {
@@ -32,8 +33,16 @@ export function Sidebar({ role, nome, email }: SidebarProps) {
   const items = NAV_ITEMS[role];
   const profileHref = perfilHref(role);
 
+  const realActiveHref = items.find((item) => isNavItemActive(pathname, item.href, role))?.href;
+  const { activeHref, onNavigate } = useOptimisticActiveHref(pathname, realActiveHref);
+  const {
+    containerRef,
+    registerItem,
+    style: indicatorStyle,
+  } = useNavIndicator<HTMLDivElement>(activeHref ?? "");
+
   return (
-    <nav className="border-border bg-sidebar shell:flex hidden w-65 shrink-0 flex-col overflow-y-auto p-3.5">
+    <nav className="border-border bg-sidebar shell:flex hidden w-65 shrink-0 flex-col overflow-y-auto border-r p-3.5">
       <div className="flex items-center gap-2.5 px-2.5 pt-1 pb-6">
         <Image src={cybIcon} alt="Check Your Breath" className="h-7.5 w-auto object-contain" />
         <div>
@@ -43,19 +52,27 @@ export function Sidebar({ role, nome, email }: SidebarProps) {
           )}
         </div>
       </div>
-      <div className="flex flex-1 flex-col gap-0.5">
+      <div ref={containerRef} className="relative flex flex-1 flex-col gap-0.5">
+        <div
+          aria-hidden="true"
+          className="bg-secondary absolute top-0 left-0 rounded-xl"
+          style={indicatorStyle}
+        />
         {items.map((item) => {
-          const active = isNavItemActive(pathname, item.href, role);
+          const active = item.href === activeHref;
           const Icon = item.icon;
           return (
             <Link
               key={item.href}
               href={item.href}
+              ref={registerItem(item.href)}
+              aria-current={active ? "page" : undefined}
+              onClick={() => onNavigate(item.href)}
               className={cn(
-                "flex items-center gap-3 rounded-xl px-3 py-2.75 text-sm",
+                "relative z-10 flex items-center gap-3 rounded-xl px-3 py-2.75 text-sm transition-colors duration-260",
                 active
-                  ? "bg-secondary text-primary font-bold"
-                  : "text-muted-foreground font-medium",
+                  ? "text-primary font-bold"
+                  : "text-muted-foreground hover:bg-muted/60 font-medium duration-150",
               )}
             >
               <Icon className="h-5.5 w-5.5" />

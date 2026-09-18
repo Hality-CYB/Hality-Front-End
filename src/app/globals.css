@@ -168,18 +168,58 @@
       transform: scale(1);
     }
   }
+  @keyframes fade-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes sheet-down {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(28px);
+    }
+  }
+  @keyframes pop-out {
+    from {
+      opacity: 1;
+      transform: scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: scale(0.92);
+    }
+  }
 
   .page-enter {
     animation: page-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
+  .page-enter-desktop {
+    animation: fade-in 0.24s ease-out both;
+  }
   .modal-backdrop {
     animation: fade-in 0.18s ease both;
+  }
+  .modal-backdrop[data-state="closed"] {
+    animation: fade-out 0.14s ease-in both;
   }
   .modal-sheet {
     animation: sheet-up 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
+  .modal-sheet[data-state="closed"] {
+    animation: sheet-down 0.22s ease-in both;
+  }
   .pop-in {
     animation: pop-in 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .pop-in[data-state="closed"] {
+    animation: pop-out 0.18s ease-in both;
   }
 }
 
@@ -242,5 +282,20 @@
   h6 {
     @apply font-heading font-bold;
     line-height: 1.15;
+  }
+
+  button:enabled,
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+  label:has(input, button) {
+    cursor: pointer;
+  }
+  label:has(:disabled) {
+    cursor: not-allowed;
   }
 }

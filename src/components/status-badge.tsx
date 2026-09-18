@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import type { BadgeStatus } from "@/lib/level-format";
 
-const STATUS_COLORS: Record<BadgeStatus, { bg: string; color: string }> = {
+export const STATUS_COLORS: Record<BadgeStatus, { bg: string; color: string }> = {
   success: { bg: "#D1FAE5", color: "#065F46" },
   warning: { bg: "#FEF3C7", color: "#92400E" },
   danger: { bg: "#FEE2E2", color: "#991B1B" },

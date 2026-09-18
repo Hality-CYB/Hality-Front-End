@@ -26,7 +26,7 @@ export function LoginForm() {
   }
 
   return (
-    <div className="bg-background flex min-h-full flex-col">
+    <div className="bg-background flex flex-col">
       <div className="flex flex-1 items-center justify-center px-8 pt-16 pb-8">
         <Image
           src={cybFullLogo}

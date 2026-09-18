@@ -97,7 +97,7 @@ export default function RegistroPage() {
           onChange={setSenha2}
           autoComplete="new-password"
         />
-        <label className="mt-0.5 flex cursor-pointer items-start gap-2.5">
+        <label className="mt-0.5 flex items-start gap-2.5">
           <input
             type="checkbox"
             checked={aceitaTermos}

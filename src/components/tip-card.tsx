@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
  */
 type TipCardProps = {
   titulo: string;
-  categoria: string;
+  categoria?: string;
   corpo: string;
   formato: "texto" | "imagem" | "video";
   midiaUrl?: string;
@@ -32,7 +32,7 @@ export function TipCard({
   return (
     <Card
       className={cn(
-        "flex items-start gap-3.5 rounded-lg shadow-sm ring-0",
+        "flex h-full items-start gap-3.5 self-stretch rounded-lg shadow-sm ring-0",
         compact ? "p-4" : "p-5",
       )}
     >
@@ -45,11 +45,13 @@ export function TipCard({
         <Icon className="h-5.5 w-5.5" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="mb-1 flex items-center gap-2">
+        <div className={cn("flex items-center gap-2", categoria ? "mb-1" : "mb-1.5")}>
           <span className="font-heading text-sm font-bold">{titulo}</span>
-          <span className="font-heading text-primary bg-secondary rounded-4xl px-2 py-0.5 text-[10px] font-semibold">
-            {categoria}
-          </span>
+          {categoria && (
+            <span className="font-heading text-primary bg-secondary rounded-4xl px-2 py-0.5 text-[10px] font-semibold">
+              {categoria}
+            </span>
+          )}
         </div>
         <p className="text-muted-foreground text-[13px] leading-relaxed">{corpo}</p>
         {formato !== "texto" &&
