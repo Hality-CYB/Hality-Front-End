@@ -1,43 +1,52 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ScanLine, ChevronRight, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { CustomPeriodDialog } from "@/components/custom-period-dialog";
-import { useDiagnosticos } from "@/hooks/use-diagnosticos";
-import { useSessaoAtual } from "@/lib/auth/session-context";
+import { Button } from "@/components/ui/button";
+import { useDiagnosticos, useDiagnosticosPaginados } from "@/hooks/use-diagnosticos";
 import { nivelColor, nivelLabel, nivelBadgeStatus } from "@/lib/level-format";
-import { PERIODS, periodLabel, inPeriod, type Period, type CustomRange } from "@/lib/date-period";
+import {
+  PERIODS,
+  periodLabel,
+  periodoParaFiltro,
+  type Period,
+  type CustomRange,
+} from "@/lib/date-period";
 import { cn } from "@/lib/utils";
 
 const STATUS_LABEL: Record<string, string> = {
   processando: "Aguardando análise",
   aguardando_revisao: "Aguardando revisão",
+  falha: "Falha na análise",
 };
 
 export default function DiagnosticosPage() {
-  const { id: pacienteId } = useSessaoAtual();
   const [period, setPeriod] = useState<Period>("Todos");
   const [customRange, setCustomRange] = useState<CustomRange | null>(null);
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
-  const { data: diagnosticos } = useDiagnosticos({ pacienteId });
-
-  const items = diagnosticos ?? [];
-  const filtrados = items.filter((d) =>
-    inPeriod(new Date(d.criadoEm).toLocaleDateString("pt-BR"), period, customRange),
+  const filtroPeriodo = useMemo(
+    () => periodoParaFiltro(period, customRange),
+    [period, customRange],
   );
+  const { data: todos } = useDiagnosticos({ limite: 1 });
+  const lista = useDiagnosticosPaginados({ ...filtroPeriodo, limite: 20 });
+
+  const totalGeral = todos?.total ?? 0;
+  const filtrados = lista.data?.pages.flatMap((p) => p.itens) ?? [];
 
   return (
     <div className="flex flex-col">
       <div className="relative overflow-hidden p-5" style={{ background: "var(--gradient-brand)" }}>
         <h1 className="mb-0.5 text-xl text-white">Meus Diagnósticos</h1>
-        <p className="text-sm text-white/60">{items.length} exames realizados</p>
+        <p className="text-sm text-white/60">{totalGeral} exames realizados</p>
       </div>
 
-      {items.length > 0 && (
+      {totalGeral > 0 && (
         <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pt-3.5">
           {PERIODS.map((p) => (
             <button
@@ -79,14 +88,14 @@ export default function DiagnosticosPage() {
       />
 
       <div className="cyb-grid gap-2.5 p-4">
-        {items.length === 0 && (
+        {todos && totalGeral === 0 && (
           <EmptyState
             icon={<ScanLine className="h-7 w-7" />}
             title="Nenhum diagnóstico"
             description="Faça seu primeiro diagnóstico agora."
           />
         )}
-        {items.length > 0 && filtrados.length === 0 && (
+        {totalGeral > 0 && lista.isSuccess && filtrados.length === 0 && (
           <EmptyState
             icon={<Clock className="h-7 w-7" />}
             title="Nenhum diagnóstico neste período"
@@ -121,6 +130,18 @@ export default function DiagnosticosPage() {
           </Link>
         ))}
       </div>
+
+      {lista.hasNextPage && (
+        <div className="flex justify-center px-4 pb-4">
+          <Button
+            variant="secondary"
+            onClick={() => lista.fetchNextPage()}
+            disabled={lista.isFetchingNextPage}
+          >
+            {lista.isFetchingNextPage ? "Carregando…" : "Carregar mais"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

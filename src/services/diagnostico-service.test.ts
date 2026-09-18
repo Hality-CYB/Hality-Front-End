@@ -139,6 +139,110 @@ describe("diagnosticoService.criar", () => {
   });
 });
 
+describe("diagnosticoService.listar", () => {
+  function itemBackend(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 187,
+      data_diagnostico: "2026-09-18T12:00:00Z",
+      status: "concluido",
+      classificacao: { codigo: "halito_normal", nome_exibicao: "Hálito Normal", ordem: 1 },
+      escala_saburra: 24,
+      ...overrides,
+    };
+  }
+
+  function respostaLista(itens: unknown[], extra: Record<string, unknown> = {}) {
+    return { itens, pagina: 1, limite: 20, total: itens.length, total_paginas: 1, ...extra };
+  }
+
+  it("manda os filtros com os nomes do back e não manda pacienteId", async () => {
+    let query: URLSearchParams | undefined;
+    server.use(
+      http.get(url("/api/v1/diagnosticos"), ({ request }) => {
+        query = new URL(request.url).searchParams;
+        return HttpResponse.json(respostaLista([]));
+      }),
+    );
+
+    await diagnosticoService.listar({
+      status: "concluido",
+      dataInicio: "2026-09-01T03:00:00.000Z",
+      dataFim: "2026-09-18T02:59:59.999Z",
+      pagina: 2,
+      limite: 10,
+      ordem: "data_asc",
+    });
+
+    expect(Object.fromEntries(query!)).toEqual({
+      status: "concluido",
+      data_inicio: "2026-09-01T03:00:00.000Z",
+      data_fim: "2026-09-18T02:59:59.999Z",
+      pagina: "2",
+      limite: "10",
+      ordem: "data_asc",
+    });
+  });
+
+  it("sem filtros, chama a rota sem query string", async () => {
+    let chamada: string | undefined;
+    server.use(
+      http.get(url("/api/v1/diagnosticos"), ({ request }) => {
+        chamada = request.url;
+        return HttpResponse.json(respostaLista([]));
+      }),
+    );
+
+    await diagnosticoService.listar();
+
+    expect(chamada).toBe(url("/api/v1/diagnosticos"));
+  });
+
+  it("adapta a página do back: ordem vira nível e classificacao null vira nível null", async () => {
+    server.use(
+      http.get(url("/api/v1/diagnosticos"), () =>
+        HttpResponse.json(
+          respostaLista(
+            [
+              itemBackend(),
+              itemBackend({
+                id: 188,
+                classificacao: {
+                  codigo: "halitose_intima",
+                  nome_exibicao: "Halitose Íntima",
+                  ordem: 2,
+                },
+              }),
+              itemBackend({ id: 189, status: "processando", classificacao: null }),
+              itemBackend({ id: 190, status: "falha", classificacao: null }),
+            ],
+            { pagina: 2, limite: 4, total: 9, total_paginas: 3 },
+          ),
+        ),
+      ),
+    );
+
+    const pagina = await diagnosticoService.listar();
+
+    expect(pagina).toEqual({
+      itens: [
+        { id: "187", nivel: 1, status: "concluido", criadoEm: "2026-09-18T12:00:00Z" },
+        { id: "188", nivel: 2, status: "concluido", criadoEm: "2026-09-18T12:00:00Z" },
+        { id: "189", nivel: null, status: "processando", criadoEm: "2026-09-18T12:00:00Z" },
+        { id: "190", nivel: null, status: "falha", criadoEm: "2026-09-18T12:00:00Z" },
+      ],
+      pagina: 2,
+      total: 9,
+      totalPaginas: 3,
+    });
+  });
+
+  it("rejeita uma resposta fora do contrato (ex.: lista simples do formato antigo)", async () => {
+    server.use(http.get(url("/api/v1/diagnosticos"), () => HttpResponse.json([itemBackend()])));
+
+    await expect(diagnosticoService.listar()).rejects.toBeInstanceOf(ZodError);
+  });
+});
+
 describe("diagnosticoService.buscar", () => {
   it("adapta o detalhe do back pro formato do front", async () => {
     sequenciaDeGets({});

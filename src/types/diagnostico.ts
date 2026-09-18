@@ -85,3 +85,47 @@ export function adaptBackendDiagnosticoDetail(data: BackendDiagnosticoDetail): D
     criadoEm: data.data_diagnostico,
   };
 }
+
+export type DiagnosticoResumo = Pick<Diagnostico, "id" | "nivel" | "status" | "criadoEm">;
+
+export type PaginaDiagnosticos = {
+  itens: DiagnosticoResumo[];
+  pagina: number;
+  total: number;
+  totalPaginas: number;
+};
+
+export const backendDiagnosticoListResponseSchema = z.object({
+  itens: z.array(
+    z.object({
+      id: z.number(),
+      data_diagnostico: z.string(),
+      status: statusDiagnosticoSchema,
+      classificacao: z
+        .object({ codigo: z.string(), nome_exibicao: z.string(), ordem: z.number() })
+        .nullable(),
+      escala_saburra: z.number().nullable(),
+    }),
+  ),
+  pagina: z.number(),
+  limite: z.number(),
+  total: z.number(),
+  total_paginas: z.number(),
+});
+export type BackendDiagnosticoListResponse = z.infer<typeof backendDiagnosticoListResponseSchema>;
+
+export function adaptBackendDiagnosticoList(
+  data: BackendDiagnosticoListResponse,
+): PaginaDiagnosticos {
+  return {
+    itens: data.itens.map((item) => ({
+      id: String(item.id),
+      nivel: nivelDaOrdem(item.classificacao?.ordem),
+      status: item.status,
+      criadoEm: item.data_diagnostico,
+    })),
+    pagina: data.pagina,
+    total: data.total,
+    totalPaginas: data.total_paginas,
+  };
+}

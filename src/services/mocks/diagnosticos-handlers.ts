@@ -63,16 +63,45 @@ function paraBackendDetail(d: Diagnostico): BackendDiagnosticoDetail {
 export const diagnosticosHandlers = [
   http.get(url("/api/v1/diagnosticos"), ({ request }) => {
     const params = new URL(request.url).searchParams;
-    const pacienteId = params.get("pacienteId");
-    const profissionalId = params.get("profissionalId");
     const status = params.get("status");
+    const dataInicio = params.get("data_inicio");
+    const dataFim = params.get("data_fim");
+    const pagina = Number(params.get("pagina") ?? 1);
+    const limite = Number(params.get("limite") ?? 20);
+    const ordem = params.get("ordem") ?? "data_desc";
 
-    let filtrados = diagnosticos;
-    if (pacienteId) filtrados = filtrados.filter((d) => d.pacienteId === pacienteId);
-    if (profissionalId) filtrados = filtrados.filter((d) => d.profissionalId === profissionalId);
+    let filtrados = diagnosticos.filter((d) => d.pacienteId === "paciente-1");
     if (status) filtrados = filtrados.filter((d) => d.status === status);
+    if (dataInicio)
+      filtrados = filtrados.filter((d) => new Date(d.criadoEm) >= new Date(dataInicio));
+    if (dataFim) filtrados = filtrados.filter((d) => new Date(d.criadoEm) <= new Date(dataFim));
+    filtrados = [...filtrados].sort((a, b) => {
+      const diff = new Date(a.criadoEm).getTime() - new Date(b.criadoEm).getTime();
+      return ordem === "data_asc" ? diff : -diff;
+    });
 
-    return HttpResponse.json(filtrados);
+    const itens = filtrados.slice((pagina - 1) * limite, pagina * limite).map((d) => {
+      const detalhe = paraBackendDetail(d);
+      return {
+        id: detalhe.id,
+        data_diagnostico: detalhe.data_diagnostico,
+        status: detalhe.status,
+        classificacao: detalhe.classificacao && {
+          codigo: detalhe.classificacao.codigo,
+          nome_exibicao: detalhe.classificacao.nome_exibicao,
+          ordem: detalhe.classificacao.ordem,
+        },
+        escala_saburra: detalhe.escala_saburra,
+      };
+    });
+
+    return HttpResponse.json({
+      itens,
+      pagina,
+      limite,
+      total: filtrados.length,
+      total_paginas: Math.ceil(filtrados.length / limite),
+    });
   }),
 
   http.get(url("/api/v1/diagnosticos/:id"), ({ params }) => {
