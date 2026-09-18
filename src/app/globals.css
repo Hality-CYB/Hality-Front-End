@@ -127,6 +127,10 @@
   }
 }
 
+.guia-lingua-mascara {
+  box-shadow: 0 0 0 200vmax color-mix(in srgb, var(--color-teal-950) 62%, transparent);
+}
+
 /* ─── Motion ──────────────────────────────────────────────────────────────
    Porta Design/'s index.css animation set — perdido na migração inicial. */
 @media (prefers-reduced-motion: no-preference) {
@@ -169,8 +173,33 @@
     }
   }
 
+  @keyframes contagem-pop {
+    from {
+      opacity: 0;
+      transform: scale(1.6);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  @keyframes flash-captura {
+    from {
+      opacity: 0.9;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
   .page-enter {
     animation: page-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .contagem-captura {
+    animation: contagem-pop 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .flash-captura {
+    animation: flash-captura 0.35s ease-out both;
   }
   .modal-backdrop {
     animation: fade-in 0.18s ease both;
