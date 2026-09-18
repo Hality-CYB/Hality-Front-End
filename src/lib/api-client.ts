@@ -60,8 +60,10 @@ async function renovarAccessToken(): Promise<string | null> {
 
 async function request<T>(path: string, init?: RequestInit, retentativa = false): Promise<T> {
   const token = getStoredToken();
+  // Com FormData (upload de arquivo) quem define o Content-Type é o
+  // navegador, porque ele precisa incluir o boundary do multipart.
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
     ...(init?.headers as Record<string, string>),
   };
 
@@ -97,19 +99,25 @@ async function request<T>(path: string, init?: RequestInit, retentativa = false)
   return response.json() as Promise<T>;
 }
 
+function serializarBody(body: unknown): BodyInit | undefined {
+  if (!body) return undefined;
+  if (body instanceof FormData) return body;
+  return JSON.stringify(body);
+}
+
 export const apiClient = {
   get: <T>(path: string, init?: RequestInit) => request<T>(path, { ...init, method: "GET" }),
   post: <T>(path: string, body?: unknown, init?: RequestInit) =>
     request<T>(path, {
       ...init,
       method: "POST",
-      body: body ? JSON.stringify(body) : undefined,
+      body: serializarBody(body),
     }),
   put: <T>(path: string, body?: unknown, init?: RequestInit) =>
     request<T>(path, {
       ...init,
       method: "PUT",
-      body: body ? JSON.stringify(body) : undefined,
+      body: serializarBody(body),
     }),
   delete: <T>(path: string, init?: RequestInit) => request<T>(path, { ...init, method: "DELETE" }),
 };
