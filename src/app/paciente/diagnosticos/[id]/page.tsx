@@ -22,6 +22,7 @@ const ORIENTACAO_POR_NIVEL: Record<1 | 2 | 3, string> = {
 const STATUS_LABEL: Record<string, string> = {
   processando: "Aguardando análise",
   aguardando_revisao: "Aguardando revisão",
+  falha: "Falha na análise",
 };
 
 export default function DiagnosticoDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -39,7 +40,7 @@ export default function DiagnosticoDetailPage({ params }: { params: Promise<{ id
   const nivel = diagnostico.nivel;
   const orientacoes = (dicas ?? []).filter((d) => nivel && d.niveis.includes(nivel));
   const textoPergunta = (perguntaId: string) =>
-    perguntas?.find((p) => p.id === perguntaId)?.texto ?? perguntaId;
+    perguntas?.perguntas.find((p) => p.id === perguntaId)?.texto ?? perguntaId;
 
   return (
     <div className="flex flex-col">

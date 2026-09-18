@@ -1,16 +1,22 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { diagnosticoService } from "@/services/diagnostico-service";
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { diagnosticoService, type FiltroDiagnosticos } from "@/services/diagnostico-service";
 
-export function useDiagnosticos(filtro?: {
-  pacienteId?: string;
-  profissionalId?: string;
-  status?: string;
-}) {
+export function useDiagnosticos(filtro: FiltroDiagnosticos = {}) {
   return useQuery({
-    queryKey: ["diagnosticos", filtro],
+    queryKey: ["diagnosticos", "lista", filtro],
     queryFn: () => diagnosticoService.listar(filtro),
+  });
+}
+
+export function useDiagnosticosPaginados(filtro: Omit<FiltroDiagnosticos, "pagina"> = {}) {
+  return useInfiniteQuery({
+    queryKey: ["diagnosticos", "paginado", filtro],
+    queryFn: ({ pageParam }) => diagnosticoService.listar({ ...filtro, pagina: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (ultima) =>
+      ultima.pagina < ultima.totalPaginas ? ultima.pagina + 1 : undefined,
   });
 }
 

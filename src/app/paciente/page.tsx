@@ -13,11 +13,11 @@ import { nivelColor } from "@/lib/level-format";
 import { useSessaoAtual } from "@/lib/auth/session-context";
 
 export default function PacienteHomePage() {
-  const { id: pacienteId, nome } = useSessaoAtual();
-  const { data: diagnosticos } = useDiagnosticos({ pacienteId });
+  const { nome } = useSessaoAtual();
+  const { data: diagnosticos } = useDiagnosticos({ limite: 10 });
   const { data: dicas } = useDicas({ publicado: true });
 
-  const ultimo = diagnosticos?.find((d) => d.nivel !== null);
+  const ultimo = diagnosticos?.itens.find((d) => d.nivel !== null);
   const dicasHome = (dicas ?? []).filter((d) => d.mostrarNaHome).sort((a, b) => a.ordem - b.ordem);
 
   return (

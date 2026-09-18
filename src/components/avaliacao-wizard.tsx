@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
@@ -20,6 +20,7 @@ import {
   Stethoscope,
   TriangleAlert,
   ChartColumn,
+  SwitchCamera,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,10 @@ import { TipCard } from "@/components/tip-card";
 import { nivelColor, nivelLabel } from "@/lib/level-format";
 import { useAnamnesePerguntas, useCriarAnamnese } from "@/hooks/use-anamnese";
 import { useCriarDiagnostico } from "@/hooks/use-diagnosticos";
+import { ApiError } from "@/lib/api-client";
+import { diagnosticoService } from "@/services/diagnostico-service";
 import { useDicas } from "@/hooks/use-dicas";
+import { useCamera } from "@/hooks/use-camera";
 import { cn } from "@/lib/utils";
 import type { DiagnosticoNivel } from "@/types/diagnostico";
 import type { RespostaAnamnese } from "@/types/anamnese";
@@ -76,12 +80,49 @@ const ORIENTACOES_CAPTURA = [
   { Icon: CircleCheck, title: "Língua relaxada", desc: "Completamente estendida" },
 ];
 
+const TIPOS_IMAGEM_ACEITOS = "image/jpeg,image/png,image/webp";
+
+type FotoCapturada = {
+  file: File;
+  previewUrl: string;
+  origem: "camera" | "galeria";
+  largura: number;
+  altura: number;
+  facingMode?: string;
+};
+
+function lerDimensoes(url: string): Promise<{ largura: number; altura: number }> {
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.onload = () => resolve({ largura: img.naturalWidth, altura: img.naturalHeight });
+    img.onerror = () => resolve({ largura: 0, altura: 0 });
+    img.src = url;
+  });
+}
+
+function mensagemDeErro(erro: unknown): string {
+  if (erro instanceof ApiError) {
+    let corpo: { motivo?: unknown; detail?: unknown } | null;
+    try {
+      corpo = JSON.parse(erro.message) as { motivo?: unknown; detail?: unknown };
+    } catch {
+      corpo = null;
+    }
+    if (typeof corpo?.motivo === "string") return corpo.motivo;
+    if (typeof corpo?.detail === "string") return corpo.detail;
+    if (erro.status === 413) return "A imagem é grande demais. Envie uma foto de até 10 MB.";
+  }
+  if (erro instanceof TypeError) return "Não foi possível conectar ao servidor. Tente novamente.";
+  if (erro instanceof Error && erro.message) return erro.message;
+  return "Não foi possível concluir a análise. Tente novamente.";
+}
+
 type AvaliacaoWizardProps = {
   pacienteId: string;
   voltarHref: string;
 };
 
-export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps) {
+export function AvaliacaoWizard({ voltarHref }: AvaliacaoWizardProps) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -90,6 +131,24 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
     nivel: DiagnosticoNivel;
     confiancaIA?: number;
   } | null>(null);
+  const [foto, setFoto] = useState<FotoCapturada | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const inputCameraRef = useRef<HTMLInputElement>(null);
+  const inputGaleriaRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!foto) return;
+    return () => URL.revokeObjectURL(foto.previewUrl);
+  }, [foto]);
+
+  const {
+    videoRef: cameraVideoRef,
+    estado: estadoCamera,
+    capturar: capturarDaCamera,
+    podeAlternar: podeAlternarCamera,
+    alternarCamera,
+  } = useCamera(step === 4);
+  const [capturando, setCapturando] = useState(false);
 
   const perguntas = useAnamnesePerguntas();
   const criarAnamnese = useCriarAnamnese();
@@ -112,7 +171,52 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
     else next();
   }
 
+  async function selecionarFoto(
+    event: ChangeEvent<HTMLInputElement>,
+    origem: FotoCapturada["origem"],
+  ) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const previewUrl = URL.createObjectURL(file);
+    const { largura, altura } = await lerDimensoes(previewUrl);
+    setFoto({ file, previewUrl, origem, largura, altura });
+    setStep(5);
+  }
+
+  async function capturarFoto() {
+    if (estadoCamera !== "ativa") {
+      inputCameraRef.current?.click();
+      return;
+    }
+    setCapturando(true);
+    try {
+      const { file, largura, altura, facingMode } = await capturarDaCamera();
+      setFoto({
+        file,
+        previewUrl: URL.createObjectURL(file),
+        origem: "camera",
+        largura,
+        altura,
+        facingMode,
+      });
+      setStep(5);
+    } catch {
+      inputCameraRef.current?.click();
+    } finally {
+      setCapturando(false);
+    }
+  }
+
+  function tirarNovamente() {
+    setFoto(null);
+    setErro(null);
+    setStep(4);
+  }
+
   async function confirmarAnamneseECaptura() {
+    if (!foto) return;
+    setErro(null);
     setStep(6);
     const respostas: RespostaAnamnese[] = questoes.map((q) => ({
       perguntaId: q.id,
@@ -120,25 +224,31 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
       tipo: q.tipo,
       valor: answers[q.id] ?? "",
     }));
-    const trabalho = (async () => {
+    try {
       const anamnese = await criarAnamnese.mutateAsync({
         versaoQuestionario: perguntas.data?.versao ?? "",
         respostas,
       });
-      return criarDiagnostico.mutateAsync({
-        pacienteId,
-        imagemUrl: "",
+      const criado = await criarDiagnostico.mutateAsync({
         anamneseId: anamnese.id,
+        imagem: foto.file,
+        parametrosCaptura: {
+          origem: foto.origem,
+          mime_type: foto.file.type,
+          tamanho_bytes: foto.file.size,
+          largura: foto.largura,
+          altura: foto.altura,
+          ...(foto.facingMode ? { facing_mode: foto.facingMode } : {}),
+        },
       });
-    })();
-    // Igual Design/'s DiagnosisFlow (startProcessing): a ScanLoader fica visível
-    // por um tempo mínimo, já que a mutação mockada resolve rápido demais pra
-    // dar tempo da animação de análise aparecer.
-    const [diagnostico] = await Promise.all([
-      trabalho,
-      new Promise((resolve) => setTimeout(resolve, 2500)),
-    ]);
-    setResultado({ nivel: diagnostico.nivel ?? 1, confiancaIA: diagnostico.confiancaIA });
+      const diagnostico = await diagnosticoService.aguardarResultado(criado.id);
+      if (diagnostico.status === "falha" || diagnostico.nivel === null) {
+        throw new Error("Não foi possível analisar a imagem. Tente enviar outra foto.");
+      }
+      setResultado({ nivel: diagnostico.nivel, confiancaIA: diagnostico.confiancaIA });
+    } catch (e) {
+      setErro(mensagemDeErro(e));
+    }
   }
 
   const dicasFiltradas = (dicasDoResultado.data ?? []).filter(
@@ -428,7 +538,7 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
               Posicione sua língua dentro da área indicada
             </p>
             <div className="shell:flex-row shell:items-center shell:justify-center shell:gap-8 flex flex-col gap-4">
-              <div className="shell:w-100 shell:shrink-0 relative aspect-square overflow-hidden rounded-[20px] bg-[#0a3d4a]">
+              <div className="shell:w-100 shell:shrink-0 relative aspect-square overflow-hidden rounded-[20px] bg-teal-900">
                 <div
                   className="absolute inset-0"
                   style={{
@@ -436,21 +546,85 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
                       "radial-gradient(circle at 30% 70%, rgba(22,163,74,0.15), transparent 60%)",
                   }}
                 />
+                <video
+                  ref={cameraVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  data-testid="camera-video"
+                  className={cn(
+                    "absolute inset-0 h-full w-full object-cover transition-opacity",
+                    estadoCamera === "ativa" ? "opacity-100" : "opacity-0",
+                  )}
+                />
                 <div className="relative flex h-full items-center justify-center">
-                  <div className="aspect-[1.4] w-[70%] rounded-[30px] border border-dashed border-white/20" />
+                  {estadoCamera === "negada" ||
+                  estadoCamera === "indisponivel" ||
+                  estadoCamera === "erro" ? (
+                    <p className="max-w-[75%] text-center text-sm text-white/70">
+                      {estadoCamera === "negada"
+                        ? "Permita o acesso à câmera nas configurações do navegador, ou use os botões abaixo."
+                        : "Câmera indisponível neste dispositivo. Use os botões abaixo para enviar uma foto."}
+                    </p>
+                  ) : (
+                    <div className="aspect-[1.4] w-[70%] rounded-[30px] border-2 border-dashed border-white/60" />
+                  )}
                 </div>
-                <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5 rounded-4xl bg-[#4ade80] px-3 py-1">
-                  <div className="h-1.5 w-1.5 rounded-full bg-white" />
-                  <span className="font-heading text-[11px] font-bold text-[#065F46]">Pronto</span>
-                </div>
+                {podeAlternarCamera && estadoCamera === "ativa" && (
+                  <button
+                    type="button"
+                    onClick={alternarCamera}
+                    aria-label="Alternar entre câmera frontal e traseira"
+                    className="absolute right-3.5 bottom-3.5 flex h-11 w-11 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm"
+                  >
+                    <SwitchCamera className="h-5 w-5" />
+                  </button>
+                )}
+                {estadoCamera === "iniciando" && (
+                  <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5 rounded-4xl bg-white/20 px-3 py-1">
+                    <span className="font-heading text-[11px] font-bold text-white">
+                      Abrindo câmera…
+                    </span>
+                  </div>
+                )}
+                {estadoCamera === "ativa" && (
+                  <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5 rounded-4xl bg-green-100 px-3 py-1">
+                    <div className="h-1.5 w-1.5 rounded-full bg-green-600" />
+                    <span className="font-heading text-[11px] font-bold text-green-700">
+                      Pronto
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="shell:w-80 flex flex-col gap-3">
-                <Button size="lg" onClick={next} className="bg-[#16A34A] hover:bg-[#15803d]">
+                <input
+                  ref={inputCameraRef}
+                  type="file"
+                  accept={TIPOS_IMAGEM_ACEITOS}
+                  capture="environment"
+                  className="hidden"
+                  data-testid="input-camera"
+                  onChange={(e) => selecionarFoto(e, "camera")}
+                />
+                <input
+                  ref={inputGaleriaRef}
+                  type="file"
+                  accept={TIPOS_IMAGEM_ACEITOS}
+                  className="hidden"
+                  data-testid="input-galeria"
+                  onChange={(e) => selecionarFoto(e, "galeria")}
+                />
+                <Button
+                  size="lg"
+                  onClick={capturarFoto}
+                  disabled={estadoCamera === "iniciando" || capturando}
+                  className="bg-green-600 hover:bg-green-700"
+                >
                   <Camera className="h-4.5 w-4.5" /> Capturar foto
                 </Button>
                 <button
-                  onClick={next}
+                  onClick={() => inputGaleriaRef.current?.click()}
                   className="border-border text-primary font-heading border-1.5 bg-background flex items-center justify-center gap-2 rounded-2xl border-dashed p-3.5 text-sm font-semibold"
                 >
                   <ImageUp className="h-4.5 w-4.5" />
@@ -474,7 +648,7 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
               </p>
             </div>
             <div className="shell:flex-row shell:items-center shell:justify-center shell:gap-8 flex flex-col gap-4">
-              <div className="shell:w-100 shell:shrink-0 relative flex aspect-square items-center justify-center overflow-hidden rounded-[20px] bg-[#0a3d4a]">
+              <div className="shell:w-100 shell:shrink-0 relative flex aspect-square items-center justify-center overflow-hidden rounded-[20px] bg-teal-900">
                 <div
                   className="absolute inset-0"
                   style={{
@@ -482,21 +656,30 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
                       "radial-gradient(ellipse at center, rgba(11,107,130,0.25), transparent 70%)",
                   }}
                 />
-                <div className="relative flex flex-col items-center gap-1.5">
-                  <div className="h-17.5 w-30 rounded-[50%_50%_40%_40%] border border-white/12 bg-white/6" />
-                  <div className="font-heading text-[11px] text-white/35">Imagem capturada</div>
-                </div>
+                {foto ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={foto.previewUrl}
+                    alt="Foto da língua capturada"
+                    className="relative h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="font-heading relative text-[11px] text-white/35">
+                    Nenhuma imagem selecionada
+                  </div>
+                )}
               </div>
 
               <div className="shell:w-80 flex flex-col gap-3">
                 <Button
                   size="lg"
+                  disabled={!foto}
                   onClick={confirmarAnamneseECaptura}
-                  className="bg-[#16A34A] hover:bg-[#15803d]"
+                  className="bg-green-600 hover:bg-green-700"
                 >
                   <Check className="h-4 w-4" /> Usar esta foto
                 </Button>
-                <Button variant="secondary" onClick={() => setStep(4)}>
+                <Button variant="secondary" onClick={tirarNovamente}>
                   <Camera className="h-4 w-4" /> Tirar novamente
                 </Button>
               </div>
@@ -505,7 +688,27 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
         )}
 
         {/* 6 — Processando */}
-        {step === 6 && !resultado && (
+        {step === 6 && !resultado && erro && (
+          <div className="shell:mx-auto shell:w-full shell:max-w-135 flex flex-col gap-4 pt-5">
+            <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-start gap-2.5 rounded-2xl border px-4 py-3">
+              <TriangleAlert className="h-4.5 w-4.5 shrink-0" />
+              <div>
+                <div className="font-heading mb-0.5 text-[13px] font-bold">
+                  Não foi possível concluir a análise
+                </div>
+                <p className="text-xs leading-relaxed">{erro}</p>
+              </div>
+            </div>
+            <Button size="lg" onClick={tirarNovamente}>
+              <Camera className="h-4 w-4" /> Enviar outra foto
+            </Button>
+            <Button variant="secondary" onClick={() => router.push(voltarHref)}>
+              Voltar ao início
+            </Button>
+          </div>
+        )}
+
+        {step === 6 && !resultado && !erro && (
           <ScanLoader
             title="Analisando sua imagem"
             subtitle="Nossa inteligência artificial está processando o diagnóstico. Isso pode levar alguns instantes."
@@ -584,7 +787,9 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
           <div className="shell:mx-auto shell:w-full shell:max-w-135 flex flex-col gap-4">
             <div
               className="relative overflow-hidden rounded-[18px] p-4.5"
-              style={{ background: "linear-gradient(135deg, #0a3d4a, #0b6b82)" }}
+              style={{
+                background: "linear-gradient(135deg, var(--color-teal-900), var(--color-teal-800))",
+              }}
             >
               <div className="relative">
                 <Image
@@ -640,7 +845,7 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
             <Button
               size="lg"
               onClick={() => router.push(voltarHref)}
-              className="bg-[#16A34A] hover:bg-[#15803d]"
+              className="bg-green-600 hover:bg-green-700"
             >
               Concluir diagnóstico
             </Button>
