@@ -14,13 +14,11 @@ import {
   ClipboardList,
   ChevronLeft,
   Check,
-  ImageUp,
   Phone,
   Mail,
   Stethoscope,
   TriangleAlert,
   ChartColumn,
-  SwitchCamera,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,6 +34,7 @@ import { ApiError } from "@/lib/api-client";
 import { diagnosticoService } from "@/services/diagnostico-service";
 import { useDicas } from "@/hooks/use-dicas";
 import { useCamera } from "@/hooks/use-camera";
+import { CapturaLingua } from "@/components/captura/captura-lingua";
 import { cn } from "@/lib/utils";
 import type { DiagnosticoNivel } from "@/types/diagnostico";
 import type { RespostaAnamnese } from "@/types/anamnese";
@@ -143,12 +142,14 @@ export function AvaliacaoWizard({ voltarHref }: AvaliacaoWizardProps) {
 
   const {
     videoRef: cameraVideoRef,
-    estado: estadoCamera,
+    estado: estadoDaCamera,
     capturar: capturarDaCamera,
     podeAlternar: podeAlternarCamera,
     alternarCamera,
-  } = useCamera(step === 4);
+  } = useCamera(step === 4 || (step === 5 && foto?.origem === "camera"));
   const [capturando, setCapturando] = useState(false);
+  const [falhaNaCaptura, setFalhaNaCaptura] = useState(false);
+  const estadoCamera = falhaNaCaptura ? "erro" : estadoDaCamera;
 
   const perguntas = useAnamnesePerguntas();
   const criarAnamnese = useCriarAnamnese();
@@ -202,7 +203,8 @@ export function AvaliacaoWizard({ voltarHref }: AvaliacaoWizardProps) {
       });
       setStep(5);
     } catch {
-      inputCameraRef.current?.click();
+      // Depois da contagem já não há gesto do usuário para abrir o input; o próximo toque abre.
+      setFalhaNaCaptura(true);
     } finally {
       setCapturando(false);
     }
@@ -211,6 +213,7 @@ export function AvaliacaoWizard({ voltarHref }: AvaliacaoWizardProps) {
   function tirarNovamente() {
     setFoto(null);
     setErro(null);
+    setFalhaNaCaptura(false);
     setStep(4);
   }
 
@@ -531,160 +534,43 @@ export function AvaliacaoWizard({ voltarHref }: AvaliacaoWizardProps) {
           </div>
         )}
 
-        {/* 4 — Captura */}
-        {step === 4 && (
-          <div className="flex flex-col gap-4">
-            <p className="text-muted-foreground text-center text-sm">
-              Posicione sua língua dentro da área indicada
-            </p>
-            <div className="shell:flex-row shell:items-center shell:justify-center shell:gap-8 flex flex-col gap-4">
-              <div className="shell:w-100 shell:shrink-0 relative aspect-square overflow-hidden rounded-[20px] bg-teal-900">
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    background:
-                      "radial-gradient(circle at 30% 70%, rgba(22,163,74,0.15), transparent 60%)",
-                  }}
-                />
-                <video
-                  ref={cameraVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  data-testid="camera-video"
-                  className={cn(
-                    "absolute inset-0 h-full w-full object-cover transition-opacity",
-                    estadoCamera === "ativa" ? "opacity-100" : "opacity-0",
-                  )}
-                />
-                <div className="relative flex h-full items-center justify-center">
-                  {estadoCamera === "negada" ||
-                  estadoCamera === "indisponivel" ||
-                  estadoCamera === "erro" ? (
-                    <p className="max-w-[75%] text-center text-sm text-white/70">
-                      {estadoCamera === "negada"
-                        ? "Permita o acesso à câmera nas configurações do navegador, ou use os botões abaixo."
-                        : "Câmera indisponível neste dispositivo. Use os botões abaixo para enviar uma foto."}
-                    </p>
-                  ) : (
-                    <div className="aspect-[1.4] w-[70%] rounded-[30px] border-2 border-dashed border-white/60" />
-                  )}
-                </div>
-                {podeAlternarCamera && estadoCamera === "ativa" && (
-                  <button
-                    type="button"
-                    onClick={alternarCamera}
-                    aria-label="Alternar entre câmera frontal e traseira"
-                    className="absolute right-3.5 bottom-3.5 flex h-11 w-11 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm"
-                  >
-                    <SwitchCamera className="h-5 w-5" />
-                  </button>
-                )}
-                {estadoCamera === "iniciando" && (
-                  <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5 rounded-4xl bg-white/20 px-3 py-1">
-                    <span className="font-heading text-[11px] font-bold text-white">
-                      Abrindo câmera…
-                    </span>
-                  </div>
-                )}
-                {estadoCamera === "ativa" && (
-                  <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5 rounded-4xl bg-green-100 px-3 py-1">
-                    <div className="h-1.5 w-1.5 rounded-full bg-green-600" />
-                    <span className="font-heading text-[11px] font-bold text-green-700">
-                      Pronto
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div className="shell:w-80 flex flex-col gap-3">
-                <input
-                  ref={inputCameraRef}
-                  type="file"
-                  accept={TIPOS_IMAGEM_ACEITOS}
-                  capture="environment"
-                  className="hidden"
-                  data-testid="input-camera"
-                  onChange={(e) => selecionarFoto(e, "camera")}
-                />
-                <input
-                  ref={inputGaleriaRef}
-                  type="file"
-                  accept={TIPOS_IMAGEM_ACEITOS}
-                  className="hidden"
-                  data-testid="input-galeria"
-                  onChange={(e) => selecionarFoto(e, "galeria")}
-                />
-                <Button
-                  size="lg"
-                  onClick={capturarFoto}
-                  disabled={estadoCamera === "iniciando" || capturando}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  <Camera className="h-4.5 w-4.5" /> Capturar foto
-                </Button>
-                <button
-                  onClick={() => inputGaleriaRef.current?.click()}
-                  className="border-border text-primary font-heading border-1.5 bg-background flex items-center justify-center gap-2 rounded-2xl border-dashed p-3.5 text-sm font-semibold"
-                >
-                  <ImageUp className="h-4.5 w-4.5" />
-                  Escolher da galeria
-                </button>
-                <Button variant="ghost" onClick={back}>
-                  <ChevronLeft className="h-4 w-4" /> Voltar
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 5 — Revisar imagem */}
-        {step === 5 && (
-          <div className="flex flex-col gap-4">
-            <div className="shell:text-center">
-              <h2 className="mb-1 text-xl">A imagem está boa?</h2>
-              <p className="text-muted-foreground text-sm">
-                Verifique se a língua está nítida e bem enquadrada
-              </p>
-            </div>
-            <div className="shell:flex-row shell:items-center shell:justify-center shell:gap-8 flex flex-col gap-4">
-              <div className="shell:w-100 shell:shrink-0 relative flex aspect-square items-center justify-center overflow-hidden rounded-[20px] bg-teal-900">
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    background:
-                      "radial-gradient(ellipse at center, rgba(11,107,130,0.25), transparent 70%)",
-                  }}
-                />
-                {foto ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={foto.previewUrl}
-                    alt="Foto da língua capturada"
-                    className="relative h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="font-heading relative text-[11px] text-white/35">
-                    Nenhuma imagem selecionada
-                  </div>
-                )}
-              </div>
-
-              <div className="shell:w-80 flex flex-col gap-3">
-                <Button
-                  size="lg"
-                  disabled={!foto}
-                  onClick={confirmarAnamneseECaptura}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  <Check className="h-4 w-4" /> Usar esta foto
-                </Button>
-                <Button variant="secondary" onClick={tirarNovamente}>
-                  <Camera className="h-4 w-4" /> Tirar novamente
-                </Button>
-              </div>
-            </div>
-          </div>
+        {/* 4 e 5 — Captura e revisão da foto */}
+        {(step === 4 || step === 5) && (
+          <>
+            <input
+              ref={inputCameraRef}
+              type="file"
+              accept={TIPOS_IMAGEM_ACEITOS}
+              capture="environment"
+              className="hidden"
+              data-testid="input-camera"
+              onChange={(e) => selecionarFoto(e, "camera")}
+            />
+            <input
+              ref={inputGaleriaRef}
+              type="file"
+              accept={TIPOS_IMAGEM_ACEITOS}
+              className="hidden"
+              data-testid="input-galeria"
+              onChange={(e) => selecionarFoto(e, "galeria")}
+            />
+            <CapturaLingua
+              videoRef={cameraVideoRef}
+              estadoCamera={estadoCamera}
+              podeAlternarCamera={podeAlternarCamera}
+              onAlternarCamera={alternarCamera}
+              foto={step === 5 ? foto : null}
+              ocupado={capturando}
+              onCapturar={capturarFoto}
+              onGaleria={() => inputGaleriaRef.current?.click()}
+              onVoltar={() => {
+                setFalhaNaCaptura(false);
+                setStep(3);
+              }}
+              onUsarFoto={confirmarAnamneseECaptura}
+              onTirarOutra={tirarNovamente}
+            />
+          </>
         )}
 
         {/* 6 — Processando */}
