@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, createElement } from "react";
 import Link from "next/link";
 import { ScanLine, ChevronRight, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/empty-state";
 import { CustomPeriodDialog } from "@/components/custom-period-dialog";
 import { Button } from "@/components/ui/button";
 import { useDiagnosticos, useDiagnosticosPaginados } from "@/hooks/use-diagnosticos";
-import { nivelColor, nivelLabel, nivelBadgeStatus } from "@/lib/level-format";
+import { nivelColor, nivelLabel, nivelBadgeStatus, nivelIcon } from "@/lib/level-format";
 import {
   PERIODS,
   periodLabel,
@@ -102,33 +102,41 @@ export default function DiagnosticosPage() {
             description="Tente selecionar um período maior."
           />
         )}
-        {filtrados.map((d) => (
-          <Link key={d.id} href={`/paciente/diagnosticos/${d.id}`}>
-            <Card className="diag-list-card flex-row items-center gap-3.5 rounded-lg p-4 shadow-sm ring-0">
-              <div
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px]"
-                style={{ background: `${nivelColor(d.nivel)}18` }}
-              >
-                <ScanLine className="h-5.5 w-5.5" style={{ color: nivelColor(d.nivel) }} />
-              </div>
-              <div className="flex-1">
-                <div className="font-heading text-sm font-bold">Diagnóstico #{d.id.slice(-4)}</div>
-                <div className="text-muted-foreground text-xs">
-                  {new Date(d.criadoEm).toLocaleDateString("pt-BR")}
+        {filtrados.map((d) => {
+          const iconeNivel = nivelIcon(d.nivel);
+          return (
+            <Link key={d.id} href={`/paciente/diagnosticos/${d.id}`}>
+              <Card className="diag-list-card flex-row items-center gap-3.5 rounded-lg p-4 shadow-sm ring-0">
+                <div
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px]"
+                  style={{ background: `${nivelColor(d.nivel)}18` }}
+                >
+                  {createElement(iconeNivel, {
+                    className: "h-5.5 w-5.5",
+                    style: { color: nivelColor(d.nivel) },
+                  })}
                 </div>
-              </div>
-              <StatusBadge
-                label={
-                  d.status === "concluido"
-                    ? nivelLabel(d.nivel)
-                    : (STATUS_LABEL[d.status] ?? d.status)
-                }
-                status={nivelBadgeStatus(d.nivel)}
-              />
-              <ChevronRight className="text-gray-3 h-4 w-4" />
-            </Card>
-          </Link>
-        ))}
+                <div className="flex-1">
+                  <div className="font-heading text-sm font-bold">
+                    Diagnóstico #{d.id.slice(-4)}
+                  </div>
+                  <div className="text-muted-foreground text-xs">
+                    {new Date(d.criadoEm).toLocaleDateString("pt-BR")}
+                  </div>
+                </div>
+                <StatusBadge
+                  label={
+                    d.status === "concluido"
+                      ? nivelLabel(d.nivel)
+                      : (STATUS_LABEL[d.status] ?? d.status)
+                  }
+                  status={nivelBadgeStatus(d.nivel)}
+                />
+                <ChevronRight className="text-gray-3 h-4 w-4" />
+              </Card>
+            </Link>
+          );
+        })}
       </div>
 
       {lista.hasNextPage && (

@@ -38,6 +38,19 @@ function analiseFalsa(): { nivel: DiagnosticoNivel; confiancaIA: number } {
 
 const idNumerico = (id: string) => Number(id.replace(/\D/g, ""));
 
+/** Espelha o que app/services/diagnostico_service.py monta em `conteudos`. */
+const CONTEUDO_POR_NIVEL: Record<DiagnosticoNivel, { titulo: string; texto: string }> = {
+  1: { titulo: "Higiene do dia a dia", texto: "Mantenha a rotina de higiene bucal e hidratação." },
+  2: {
+    titulo: "Cuidados recomendados",
+    texto: "Reforce a limpeza lingual diária e considere uma avaliação periodontal.",
+  },
+  3: {
+    titulo: "Encaminhamento sugerido",
+    texto: "Procure um especialista para uma avaliação clínica detalhada.",
+  },
+};
+
 function paraBackendDetail(d: Diagnostico): BackendDiagnosticoDetail {
   return {
     id: idNumerico(d.id),
@@ -56,6 +69,25 @@ function paraBackendDetail(d: Diagnostico): BackendDiagnosticoDetail {
     confianca_ia: d.confiancaIA === undefined ? null : d.confiancaIA / 100,
     imagens: d.imagemUrl ? [{ id: 1, url_arquivo: d.imagemUrl, ordem: 1 }] : [],
     anamnese: { id: idNumerico(d.anamneseId) },
+    conteudos:
+      d.nivel !== null
+        ? [
+            {
+              id: d.nivel,
+              titulo: CONTEUDO_POR_NIVEL[d.nivel].titulo,
+              conteudo: { itens: [{ tipo: "texto", texto: CONTEUDO_POR_NIVEL[d.nivel].texto }] },
+            },
+          ]
+        : [],
+    revisao:
+      d.nivel !== null
+        ? {
+            revisado: Boolean(d.revisadoPor),
+            profissional_nome: d.revisadoPor ?? null,
+            data_revisao: d.revisadoEm ?? null,
+            observacoes: null,
+          }
+        : null,
     erro: null,
   };
 }

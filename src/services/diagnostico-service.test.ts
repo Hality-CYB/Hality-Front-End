@@ -257,6 +257,8 @@ describe("diagnosticoService.buscar", () => {
       anamneseId: "101",
       imagemUrl: "/api/v1/diagnosticos/imagens/primeira.jpg",
       criadoEm: "2026-09-17T10:00:00",
+      conteudos: [],
+      revisao: null,
     });
   });
 

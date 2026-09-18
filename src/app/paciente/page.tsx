@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { createElement } from "react";
 import { Camera, ChevronRight, ScanLine } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,17 +9,18 @@ import { EmptyState } from "@/components/empty-state";
 import { LevelChip } from "@/components/level-chip";
 import { TipCard } from "@/components/tip-card";
 import { useDiagnosticos } from "@/hooks/use-diagnosticos";
-import { useDicas } from "@/hooks/use-dicas";
-import { nivelColor } from "@/lib/level-format";
+import { useHome } from "@/hooks/use-home";
+import { nivelColor, nivelIcon } from "@/lib/level-format";
 import { useSessaoAtual } from "@/lib/auth/session-context";
 
 export default function PacienteHomePage() {
   const { nome } = useSessaoAtual();
   const { data: diagnosticos } = useDiagnosticos({ limite: 10 });
-  const { data: dicas } = useDicas({ publicado: true });
+  const { data: home } = useHome();
 
   const ultimo = diagnosticos?.itens.find((d) => d.nivel !== null);
-  const dicasHome = (dicas ?? []).filter((d) => d.mostrarNaHome).sort((a, b) => a.ordem - b.ordem);
+  const dicasHome = home?.dicas ?? [];
+  const iconeUltimo = nivelIcon(ultimo?.nivel ?? null);
 
   return (
     <div className="flex flex-col">
@@ -68,7 +70,10 @@ export default function PacienteHomePage() {
                 className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md"
                 style={{ background: `${nivelColor(ultimo.nivel)}18` }}
               >
-                <ScanLine className="h-6.5 w-6.5" style={{ color: nivelColor(ultimo.nivel) }} />
+                {createElement(iconeUltimo, {
+                  className: "h-6.5 w-6.5",
+                  style: { color: nivelColor(ultimo.nivel) },
+                })}
               </div>
               <div className="flex-1">
                 <LevelChip nivel={ultimo.nivel} />
@@ -91,15 +96,14 @@ export default function PacienteHomePage() {
 
         <div>
           <h3 className="mb-3 text-[17px]">Dicas para você</h3>
-          <div className="cyb-grid gap-2.5">
+          <div className="cyb-grid cyb-grid--stretch gap-2.5">
             {dicasHome.map((dica) => (
               <TipCard
                 key={dica.id}
                 titulo={dica.titulo}
                 categoria={dica.categoria}
-                corpo={dica.corpo}
-                formato={dica.formato}
-                midiaUrl={dica.midiaUrl}
+                corpo={dica.textos.join(" ")}
+                formato="texto"
                 compact
               />
             ))}

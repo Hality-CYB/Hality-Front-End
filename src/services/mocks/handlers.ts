@@ -5,6 +5,7 @@ import { diagnosticosHandlers } from "@/services/mocks/diagnosticos-handlers";
 import { anamneseHandlers } from "@/services/mocks/anamnese-handlers";
 import { dicasHandlers } from "@/services/mocks/dicas-handlers";
 import { authHandlers } from "@/services/mocks/auth-handlers";
+import { homeHandlers } from "@/services/mocks/home-handlers";
 
 /**
  * Todos os handlers de mock, compostos aqui. auth-service.ts não passa
@@ -21,4 +22,5 @@ export const handlers = [
   ...anamneseHandlers,
   ...dicasHandlers,
   ...authHandlers,
+  ...homeHandlers,
 ];
