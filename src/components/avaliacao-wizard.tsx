@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, createElement, type ChangeEvent } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
@@ -19,6 +19,7 @@ import {
   Stethoscope,
   TriangleAlert,
   ChartColumn,
+  Lightbulb,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,16 +28,16 @@ import { StepBar } from "@/components/step-bar";
 import { ScanLoader } from "@/components/scan-loader";
 import { LevelChip } from "@/components/level-chip";
 import { TipCard } from "@/components/tip-card";
-import { nivelColor, nivelLabel } from "@/lib/level-format";
+import { EmptyState } from "@/components/empty-state";
+import { nivelColor, nivelLabel, nivelIcon } from "@/lib/level-format";
 import { useAnamnesePerguntas, useCriarAnamnese } from "@/hooks/use-anamnese";
 import { useCriarDiagnostico } from "@/hooks/use-diagnosticos";
 import { ApiError } from "@/lib/api-client";
 import { diagnosticoService } from "@/services/diagnostico-service";
-import { useDicas } from "@/hooks/use-dicas";
 import { useCamera } from "@/hooks/use-camera";
 import { CapturaLingua } from "@/components/captura/captura-lingua";
 import { cn } from "@/lib/utils";
-import type { DiagnosticoNivel } from "@/types/diagnostico";
+import type { Diagnostico, DiagnosticoNivel } from "@/types/diagnostico";
 import type { RespostaAnamnese } from "@/types/anamnese";
 import halityLogo from "@/assets/images/logo-hality-inline.png";
 
@@ -129,6 +130,7 @@ export function AvaliacaoWizard({ voltarHref }: AvaliacaoWizardProps) {
   const [resultado, setResultado] = useState<{
     nivel: DiagnosticoNivel;
     confiancaIA?: number;
+    conteudos: NonNullable<Diagnostico["conteudos"]>;
   } | null>(null);
   const [foto, setFoto] = useState<FotoCapturada | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -154,13 +156,13 @@ export function AvaliacaoWizard({ voltarHref }: AvaliacaoWizardProps) {
   const perguntas = useAnamnesePerguntas();
   const criarAnamnese = useCriarAnamnese();
   const criarDiagnostico = useCriarDiagnostico();
-  const dicasDoResultado = useDicas({ publicado: true });
 
   const next = () => setStep((s) => s + 1);
   const back = () => (step > 0 ? setStep((s) => s - 1) : router.push(voltarHref));
 
   const questoes = perguntas.data?.perguntas ?? [];
   const questaoAtual = questoes[aIdx];
+  const iconeResultado = nivelIcon(resultado?.nivel ?? null);
 
   function responder(valor: string) {
     if (!questaoAtual) return;
@@ -248,15 +250,15 @@ export function AvaliacaoWizard({ voltarHref }: AvaliacaoWizardProps) {
       if (diagnostico.status === "falha" || diagnostico.nivel === null) {
         throw new Error("Não foi possível analisar a imagem. Tente enviar outra foto.");
       }
-      setResultado({ nivel: diagnostico.nivel, confiancaIA: diagnostico.confiancaIA });
+      setResultado({
+        nivel: diagnostico.nivel,
+        confiancaIA: diagnostico.confiancaIA,
+        conteudos: diagnostico.conteudos ?? [],
+      });
     } catch (e) {
       setErro(mensagemDeErro(e));
     }
   }
-
-  const dicasFiltradas = (dicasDoResultado.data ?? []).filter(
-    (d) => resultado && d.niveis.includes(resultado.nivel),
-  );
 
   return (
     <div className="bg-background flex min-h-full flex-col">
@@ -320,9 +322,16 @@ export function AvaliacaoWizard({ voltarHref }: AvaliacaoWizardProps) {
               </div>
             </div>
             <Card className="rounded-lg p-5 shadow-sm ring-0">
-              <p className="font-heading mb-5 text-lg leading-snug font-semibold">
-                {questaoAtual.texto}
-              </p>
+              <div className="mb-5 flex items-start justify-between gap-3">
+                <p className="font-heading text-lg leading-snug font-semibold">
+                  {questaoAtual.texto}
+                </p>
+                {questaoAtual.obrigatoria && (
+                  <span className="font-heading text-destructive bg-destructive/10 shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold whitespace-nowrap">
+                    Obrigatória
+                  </span>
+                )}
+              </div>
 
               {questaoAtual.tipo === "sim_nao" && (
                 <div className="grid grid-cols-2 gap-2.5">
@@ -334,10 +343,10 @@ export function AvaliacaoWizard({ voltarHref }: AvaliacaoWizardProps) {
                         nextAns();
                       }}
                       className={cn(
-                        "font-heading rounded-[14px] border-2 p-4 text-[15px] font-bold transition-colors",
+                        "font-heading rounded-[14px] border-2 p-4 text-[15px] font-bold transition-all active:scale-[0.97]",
                         answers[questaoAtual.id] === opt
                           ? "border-primary bg-secondary text-primary"
-                          : "border-border bg-background text-foreground",
+                          : "border-border bg-background text-foreground hover:border-primary/50 hover:bg-secondary/50",
                       )}
                     >
                       {opt}
@@ -356,10 +365,10 @@ export function AvaliacaoWizard({ voltarHref }: AvaliacaoWizardProps) {
                         nextAns();
                       }}
                       className={cn(
-                        "font-heading rounded-xl border-2 p-3.5 text-left text-sm font-semibold transition-colors",
+                        "font-heading rounded-xl border-2 p-3.5 text-left text-sm font-semibold transition-all active:scale-[0.98]",
                         answers[questaoAtual.id] === opt
                           ? "border-primary bg-secondary text-primary"
-                          : "border-border bg-background text-foreground",
+                          : "border-border bg-background text-foreground hover:border-primary/50 hover:bg-secondary/50",
                       )}
                     >
                       {opt}
@@ -376,7 +385,12 @@ export function AvaliacaoWizard({ voltarHref }: AvaliacaoWizardProps) {
                     onChange={(e) => responder(e.target.value)}
                     className="border-border bg-background focus:bg-card focus:border-primary focus:ring-primary/10 w-full rounded-xl border-[1.5px] p-3.5 text-[15px] transition-colors outline-none focus:ring-3"
                   />
-                  <Button onClick={nextAns}>Próximo</Button>
+                  <Button
+                    onClick={nextAns}
+                    disabled={questaoAtual.obrigatoria && !answers[questaoAtual.id]?.trim()}
+                  >
+                    Próximo
+                  </Button>
                 </div>
               )}
 
@@ -388,10 +402,10 @@ export function AvaliacaoWizard({ voltarHref }: AvaliacaoWizardProps) {
                         key={n}
                         onClick={() => responder(String(n))}
                         className={cn(
-                          "font-heading flex h-13 w-13 items-center justify-center rounded-2xl border-2 text-xl font-extrabold transition-colors",
+                          "font-heading flex h-13 w-13 items-center justify-center rounded-2xl border-2 text-xl font-extrabold transition-all active:scale-90",
                           answers[questaoAtual.id] === String(n)
                             ? "border-primary bg-primary text-white"
-                            : "border-border bg-background text-foreground",
+                            : "border-border bg-background text-foreground hover:border-primary/50 hover:bg-secondary/50",
                         )}
                       >
                         {n}
@@ -402,7 +416,10 @@ export function AvaliacaoWizard({ voltarHref }: AvaliacaoWizardProps) {
                     <span>Ruim</span>
                     <span>Excelente</span>
                   </div>
-                  <Button onClick={nextAns} disabled={!answers[questaoAtual.id]}>
+                  <Button
+                    onClick={nextAns}
+                    disabled={questaoAtual.obrigatoria && !answers[questaoAtual.id]}
+                  >
                     Próximo
                   </Button>
                 </div>
@@ -631,7 +648,10 @@ export function AvaliacaoWizard({ voltarHref }: AvaliacaoWizardProps) {
                   borderColor: nivelColor(resultado.nivel),
                 }}
               >
-                <ScanLine className="h-9 w-9" style={{ color: nivelColor(resultado.nivel) }} />
+                {createElement(iconeResultado, {
+                  className: "h-9 w-9",
+                  style: { color: nivelColor(resultado.nivel) },
+                })}
               </div>
               <LevelChip nivel={resultado.nivel} size="lg" />
               {resultado.confiancaIA && (
@@ -717,14 +737,20 @@ export function AvaliacaoWizard({ voltarHref }: AvaliacaoWizardProps) {
               </p>
             </div>
 
-            {dicasFiltradas.map((dica) => (
+            {resultado.conteudos.length === 0 && (
+              <EmptyState
+                icon={<Lightbulb className="h-7 w-7" />}
+                title="Nenhuma orientação cadastrada"
+                description="Ainda não há conteúdo cadastrado para essa classificação."
+              />
+            )}
+            {resultado.conteudos.map((c) => (
               <TipCard
-                key={dica.id}
-                titulo={dica.titulo}
-                categoria={dica.categoria}
-                corpo={dica.corpo}
-                formato={dica.formato}
-                midiaUrl={dica.midiaUrl}
+                key={c.id}
+                titulo={c.titulo}
+                categoria={c.categoria}
+                corpo={c.textos.join(" ")}
+                formato="texto"
               />
             ))}
 

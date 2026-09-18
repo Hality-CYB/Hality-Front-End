@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { backendConteudoSchema, textosDoConteudo } from "@/types/conteudo";
 
 /**
  * Reconcilia as 3 formas divergentes que Design/ tinha pra "um exame"
@@ -19,6 +20,14 @@ export const statusDiagnosticoSchema = z.enum([
 ]);
 export type StatusDiagnostico = z.infer<typeof statusDiagnosticoSchema>;
 
+/**
+ * `GET /diagnosticos/{id}` não manda `categoria` nos itens de `conteudos`
+ * (só `id`/`titulo`/`conteudo`), mesmo a tabela `conteudos` tendo essa
+ * coluna — confirmado rodando o endpoint em 2026-09-18. Assume esse valor
+ * enquanto o back não expõe o campo de verdade; combinado com o time.
+ */
+export const CATEGORIA_CONTEUDO_PADRAO = "geral";
+
 export const diagnosticoSchema = z.object({
   id: z.string(),
   pacienteId: z.string().optional(),
@@ -32,6 +41,25 @@ export const diagnosticoSchema = z.object({
   criadoEm: z.string(),
   revisadoPor: z.string().optional(),
   revisadoEm: z.iso.datetime().optional(),
+  revisao: z
+    .object({
+      revisado: z.boolean(),
+      profissionalNome: z.string().nullable(),
+      revisadoEm: z.string().nullable(),
+      observacoes: z.string().nullable(),
+    })
+    .nullable()
+    .optional(),
+  conteudos: z
+    .array(
+      z.object({
+        id: z.number(),
+        titulo: z.string(),
+        categoria: z.string(),
+        textos: z.array(z.string()),
+      }),
+    )
+    .optional(),
 });
 export type Diagnostico = z.infer<typeof diagnosticoSchema>;
 
@@ -65,6 +93,18 @@ export const backendDiagnosticoDetailSchema = z.object({
     }),
   ),
   anamnese: z.object({ id: z.number() }),
+  conteudos: z
+    .array(z.object({ id: z.number(), titulo: z.string(), conteudo: backendConteudoSchema }))
+    .optional(),
+  revisao: z
+    .object({
+      revisado: z.boolean(),
+      profissional_nome: z.string().nullable(),
+      data_revisao: z.string().nullable(),
+      observacoes: z.string().nullable(),
+    })
+    .nullable()
+    .optional(),
   erro: z.string().nullable().optional(),
 });
 export type BackendDiagnosticoDetail = z.infer<typeof backendDiagnosticoDetailSchema>;
@@ -83,6 +123,20 @@ export function adaptBackendDiagnosticoDetail(data: BackendDiagnosticoDetail): D
     anamneseId: String(data.anamnese.id),
     confiancaIA: data.confianca_ia === null ? undefined : Math.round(data.confianca_ia * 100),
     criadoEm: data.data_diagnostico,
+    conteudos: data.conteudos?.map((item) => ({
+      id: item.id,
+      titulo: item.titulo,
+      categoria: CATEGORIA_CONTEUDO_PADRAO,
+      textos: textosDoConteudo(item.conteudo),
+    })),
+    revisao: data.revisao
+      ? {
+          revisado: data.revisao.revisado,
+          profissionalNome: data.revisao.profissional_nome,
+          revisadoEm: data.revisao.data_revisao,
+          observacoes: data.revisao.observacoes,
+        }
+      : null,
   };
 }
 

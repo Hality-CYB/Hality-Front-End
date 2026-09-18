@@ -47,6 +47,7 @@ export const perguntaAnamneseSchema = z.object({
   id: z.string(),
   texto: z.string(),
   tipo: tipoPerguntaSchema,
+  obrigatoria: z.boolean(),
   opcoes: z.array(z.string()).optional(),
 });
 export type PerguntaAnamnese = z.infer<typeof perguntaAnamneseSchema>;
@@ -69,6 +70,7 @@ export function adaptBackendPergunta(data: BackendPergunta): PerguntaAnamnese {
     id: data.id,
     texto: data.enunciado,
     tipo: mapBackendTipoPergunta(data.tipo),
+    obrigatoria: data.obrigatoria,
     opcoes: data.opcoes ?? undefined,
   };
 }

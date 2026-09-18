@@ -125,6 +125,14 @@
   .cyb-grid > *:only-child {
     grid-column: 1 / -1;
   }
+  /* Modificador opcional: itens da mesma linha ficam com altura igual (o
+     card por dentro decide o que fazer com o espaço extra — ver o scroll
+     interno do corpo do TipCard). Só no web: no mobile o grid vira uma
+     coluna e cada item já ocupa a largura toda, então "igualar altura"
+     não faz sentido ali. */
+  .cyb-grid--stretch {
+    align-items: stretch;
+  }
 }
 
 .guia-lingua-mascara {
