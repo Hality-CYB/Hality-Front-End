@@ -22,6 +22,7 @@ const ORIENTACAO_POR_NIVEL: Record<1 | 2 | 3, string> = {
 const STATUS_LABEL: Record<string, string> = {
   processando: "Aguardando análise",
   aguardando_revisao: "Aguardando revisão",
+  falha: "Falha na análise",
 };
 
 export default function DiagnosticoDetailPage({ params }: { params: Promise<{ id: string }> }) {
