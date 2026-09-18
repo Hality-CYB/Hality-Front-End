@@ -663,8 +663,17 @@ export function AvaliacaoWizard({ voltarHref }: AvaliacaoWizardProps) {
 
             <Card className="rounded-lg p-5 shadow-sm ring-0">
               <div className="mb-3.5 flex items-center gap-3.5">
-                <div className="bg-background text-primary flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px]">
-                  <ScanLine className="h-6 w-6" />
+                <div className="bg-background text-primary flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[14px]">
+                  {foto ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- preview local (blob URL), fora do domínio do next/image
+                    <img
+                      src={foto.previewUrl}
+                      alt="Imagem analisada"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <ScanLine className="h-6 w-6" />
+                  )}
                 </div>
                 <div>
                   <div className="text-muted-foreground text-[13px]">Imagem analisada</div>
