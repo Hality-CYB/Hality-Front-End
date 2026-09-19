@@ -31,7 +31,7 @@ export function AppShell({ role, usuarioId, nome, email, children }: AppShellPro
   }, [pathname]);
 
   return (
-    <div className="bg-background shell:max-w-340 shell:flex-row shell:shadow-lg mx-auto flex w-full max-w-120 flex-1 flex-col">
+    <div className="bg-background shell:max-w-340 shell:flex-row shell:shadow-lg mx-auto flex h-dvh min-h-0 w-full max-w-120 flex-col">
       <Sidebar role={role} nome={nome} email={email} />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <TopBar role={role} nome={nome} />
