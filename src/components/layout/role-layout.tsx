@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { usuarioService } from "@/services/usuario-service";
 import { hasActiveSession } from "@/lib/session";
+import { ApiError } from "@/lib/api-client";
+import { Button } from "@/components/ui/button";
 import { AppShell } from "@/components/layout/app-shell";
 import type { Role } from "@/types/usuario";
 import type { ReactNode } from "react";
@@ -27,6 +29,8 @@ export function RoleLayout({ role, children }: { role: Role; children: ReactNode
     data: usuario,
     isLoading,
     isError,
+    error,
+    refetch,
   } = useQuery({
     queryKey: ["currentUser"],
     queryFn: () => usuarioService.buscarAtual(),
@@ -34,17 +38,35 @@ export function RoleLayout({ role, children }: { role: Role; children: ReactNode
     retry: false,
   });
 
+  // Só 401 significa "sessão inválida" (o api-client já limpou o token nesse
+  // caso). Rede fora do ar / 5xx não pode mandar pro login: o login vê o
+  // token ainda salvo e devolve pra cá, gerando um loop de redirect.
+  const sessaoInvalida = isError && error instanceof ApiError && error.status === 401;
+  const erroDeConexao = isError && !sessaoInvalida;
+
   useEffect(() => {
-    if (!logado || isError) {
+    if (!logado || sessaoInvalida) {
       router.replace(`/login?redirect=/${role}`);
       return;
     }
     if (usuario && usuario.role !== role) {
       router.replace(`/${usuario.role}`);
     }
-  }, [logado, isError, usuario, role, router]);
+  }, [logado, sessaoInvalida, usuario, role, router]);
 
-  if (!logado || isLoading || isError || !usuario || usuario.role !== role) {
+  if (erroDeConexao) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 px-6 text-center">
+        <p className="text-sm font-semibold">Não foi possível carregar sua sessão.</p>
+        <p className="text-muted-foreground text-sm">
+          Verifique sua conexão ou se o servidor está no ar e tente novamente.
+        </p>
+        <Button onClick={() => refetch()}>Tentar novamente</Button>
+      </div>
+    );
+  }
+
+  if (!logado || isLoading || sessaoInvalida || !usuario || usuario.role !== role) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p className="text-muted-foreground text-sm">Carregando…</p>

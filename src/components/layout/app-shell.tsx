@@ -33,9 +33,9 @@ export function AppShell({ role, usuarioId, nome, email, children }: AppShellPro
   return (
     <div className="bg-background shell:max-w-340 shell:flex-row shell:shadow-lg mx-auto flex h-dvh min-h-0 w-full max-w-120 flex-col">
       <Sidebar role={role} nome={nome} email={email} />
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         <TopBar role={role} nome={nome} />
-        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+        <div ref={scrollRef} className="shell:pb-0 min-h-0 flex-1 overflow-y-auto pb-28">
           <div key={pathname} className="page-enter">
             <SessaoProvider value={{ id: usuarioId, nome, email, role }}>{children}</SessaoProvider>
           </div>
