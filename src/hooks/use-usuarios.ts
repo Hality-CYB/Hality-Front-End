@@ -25,3 +25,12 @@ export function useCriarUsuario() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["usuarios"] }),
   });
 }
+
+export function useAtualizarUsuario() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...input }: { id: string; nome: string; email: string }) =>
+      usuarioService.atualizar(id, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["usuarios"] }),
+  });
+}
