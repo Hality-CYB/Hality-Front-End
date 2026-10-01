@@ -53,6 +53,13 @@ export const backendPacienteListResponseSchema = z.object({
 });
 export type BackendPacienteListResponse = z.infer<typeof backendPacienteListResponseSchema>;
 
+/**
+ * TODO(backend): proposta do front. O back não tem cadastro de paciente pelo
+ * profissional — a PR #88 só vincula um paciente que já tem conta. Resposta
+ * proposta: o mesmo item de `GET /pacientes`, já vinculado ao profissional.
+ */
+export const backendPacienteCriadoSchema = backendPacienteListItemSchema;
+
 export const backendPacienteDetailSchema = backendPacienteListItemSchema.extend({
   vinculos: z.array(
     z.object({
@@ -91,7 +98,7 @@ export type PacienteDetalhe = PacienteResumo & {
   diagnosticos: PaginaDiagnosticos;
 };
 
-function adaptBackendPacienteItem(
+export function adaptBackendPacienteItem(
   item: z.infer<typeof backendPacienteListItemSchema>,
 ): PacienteResumo {
   return {

@@ -1,8 +1,11 @@
 "use client";
 
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { pacienteService, type FiltroPacientes } from "@/services/paciente-service";
-import { vinculoService } from "@/services/vinculo-service";
+import {
+  pacienteService,
+  type FiltroPacientes,
+  type NovoPaciente,
+} from "@/services/paciente-service";
 
 export function usePacientes(filtro: FiltroPacientes = {}) {
   return useQuery({
@@ -29,10 +32,10 @@ export function usePaciente(id: string) {
   });
 }
 
-export function useVincularPaciente() {
+export function useCriarPaciente() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (pacienteEmail: string) => vinculoService.vincular(pacienteEmail),
+    mutationFn: (input: NovoPaciente) => pacienteService.criar(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pacientes"] });
       queryClient.invalidateQueries({ queryKey: ["profissional", "resumo"] });

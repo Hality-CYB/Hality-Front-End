@@ -42,11 +42,11 @@ export default function PacientesPage() {
         {!lista.isLoading && pacientes.length === 0 && (
           <EmptyState
             icon={<Users className="h-7 w-7" />}
-            title={busca ? "Nenhum paciente encontrado" : "Nenhum paciente vinculado"}
+            title={busca ? "Nenhum paciente encontrado" : "Nenhum paciente ainda"}
             description={
               busca
                 ? "Tente buscar por outro nome ou e-mail."
-                : "Vincule um paciente pelo e-mail em Avaliar paciente."
+                : "Cadastre um paciente em Avaliar paciente."
             }
           />
         )}

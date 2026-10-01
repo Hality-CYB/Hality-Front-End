@@ -1,6 +1,8 @@
 import { http, HttpResponse } from "msw";
+import { z } from "zod";
 import { config } from "@/lib/config";
 import { usuarioDoRequest } from "@/services/mocks/auth-handlers";
+import { seedUsuarios } from "@/services/mocks/seed-data";
 import {
   diagnosticosMock,
   maisRecentesPrimeiro,
@@ -14,6 +16,12 @@ import type { Paciente } from "@/types/paciente";
 import type { Usuario } from "@/types/usuario";
 
 const url = (path: string) => `${config.apiBaseUrl}${path}`;
+
+const criarPacienteSchema = z.object({
+  nome: z.string().trim().min(1),
+  email: z.email(),
+  telefone: z.string().nullable().optional(),
+});
 
 /** Espelha `paciente_service.listar_pacientes` da PR #97: profissional vê só os vinculados, admin vê todos. */
 function visiveisPara(usuario: Usuario): Paciente[] {
@@ -106,5 +114,42 @@ export const pacientesHandlers = [
           : [],
       diagnosticos: paginar(diagnosticos, pagina, limite),
     });
+  }),
+
+  // TODO(backend): cadastro simples pelo profissional, contrato proposto pelo front.
+  http.post(url("/api/v1/pacientes"), async ({ request }) => {
+    const usuario = usuarioDoRequest(request);
+    if (!usuario) return new HttpResponse(null, { status: 401 });
+    if (usuario.role !== "profissional") {
+      return HttpResponse.json({ detail: "acesso restrito a profissionais" }, { status: 403 });
+    }
+
+    const body = criarPacienteSchema.safeParse(await request.json());
+    if (!body.success) {
+      return HttpResponse.json({ detail: "nome e e-mail são obrigatórios" }, { status: 422 });
+    }
+    const email = body.data.email.toLowerCase();
+    const emailEmUso =
+      pacientesMock.some((p) => p.email.toLowerCase() === email) ||
+      seedUsuarios.some((u) => u.email.toLowerCase() === email);
+    if (emailEmUso) {
+      return HttpResponse.json({ detail: "e-mail já cadastrado" }, { status: 409 });
+    }
+
+    const agora = new Date().toISOString();
+    const novo: Paciente = {
+      id: `paciente-${Date.now()}`,
+      nome: body.data.nome,
+      email: body.data.email,
+      role: "paciente",
+      criadoEm: agora,
+      telefone: body.data.telefone ?? "",
+      profissionalVinculadoId: usuario.id,
+      consentimentoDadosSaude: { aceito: false },
+      consentimentoTreinamentoIA: { aceito: false },
+    };
+    pacientesMock.push(novo);
+    vinculadoEmMock.set(novo.id, agora);
+    return HttpResponse.json(paraBackendListItemPaciente(novo), { status: 201 });
   }),
 ];

@@ -1,63 +1,57 @@
 "use client";
 
 import { useDeferredValue, useState } from "react";
-import { Search, Link2, ChevronLeft, ChevronRight, Info } from "lucide-react";
+import { Search, Plus, ChevronLeft, ChevronRight, Info } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { ApiError } from "@/lib/api-client";
-import { usePacientes, useVincularPaciente } from "@/hooks/use-pacientes";
+import { usePacientes, useCriarPaciente } from "@/hooks/use-pacientes";
 
 type SelecionarPacienteProps = {
   onSelecionar: (pacienteId: string) => void;
   onCancelar: () => void;
 };
 
-function mensagemDoVinculo(erro: unknown): string {
-  if (erro instanceof ApiError) {
-    if (erro.status === 409) return "Este paciente já está vinculado a você.";
-    try {
-      const corpo = JSON.parse(erro.message) as { detail?: unknown };
-      if (typeof corpo.detail === "string") {
-        if (corpo.detail === "paciente não encontrado") {
-          return "Não há paciente cadastrado com este e-mail. Peça para ele criar a conta primeiro.";
-        }
-        return corpo.detail;
-      }
-    } catch {
-      // corpo não é JSON; cai na mensagem genérica
-    }
+function mensagemDoCadastro(erro: unknown): string {
+  if (erro instanceof ApiError && erro.status === 409) {
+    return "Já existe um usuário com este e-mail.";
   }
-  return "Não foi possível vincular o paciente. Tente novamente.";
+  return "Não foi possível cadastrar o paciente. Tente novamente.";
 }
 
 /**
- * Passo 0 do "Avaliar paciente": escolher um paciente vinculado ou vincular
- * um novo pelo e-mail. O profissional não cadastra paciente — o paciente
- * cria a própria conta e o profissional só se vincula a ela (PR #88 do back).
+ * Passo 0 do "Avaliar paciente": escolher um paciente vinculado ou fazer um
+ * cadastro simples (nome, e-mail e telefone), que já sai vinculado ao
+ * profissional. O paciente completa o cadastro depois.
  */
 export function SelecionarPaciente({ onSelecionar, onCancelar }: SelecionarPacienteProps) {
   const [busca, setBusca] = useState("");
   const buscaAdiada = useDeferredValue(busca);
-  const [vinculando, setVinculando] = useState(false);
+  const [cadastrandoNovo, setCadastrandoNovo] = useState(false);
+  const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
+  const [telefone, setTelefone] = useState("");
 
   const { data: pacientes, isLoading } = usePacientes({ busca: buscaAdiada, limite: 20 });
-  const vincular = useVincularPaciente();
-  const emailValido = email.trim().includes("@");
+  const criarPaciente = useCriarPaciente();
+  const novoPacienteValido = nome.trim().length > 0 && email.trim().includes("@");
 
-  function vincularEContinuar() {
-    vincular.mutate(email.trim(), { onSuccess: (vinculo) => onSelecionar(vinculo.pacienteId) });
+  function cadastrarEContinuar() {
+    criarPaciente.mutate(
+      { nome: nome.trim(), email: email.trim(), telefone: telefone.trim() || undefined },
+      { onSuccess: (paciente) => onSelecionar(paciente.id) },
+    );
   }
 
-  if (vinculando) {
+  if (cadastrandoNovo) {
     return (
       <div className="shell:mx-auto shell:w-full shell:max-w-135 flex flex-col gap-3.5">
         <div className="flex items-center gap-2.5">
           <button
             onClick={() => {
-              vincular.reset();
-              setVinculando(false);
+              criarPaciente.reset();
+              setCadastrandoNovo(false);
             }}
             className="text-primary flex p-1"
             aria-label="Voltar"
@@ -65,18 +59,31 @@ export function SelecionarPaciente({ onSelecionar, onCancelar }: SelecionarPacie
             <ChevronLeft className="h-4.5 w-4.5" />
           </button>
           <div>
-            <h2 className="text-lg">Vincular paciente</h2>
+            <h2 className="text-lg">Novo paciente</h2>
             <p className="text-muted-foreground text-[13px]">
-              Informe o e-mail que o paciente usou no cadastro
+              Cadastro simples para começar a avaliação agora
             </p>
           </div>
         </div>
         <Card className="rounded-lg p-5 shadow-sm ring-0">
           <label
+            htmlFor="nome-paciente"
+            className="font-heading mb-1.5 block text-[13px] font-bold"
+          >
+            Nome completo *
+          </label>
+          <input
+            id="nome-paciente"
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            placeholder="Nome do paciente"
+            className="border-border mb-3.5 w-full rounded-[10px] border-[1.5px] px-3.5 py-2.75 text-sm outline-none"
+          />
+          <label
             htmlFor="email-paciente"
             className="font-heading mb-1.5 block text-[13px] font-bold"
           >
-            E-mail do paciente
+            E-mail *
           </label>
           <input
             id="email-paciente"
@@ -84,27 +91,41 @@ export function SelecionarPaciente({ onSelecionar, onCancelar }: SelecionarPacie
             onChange={(e) => setEmail(e.target.value)}
             type="email"
             placeholder="paciente@email.com"
+            className="border-border mb-3.5 w-full rounded-[10px] border-[1.5px] px-3.5 py-2.75 text-sm outline-none"
+          />
+          <label
+            htmlFor="telefone-paciente"
+            className="font-heading mb-1.5 block text-[13px] font-bold"
+          >
+            Telefone
+          </label>
+          <input
+            id="telefone-paciente"
+            value={telefone}
+            onChange={(e) => setTelefone(e.target.value)}
+            type="tel"
+            placeholder="(11) 99999-9999"
             className="border-border w-full rounded-[10px] border-[1.5px] px-3.5 py-2.75 text-sm outline-none"
           />
-          {vincular.isError && (
+          {criarPaciente.isError && (
             <p className="text-destructive mt-2.5 text-[13px]">
-              {mensagemDoVinculo(vincular.error)}
+              {mensagemDoCadastro(criarPaciente.error)}
             </p>
           )}
         </Card>
         <div className="bg-secondary flex items-start gap-2 rounded-[10px] px-3.5 py-2.5">
           <Info className="text-primary mt-0.5 h-3.75 w-3.75 shrink-0" />
           <span className="text-muted-foreground text-xs leading-relaxed">
-            O paciente precisa ter conta no Check Your Breath. Depois do vínculo, você passa a ver
-            os diagnósticos dele e pode avaliá-lo.
+            O paciente fica vinculado a você e pode completar o cadastro (senha e consentimentos)
+            depois.
           </span>
         </div>
         <Button
           size="lg"
-          disabled={!emailValido || vincular.isPending}
-          onClick={vincularEContinuar}
+          disabled={!novoPacienteValido || criarPaciente.isPending}
+          onClick={cadastrarEContinuar}
         >
-          {vincular.isPending ? "Vinculando…" : "Vincular e continuar"}
+          {criarPaciente.isPending ? "Cadastrando…" : "Cadastrar e continuar"}
         </Button>
       </div>
     );
@@ -129,20 +150,18 @@ export function SelecionarPaciente({ onSelecionar, onCancelar }: SelecionarPacie
       </div>
       <button
         type="button"
-        onClick={() => setVinculando(true)}
+        onClick={() => setCadastrandoNovo(true)}
         className="border-primary bg-secondary flex items-center gap-2.5 rounded-xl border-[1.5px] border-dashed p-3.5"
       >
         <div className="text-primary flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-white">
-          <Link2 className="h-4 w-4" />
+          <Plus className="h-4 w-4" />
         </div>
-        <span className="font-heading text-primary text-sm font-bold">
-          Vincular paciente pelo e-mail
-        </span>
+        <span className="font-heading text-primary text-sm font-bold">Cadastrar novo paciente</span>
       </button>
       <div className="flex flex-col gap-2">
         {!isLoading && lista.length === 0 && (
           <p className="text-muted-foreground py-2 text-center text-sm">
-            {busca ? "Nenhum paciente encontrado." : "Você ainda não tem pacientes vinculados."}
+            {busca ? "Nenhum paciente encontrado." : "Você ainda não tem pacientes."}
           </p>
         )}
         {lista.map((p) => (

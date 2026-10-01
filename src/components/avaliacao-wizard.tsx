@@ -662,6 +662,19 @@ export function AvaliacaoWizard({
             revisão"). */}
         {isProfissional && step === 6 && resultado && (
           <div className="shell:mx-auto shell:w-full shell:max-w-135 flex flex-col gap-3.5">
+            {foto && (
+              <Card className="rounded-lg p-5 shadow-sm ring-0">
+                <div className="font-heading mb-3 text-sm font-extrabold">Imagem capturada</div>
+                <div className="relative aspect-4/3 overflow-hidden rounded-2xl bg-[#0a3d4a]">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- preview local (blob URL), fora do domínio do next/image */}
+                  <img
+                    src={foto.previewUrl}
+                    alt="Foto da língua capturada"
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              </Card>
+            )}
             <Card
               className="rounded-lg border border-[rgba(11,107,130,0.12)] p-5 shadow-sm ring-0"
               style={{
