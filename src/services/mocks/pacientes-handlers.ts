@@ -1,72 +1,110 @@
 import { http, HttpResponse } from "msw";
 import { config } from "@/lib/config";
-import { seedPacientes, seedDiagnosticos } from "@/services/mocks/seed-data";
+import { usuarioDoRequest } from "@/services/mocks/auth-handlers";
+import {
+  diagnosticosMock,
+  maisRecentesPrimeiro,
+  nomeDoUsuario,
+  pacientesMock,
+  paginar,
+  paraBackendListItem,
+  vinculadoEmMock,
+} from "@/services/mocks/mock-db";
+import type { Paciente } from "@/types/paciente";
+import type { Usuario } from "@/types/usuario";
 
-const pacientes = [...seedPacientes];
 const url = (path: string) => `${config.apiBaseUrl}${path}`;
 
-/** Resumo usado nas listas de paciente (diagnósticos + último resultado). */
-function comResumo(paciente: (typeof pacientes)[number]) {
-  const diags = seedDiagnosticos.filter((d) => d.pacienteId === paciente.id);
-  const ultimo = diags.at(-1);
+/** Espelha `paciente_service.listar_pacientes` da PR #97: profissional vê só os vinculados, admin vê todos. */
+function visiveisPara(usuario: Usuario): Paciente[] {
+  if (usuario.role === "admin") return pacientesMock;
+  return pacientesMock.filter((p) => p.profissionalVinculadoId === usuario.id);
+}
+
+function paraBackendListItemPaciente(paciente: Paciente) {
+  const diags = diagnosticosMock
+    .filter((d) => d.pacienteId === paciente.id)
+    .sort(maisRecentesPrimeiro);
+  const ultimo = diags[0];
   return {
-    ...paciente,
-    totalDiagnosticos: diags.length,
-    ultimoDiagnosticoEm: ultimo?.criadoEm,
-    ultimoNivel: ultimo?.nivel ?? null,
+    id: paciente.id,
+    nome: paciente.nome,
+    email: paciente.email,
+    telefone: paciente.telefone || null,
+    ativo: true,
+    total_diagnosticos: diags.length,
+    ultimo_diagnostico_em: ultimo?.criadoEm ?? null,
+    ultimo_nivel: ultimo?.nivel ?? null,
   };
+}
+
+function acessoNegado(usuario: Usuario) {
+  if (usuario.role !== "profissional" && usuario.role !== "admin") {
+    return HttpResponse.json(
+      { detail: "acesso restrito a profissionais e administradores" },
+      { status: 403 },
+    );
+  }
+  return null;
 }
 
 export const pacientesHandlers = [
   http.get(url("/api/v1/pacientes"), ({ request }) => {
-    const profissionalId = new URL(request.url).searchParams.get("profissionalId");
-    const filtrados = profissionalId
-      ? pacientes.filter((p) => p.profissionalVinculadoId === profissionalId)
-      : pacientes;
-    return HttpResponse.json(filtrados.map(comResumo));
+    const usuario = usuarioDoRequest(request);
+    if (!usuario) return new HttpResponse(null, { status: 401 });
+    const negado = acessoNegado(usuario);
+    if (negado) return negado;
+
+    const params = new URL(request.url).searchParams;
+    const busca = params.get("busca")?.trim().toLowerCase();
+    const pagina = Number(params.get("pagina") ?? 1);
+    const limite = Number(params.get("limite") ?? 20);
+
+    const filtrados = visiveisPara(usuario)
+      .filter(
+        (p) =>
+          !busca || p.nome.toLowerCase().includes(busca) || p.email.toLowerCase().includes(busca),
+      )
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+
+    return HttpResponse.json(paginar(filtrados.map(paraBackendListItemPaciente), pagina, limite));
   }),
 
-  http.get(url("/api/v1/pacientes/:id"), ({ params }) => {
-    const paciente = pacientes.find((p) => p.id === params.id);
-    if (!paciente) return new HttpResponse(null, { status: 404 });
-    return HttpResponse.json(comResumo(paciente));
-  }),
+  http.get(url("/api/v1/pacientes/:id"), ({ params, request }) => {
+    const usuario = usuarioDoRequest(request);
+    if (!usuario) return new HttpResponse(null, { status: 401 });
+    const negado = acessoNegado(usuario);
+    if (negado) return negado;
 
-  // Cadastro básico feito pelo profissional (RF-Avaliar paciente, Design/'s
-  // EvaluatePatient "Cadastrar novo paciente") — só nome/e-mail/telefone,
-  // sem senha/consentimento ainda (igual Design/, que também não implementa
-  // o envio de e-mail com senha, só o cadastro básico pra liberar a avaliação).
-  http.post(url("/api/v1/pacientes"), async ({ request }) => {
-    const body = (await request.json()) as {
-      nome: string;
-      email: string;
-      telefone?: string;
-      profissionalVinculadoId?: string;
-    };
-    const novo = {
-      id: `paciente-${Date.now()}`,
-      nome: body.nome,
-      email: body.email,
-      role: "paciente" as const,
-      criadoEm: new Date().toISOString(),
-      telefone: body.telefone ?? "",
-      profissionalVinculadoId: body.profissionalVinculadoId,
-      consentimentoDadosSaude: { aceito: false },
-      consentimentoTreinamentoIA: { aceito: false },
-    };
-    pacientes.push(novo);
-    return HttpResponse.json(comResumo(novo), { status: 201 });
-  }),
+    // Sem vínculo responde 404, igual a paciente inexistente (não revela ids).
+    const paciente = visiveisPara(usuario).find((p) => p.id === params.id);
+    if (!paciente) return HttpResponse.json({ detail: "paciente não encontrado" }, { status: 404 });
 
-  // Vincular paciente a um profissional (RF05 — admin faz esse vínculo).
-  http.put(url("/api/v1/pacientes/:id/vincular-profissional"), async ({ params, request }) => {
-    const index = pacientes.findIndex((p) => p.id === params.id);
-    if (index === -1) return new HttpResponse(null, { status: 404 });
-    const body = (await request.json()) as { profissionalId: string };
-    const atual = pacientes[index];
-    if (!atual) return new HttpResponse(null, { status: 404 });
-    const atualizado = { ...atual, profissionalVinculadoId: body.profissionalId };
-    pacientes[index] = atualizado;
-    return HttpResponse.json(comResumo(atualizado));
+    const searchParams = new URL(request.url).searchParams;
+    const pagina = Number(searchParams.get("pagina") ?? 1);
+    const limite = Number(searchParams.get("limite") ?? 20);
+    const diagnosticos = diagnosticosMock
+      .filter((d) => d.pacienteId === paciente.id)
+      .sort(maisRecentesPrimeiro)
+      .map((d) => paraBackendListItem(d));
+    const vinculadoEm = vinculadoEmMock.get(paciente.id);
+
+    return HttpResponse.json({
+      ...paraBackendListItemPaciente(paciente),
+      vinculos:
+        paciente.profissionalVinculadoId && vinculadoEm
+          ? [
+              {
+                id: 1,
+                profissional_id: paciente.profissionalVinculadoId,
+                profissional_nome: nomeDoUsuario(paciente.profissionalVinculadoId) ?? "",
+                data_vinculo: vinculadoEm,
+                ativo: true,
+                encerrado_em: null,
+              },
+            ]
+          : [],
+      diagnosticos: paginar(diagnosticos, pagina, limite),
+    });
   }),
 ];

@@ -1,3 +1,4 @@
+import { Smile, Meh, Frown, ScanLine, type LucideIcon } from "lucide-react";
 import type { DiagnosticoNivel } from "@/types/diagnostico";
 
 /**
@@ -27,4 +28,12 @@ export function nivelBadgeStatus(nivel: DiagnosticoNivel | null): BadgeStatus {
   if (nivel === 1) return "success";
   if (nivel === 2) return "warning";
   return "danger";
+}
+
+/** Um rosto por nível de severidade — sem resultado ainda usa o ícone de escaneamento. */
+export function nivelIcon(nivel: DiagnosticoNivel | null): LucideIcon {
+  if (nivel === null) return ScanLine;
+  if (nivel === 1) return Smile;
+  if (nivel === 2) return Meh;
+  return Frown;
 }

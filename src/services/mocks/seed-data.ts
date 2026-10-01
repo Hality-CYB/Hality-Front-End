@@ -2,7 +2,7 @@ import type { Paciente } from "@/types/paciente";
 import type { Profissional } from "@/types/profissional";
 import type { Usuario } from "@/types/usuario";
 import type { Diagnostico } from "@/types/diagnostico";
-import type { Anamnese } from "@/types/anamnese";
+import type { BackendAnamneseDetail } from "@/types/anamnese";
 import type { Dica } from "@/types/dica";
 
 /**
@@ -105,55 +105,137 @@ export const seedPacientes: Paciente[] = [
   },
 ];
 
-export const seedAnamneses: Anamnese[] = [
+const respostaMock = (
+  perguntaId: string,
+  enunciado: string,
+  tipo: BackendAnamneseDetail["respostas"][number]["tipo"],
+  valor: boolean | string | number,
+): BackendAnamneseDetail["respostas"][number] => ({
+  pergunta_id: perguntaId,
+  enunciado,
+  tipo,
+  valor,
+});
+
+export const seedAnamneses: BackendAnamneseDetail[] = [
   {
-    id: "anamnese-101",
+    id: 101,
+    paciente_id: "paciente-1",
+    data_preenchimento: isoDate("01/08/2026"),
     respostas: [
-      { perguntaId: "percebe-mau-halito", valor: "Sim" },
-      { perguntaId: "frequencia-escovacao", valor: "2x ao dia" },
-      { perguntaId: "fumante", valor: "Não" },
-      { perguntaId: "medicacao", valor: "Nenhuma" },
-      { perguntaId: "higiene-bucal", valor: "4" },
+      respostaMock("mau_halito_ao_acordar", "Você sente mau hálito ao acordar?", "boolean", true),
+      respostaMock(
+        "frequencia_escovacao",
+        "Com que frequência você escova os dentes?",
+        "single_choice",
+        "2x ao dia",
+      ),
+      respostaMock(
+        "sintomas_adicionais",
+        "Descreva sintomas adicionais, se houver.",
+        "text",
+        "Nenhum",
+      ),
+      respostaMock(
+        "avaliacao_propria_halito",
+        "Como você avalia o cheiro da sua respiração?",
+        "scale",
+        4,
+      ),
     ],
   },
   {
-    id: "anamnese-102",
+    id: 102,
+    paciente_id: "paciente-2",
+    data_preenchimento: isoDate("02/08/2026"),
     respostas: [
-      { perguntaId: "percebe-mau-halito", valor: "Sim" },
-      { perguntaId: "frequencia-escovacao", valor: "1x ao dia" },
-      { perguntaId: "fumante", valor: "Sim" },
-      { perguntaId: "medicacao", valor: "Omeprazol" },
-      { perguntaId: "higiene-bucal", valor: "2" },
+      respostaMock("mau_halito_ao_acordar", "Você sente mau hálito ao acordar?", "boolean", true),
+      respostaMock(
+        "frequencia_escovacao",
+        "Com que frequência você escova os dentes?",
+        "single_choice",
+        "1x ao dia",
+      ),
+      respostaMock(
+        "sintomas_adicionais",
+        "Descreva sintomas adicionais, se houver.",
+        "text",
+        "Sensação de boca seca",
+      ),
+      respostaMock(
+        "avaliacao_propria_halito",
+        "Como você avalia o cheiro da sua respiração?",
+        "scale",
+        2,
+      ),
     ],
   },
   {
-    id: "anamnese-103",
+    id: 103,
+    paciente_id: "paciente-3",
+    data_preenchimento: isoDate("03/08/2026"),
     respostas: [
-      { perguntaId: "percebe-mau-halito", valor: "Não" },
-      { perguntaId: "frequencia-escovacao", valor: "3x ao dia" },
-      { perguntaId: "fumante", valor: "Não" },
-      { perguntaId: "medicacao", valor: "Anti-hipertensivo" },
-      { perguntaId: "higiene-bucal", valor: "5" },
+      respostaMock("mau_halito_ao_acordar", "Você sente mau hálito ao acordar?", "boolean", false),
+      respostaMock(
+        "frequencia_escovacao",
+        "Com que frequência você escova os dentes?",
+        "single_choice",
+        "3x ou mais",
+      ),
+      respostaMock("sintomas_adicionais", "Descreva sintomas adicionais, se houver.", "text", ""),
+      respostaMock(
+        "avaliacao_propria_halito",
+        "Como você avalia o cheiro da sua respiração?",
+        "scale",
+        5,
+      ),
     ],
   },
   {
-    id: "anamnese-104",
+    id: 104,
+    paciente_id: "paciente-4",
+    data_preenchimento: isoDate("04/08/2026"),
     respostas: [
-      { perguntaId: "percebe-mau-halito", valor: "Sim" },
-      { perguntaId: "frequencia-escovacao", valor: "1x ao dia" },
-      { perguntaId: "fumante", valor: "Sim" },
-      { perguntaId: "medicacao", valor: "Nenhuma" },
-      { perguntaId: "higiene-bucal", valor: "2" },
+      respostaMock("mau_halito_ao_acordar", "Você sente mau hálito ao acordar?", "boolean", true),
+      respostaMock(
+        "frequencia_escovacao",
+        "Com que frequência você escova os dentes?",
+        "single_choice",
+        "1x ao dia",
+      ),
+      respostaMock(
+        "sintomas_adicionais",
+        "Descreva sintomas adicionais, se houver.",
+        "text",
+        "Gengiva sensível",
+      ),
+      respostaMock(
+        "avaliacao_propria_halito",
+        "Como você avalia o cheiro da sua respiração?",
+        "scale",
+        2,
+      ),
     ],
   },
   {
-    id: "anamnese-105",
+    id: 105,
+    paciente_id: "paciente-5",
+    data_preenchimento: isoDate("05/08/2026"),
     respostas: [
-      { perguntaId: "percebe-mau-halito", valor: "Não" },
-      { perguntaId: "frequencia-escovacao", valor: "2x ao dia" },
-      { perguntaId: "fumante", valor: "Não" },
-      { perguntaId: "medicacao", valor: "Nenhuma" },
-      { perguntaId: "higiene-bucal", valor: "4" },
+      respostaMock("mau_halito_ao_acordar", "Você sente mau hálito ao acordar?", "boolean", false),
+      respostaMock(
+        "frequencia_escovacao",
+        "Com que frequência você escova os dentes?",
+        "single_choice",
+        "2x ao dia",
+      ),
+      respostaMock("sintomas_adicionais", "Descreva sintomas adicionais, se houver.", "text", ""),
+      respostaMock(
+        "avaliacao_propria_halito",
+        "Como você avalia o cheiro da sua respiração?",
+        "scale",
+        4,
+      ),
     ],
   },
 ];

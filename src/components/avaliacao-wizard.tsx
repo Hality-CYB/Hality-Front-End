@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState, createElement, type ChangeEvent } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
@@ -14,12 +14,12 @@ import {
   ClipboardList,
   ChevronLeft,
   Check,
-  ImageUp,
   Phone,
   Mail,
   Stethoscope,
   TriangleAlert,
   ChartColumn,
+  Lightbulb,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,14 +28,18 @@ import { StepBar } from "@/components/step-bar";
 import { ScanLoader } from "@/components/scan-loader";
 import { LevelChip } from "@/components/level-chip";
 import { TipCard } from "@/components/tip-card";
-import { nivelColor, nivelLabel } from "@/lib/level-format";
+import { EmptyState } from "@/components/empty-state";
+import { nivelColor, nivelLabel, nivelIcon } from "@/lib/level-format";
 import { useAnamnesePerguntas, useCriarAnamnese } from "@/hooks/use-anamnese";
 import { useCriarDiagnostico, useRevisarDiagnostico } from "@/hooks/use-diagnosticos";
-import { useDicas } from "@/hooks/use-dicas";
 import { usePaciente } from "@/hooks/use-pacientes";
-import { useSessaoAtual } from "@/lib/auth/session-context";
+import { ApiError } from "@/lib/api-client";
+import { diagnosticoService } from "@/services/diagnostico-service";
+import { useCamera } from "@/hooks/use-camera";
+import { CapturaLingua } from "@/components/captura/captura-lingua";
 import { cn } from "@/lib/utils";
-import type { DiagnosticoNivel } from "@/types/diagnostico";
+import type { Diagnostico, DiagnosticoNivel } from "@/types/diagnostico";
+import type { RespostaAnamnese } from "@/types/anamnese";
 import halityLogo from "@/assets/images/logo-hality-inline.png";
 
 /**
@@ -84,8 +88,45 @@ const ORIENTACOES_CAPTURA = [
   { Icon: CircleCheck, title: "Língua relaxada", desc: "Completamente estendida" },
 ];
 
+const TIPOS_IMAGEM_ACEITOS = "image/jpeg,image/png,image/webp";
+
+type FotoCapturada = {
+  file: File;
+  previewUrl: string;
+  origem: "camera" | "galeria";
+  largura: number;
+  altura: number;
+  facingMode?: string;
+};
+
+function lerDimensoes(url: string): Promise<{ largura: number; altura: number }> {
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.onload = () => resolve({ largura: img.naturalWidth, altura: img.naturalHeight });
+    img.onerror = () => resolve({ largura: 0, altura: 0 });
+    img.src = url;
+  });
+}
+
+function mensagemDeErro(erro: unknown): string {
+  if (erro instanceof ApiError) {
+    let corpo: { motivo?: unknown; detail?: unknown } | null;
+    try {
+      corpo = JSON.parse(erro.message) as { motivo?: unknown; detail?: unknown };
+    } catch {
+      corpo = null;
+    }
+    if (typeof corpo?.motivo === "string") return corpo.motivo;
+    if (typeof corpo?.detail === "string") return corpo.detail;
+    if (erro.status === 413) return "A imagem é grande demais. Envie uma foto de até 10 MB.";
+  }
+  if (erro instanceof TypeError) return "Não foi possível conectar ao servidor. Tente novamente.";
+  if (erro instanceof Error && erro.message) return erro.message;
+  return "Não foi possível concluir a análise. Tente novamente.";
+}
+
 type AvaliacaoWizardProps = {
-  pacienteId: string;
+  pacienteId?: string;
   voltarHref: string;
   perfil?: "paciente" | "profissional";
 };
@@ -104,26 +145,46 @@ export function AvaliacaoWizard({
     id: string;
     nivel: DiagnosticoNivel;
     confiancaIA?: number;
+    conteudos: NonNullable<Diagnostico["conteudos"]>;
   } | null>(null);
   const [classificacaoConfirmada, setClassificacaoConfirmada] = useState<DiagnosticoNivel | null>(
     null,
   );
   const [observacoes, setObservacoes] = useState("");
+  const [foto, setFoto] = useState<FotoCapturada | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const inputCameraRef = useRef<HTMLInputElement>(null);
+  const inputGaleriaRef = useRef<HTMLInputElement>(null);
 
-  const { id: profissionalId } = useSessaoAtual();
-  const paciente = usePaciente(pacienteId);
+  useEffect(() => {
+    if (!foto) return;
+    return () => URL.revokeObjectURL(foto.previewUrl);
+  }, [foto]);
+
+  const {
+    videoRef: cameraVideoRef,
+    estado: estadoDaCamera,
+    capturar: capturarDaCamera,
+    podeAlternar: podeAlternarCamera,
+    alternarCamera,
+  } = useCamera(step === 4 || (step === 5 && foto?.origem === "camera"));
+  const [capturando, setCapturando] = useState(false);
+  const [falhaNaCaptura, setFalhaNaCaptura] = useState(false);
+  const estadoCamera = falhaNaCaptura ? "erro" : estadoDaCamera;
+
+  const paciente = usePaciente(isProfissional ? (pacienteId ?? "") : "");
   const perguntas = useAnamnesePerguntas();
   const criarAnamnese = useCriarAnamnese();
   const criarDiagnostico = useCriarDiagnostico();
   const revisarDiagnostico = useRevisarDiagnostico();
-  const dicasDoResultado = useDicas({ publicado: true });
 
   const next = () => setStep((s) => s + 1);
   const primeiroStep = isProfissional ? 1 : 0;
   const back = () => (step > primeiroStep ? setStep((s) => s - 1) : router.push(voltarHref));
 
-  const questoes = perguntas.data ?? [];
+  const questoes = perguntas.data?.perguntas ?? [];
   const questaoAtual = questoes[aIdx];
+  const iconeResultado = nivelIcon(resultado?.nivel ?? null);
 
   function responder(valor: string) {
     if (!questaoAtual) return;
@@ -135,45 +196,103 @@ export function AvaliacaoWizard({
     else next();
   }
 
-  async function confirmarAnamneseECaptura() {
-    setStep(6);
-    const respostas = questoes.map((q) => ({ perguntaId: q.id, valor: answers[q.id] ?? "" }));
-    const trabalho = (async () => {
-      const anamnese = await criarAnamnese.mutateAsync(respostas);
-      return criarDiagnostico.mutateAsync({
-        pacienteId,
-        imagemUrl: "",
-        anamneseId: anamnese.id,
+  async function selecionarFoto(
+    event: ChangeEvent<HTMLInputElement>,
+    origem: FotoCapturada["origem"],
+  ) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const previewUrl = URL.createObjectURL(file);
+    const { largura, altura } = await lerDimensoes(previewUrl);
+    setFoto({ file, previewUrl, origem, largura, altura });
+    setStep(5);
+  }
+
+  async function capturarFoto() {
+    if (estadoCamera !== "ativa") {
+      inputCameraRef.current?.click();
+      return;
+    }
+    setCapturando(true);
+    try {
+      const { file, largura, altura, facingMode } = await capturarDaCamera();
+      setFoto({
+        file,
+        previewUrl: URL.createObjectURL(file),
+        origem: "camera",
+        largura,
+        altura,
+        facingMode,
       });
-    })();
-    // Igual Design/'s DiagnosisFlow (startProcessing): a ScanLoader fica visível
-    // por um tempo mínimo, já que a mutação mockada resolve rápido demais pra
-    // dar tempo da animação de análise aparecer.
-    const [diagnostico] = await Promise.all([
-      trabalho,
-      new Promise((resolve) => setTimeout(resolve, 2500)),
-    ]);
-    setResultado({
-      id: diagnostico.id,
-      nivel: diagnostico.nivel ?? 1,
-      confiancaIA: diagnostico.confiancaIA,
-    });
+      setStep(5);
+    } catch {
+      // Depois da contagem já não há gesto do usuário para abrir o input; o próximo toque abre.
+      setFalhaNaCaptura(true);
+    } finally {
+      setCapturando(false);
+    }
+  }
+
+  function tirarNovamente() {
+    setFoto(null);
+    setErro(null);
+    setFalhaNaCaptura(false);
+    setStep(4);
+  }
+
+  async function confirmarAnamneseECaptura() {
+    if (!foto) return;
+    setErro(null);
+    setStep(6);
+    const respostas: RespostaAnamnese[] = questoes.map((q) => ({
+      perguntaId: q.id,
+      enunciado: q.texto,
+      tipo: q.tipo,
+      valor: answers[q.id] ?? "",
+    }));
+    try {
+      // No atendimento pelo profissional, o titular é o paciente selecionado (PR #91 do back).
+      const titular = isProfissional ? pacienteId : undefined;
+      const anamnese = await criarAnamnese.mutateAsync({
+        versaoQuestionario: perguntas.data?.versao ?? "",
+        respostas,
+        pacienteId: titular,
+      });
+      const criado = await criarDiagnostico.mutateAsync({
+        pacienteId: titular,
+        anamneseId: anamnese.id,
+        imagem: foto.file,
+        parametrosCaptura: {
+          origem: foto.origem,
+          mime_type: foto.file.type,
+          tamanho_bytes: foto.file.size,
+          largura: foto.largura,
+          altura: foto.altura,
+          ...(foto.facingMode ? { facing_mode: foto.facingMode } : {}),
+        },
+      });
+      const diagnostico = await diagnosticoService.aguardarResultado(criado.id);
+      if (diagnostico.status === "falha" || diagnostico.nivel === null) {
+        throw new Error("Não foi possível analisar a imagem. Tente enviar outra foto.");
+      }
+      setResultado({
+        id: diagnostico.id,
+        nivel: diagnostico.nivel,
+        confiancaIA: diagnostico.confiancaIA,
+        conteudos: diagnostico.conteudos ?? [],
+      });
+    } catch (e) {
+      setErro(mensagemDeErro(e));
+    }
   }
 
   const classificacaoAtual = classificacaoConfirmada ?? resultado?.nivel ?? null;
 
   function salvarRevisaoProfissional() {
     if (!resultado || !classificacaoAtual) return;
-    revisarDiagnostico.mutate({
-      id: resultado.id,
-      nivel: classificacaoAtual,
-      revisadoPor: profissionalId,
-    });
+    revisarDiagnostico.mutate({ id: resultado.id, nivel: classificacaoAtual, observacoes });
   }
-
-  const dicasFiltradas = (dicasDoResultado.data ?? []).filter(
-    (d) => resultado && d.niveis.includes(resultado.nivel),
-  );
 
   return (
     <div className="bg-background flex min-h-full flex-col">
@@ -241,9 +360,16 @@ export function AvaliacaoWizard({
               </div>
             </div>
             <Card className="rounded-lg p-5 shadow-sm ring-0">
-              <p className="font-heading mb-5 text-lg leading-snug font-semibold">
-                {questaoAtual.texto}
-              </p>
+              <div className="mb-5 flex items-start justify-between gap-3">
+                <p className="font-heading text-lg leading-snug font-semibold">
+                  {questaoAtual.texto}
+                </p>
+                {questaoAtual.obrigatoria && (
+                  <span className="font-heading text-destructive bg-destructive/10 shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold whitespace-nowrap">
+                    Obrigatória
+                  </span>
+                )}
+              </div>
 
               {questaoAtual.tipo === "sim_nao" && (
                 <div className="grid grid-cols-2 gap-2.5">
@@ -255,10 +381,10 @@ export function AvaliacaoWizard({
                         nextAns();
                       }}
                       className={cn(
-                        "font-heading rounded-[14px] border-2 p-4 text-[15px] font-bold transition-colors",
+                        "font-heading rounded-[14px] border-2 p-4 text-[15px] font-bold transition-all active:scale-[0.97]",
                         answers[questaoAtual.id] === opt
                           ? "border-primary bg-secondary text-primary"
-                          : "border-border bg-background text-foreground",
+                          : "border-border bg-background text-foreground hover:border-primary/50 hover:bg-secondary/50",
                       )}
                     >
                       {opt}
@@ -277,10 +403,10 @@ export function AvaliacaoWizard({
                         nextAns();
                       }}
                       className={cn(
-                        "font-heading rounded-xl border-2 p-3.5 text-left text-sm font-semibold transition-colors",
+                        "font-heading rounded-xl border-2 p-3.5 text-left text-sm font-semibold transition-all active:scale-[0.98]",
                         answers[questaoAtual.id] === opt
                           ? "border-primary bg-secondary text-primary"
-                          : "border-border bg-background text-foreground",
+                          : "border-border bg-background text-foreground hover:border-primary/50 hover:bg-secondary/50",
                       )}
                     >
                       {opt}
@@ -297,7 +423,12 @@ export function AvaliacaoWizard({
                     onChange={(e) => responder(e.target.value)}
                     className="border-border bg-background focus:bg-card focus:border-primary focus:ring-primary/10 w-full rounded-xl border-[1.5px] p-3.5 text-[15px] transition-colors outline-none focus:ring-3"
                   />
-                  <Button onClick={nextAns}>Próximo</Button>
+                  <Button
+                    onClick={nextAns}
+                    disabled={questaoAtual.obrigatoria && !answers[questaoAtual.id]?.trim()}
+                  >
+                    Próximo
+                  </Button>
                 </div>
               )}
 
@@ -309,10 +440,10 @@ export function AvaliacaoWizard({
                         key={n}
                         onClick={() => responder(String(n))}
                         className={cn(
-                          "font-heading flex h-13 w-13 items-center justify-center rounded-2xl border-2 text-xl font-extrabold transition-colors",
+                          "font-heading flex h-13 w-13 items-center justify-center rounded-2xl border-2 text-xl font-extrabold transition-all active:scale-90",
                           answers[questaoAtual.id] === String(n)
                             ? "border-primary bg-primary text-white"
-                            : "border-border bg-background text-foreground",
+                            : "border-border bg-background text-foreground hover:border-primary/50 hover:bg-secondary/50",
                         )}
                       >
                         {n}
@@ -323,7 +454,10 @@ export function AvaliacaoWizard({
                     <span>Ruim</span>
                     <span>Excelente</span>
                   </div>
-                  <Button onClick={nextAns} disabled={!answers[questaoAtual.id]}>
+                  <Button
+                    onClick={nextAns}
+                    disabled={questaoAtual.obrigatoria && !answers[questaoAtual.id]}
+                  >
                     Próximo
                   </Button>
                 </div>
@@ -455,91 +589,67 @@ export function AvaliacaoWizard({
           </div>
         )}
 
-        {/* 4 — Captura */}
-        {step === 4 && (
-          <div className="flex flex-col gap-4">
-            <p className="text-muted-foreground text-center text-sm">
-              Posicione sua língua dentro da área indicada
-            </p>
-            <div className="shell:flex-row shell:items-center shell:justify-center shell:gap-8 flex flex-col gap-4">
-              <div className="shell:w-100 shell:shrink-0 relative aspect-square overflow-hidden rounded-[20px] bg-[#0a3d4a]">
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    background:
-                      "radial-gradient(circle at 30% 70%, rgba(22,163,74,0.15), transparent 60%)",
-                  }}
-                />
-                <div className="relative flex h-full items-center justify-center">
-                  <div className="aspect-[1.4] w-[70%] rounded-[30px] border border-dashed border-white/20" />
-                </div>
-                <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5 rounded-4xl bg-[#4ade80] px-3 py-1">
-                  <div className="h-1.5 w-1.5 rounded-full bg-white" />
-                  <span className="font-heading text-[11px] font-bold text-[#065F46]">Pronto</span>
-                </div>
-              </div>
-
-              <div className="shell:w-80 flex flex-col gap-3">
-                <Button size="lg" onClick={next} className="bg-[#16A34A] hover:bg-[#15803d]">
-                  <Camera className="h-4.5 w-4.5" /> Capturar foto
-                </Button>
-                <button
-                  onClick={next}
-                  className="border-border text-primary font-heading bg-background flex items-center justify-center gap-2 rounded-2xl border-[1.5px] border-dashed p-3.5 text-sm font-semibold"
-                >
-                  <ImageUp className="h-4.5 w-4.5" />
-                  Escolher da galeria
-                </button>
-                <Button variant="ghost" onClick={back}>
-                  <ChevronLeft className="h-4 w-4" /> Voltar
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 5 — Revisar imagem */}
-        {step === 5 && (
-          <div className="flex flex-col gap-4">
-            <div className="shell:text-center">
-              <h2 className="mb-1 text-xl">A imagem está boa?</h2>
-              <p className="text-muted-foreground text-sm">
-                Verifique se a língua está nítida e bem enquadrada
-              </p>
-            </div>
-            <div className="shell:flex-row shell:items-center shell:justify-center shell:gap-8 flex flex-col gap-4">
-              <div className="shell:w-100 shell:shrink-0 relative flex aspect-square items-center justify-center overflow-hidden rounded-[20px] bg-[#0a3d4a]">
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    background:
-                      "radial-gradient(ellipse at center, rgba(11,107,130,0.25), transparent 70%)",
-                  }}
-                />
-                <div className="relative flex flex-col items-center gap-1.5">
-                  <div className="h-17.5 w-30 rounded-[50%_50%_40%_40%] border border-white/12 bg-white/6" />
-                  <div className="font-heading text-[11px] text-white/35">Imagem capturada</div>
-                </div>
-              </div>
-
-              <div className="shell:w-80 flex flex-col gap-3">
-                <Button
-                  size="lg"
-                  onClick={confirmarAnamneseECaptura}
-                  className="bg-[#16A34A] hover:bg-[#15803d]"
-                >
-                  <Check className="h-4 w-4" /> Usar esta foto
-                </Button>
-                <Button variant="secondary" onClick={() => setStep(4)}>
-                  <Camera className="h-4 w-4" /> Tirar novamente
-                </Button>
-              </div>
-            </div>
-          </div>
+        {/* 4 e 5 — Captura e revisão da foto */}
+        {(step === 4 || step === 5) && (
+          <>
+            <input
+              ref={inputCameraRef}
+              type="file"
+              accept={TIPOS_IMAGEM_ACEITOS}
+              capture="environment"
+              className="hidden"
+              data-testid="input-camera"
+              onChange={(e) => selecionarFoto(e, "camera")}
+            />
+            <input
+              ref={inputGaleriaRef}
+              type="file"
+              accept={TIPOS_IMAGEM_ACEITOS}
+              className="hidden"
+              data-testid="input-galeria"
+              onChange={(e) => selecionarFoto(e, "galeria")}
+            />
+            <CapturaLingua
+              videoRef={cameraVideoRef}
+              estadoCamera={estadoCamera}
+              podeAlternarCamera={podeAlternarCamera}
+              onAlternarCamera={alternarCamera}
+              foto={step === 5 ? foto : null}
+              ocupado={capturando}
+              onCapturar={capturarFoto}
+              onGaleria={() => inputGaleriaRef.current?.click()}
+              onVoltar={() => {
+                setFalhaNaCaptura(false);
+                setStep(3);
+              }}
+              onUsarFoto={confirmarAnamneseECaptura}
+              onTirarOutra={tirarNovamente}
+            />
+          </>
         )}
 
         {/* 6 — Processando */}
-        {step === 6 && !resultado && (
+        {step === 6 && !resultado && erro && (
+          <div className="shell:mx-auto shell:w-full shell:max-w-135 flex flex-col gap-4 pt-5">
+            <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-start gap-2.5 rounded-2xl border px-4 py-3">
+              <TriangleAlert className="h-4.5 w-4.5 shrink-0" />
+              <div>
+                <div className="font-heading mb-0.5 text-[13px] font-bold">
+                  Não foi possível concluir a análise
+                </div>
+                <p className="text-xs leading-relaxed">{erro}</p>
+              </div>
+            </div>
+            <Button size="lg" onClick={tirarNovamente}>
+              <Camera className="h-4 w-4" /> Enviar outra foto
+            </Button>
+            <Button variant="secondary" onClick={() => router.push(voltarHref)}>
+              Voltar ao início
+            </Button>
+          </div>
+        )}
+
+        {step === 6 && !resultado && !erro && (
           <ScanLoader
             title="Analisando sua imagem"
             subtitle="Nossa inteligência artificial está processando o diagnóstico. Isso pode levar alguns instantes."
@@ -571,11 +681,14 @@ export function AvaliacaoWizard({
                   className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[18px]"
                   style={{ background: `${nivelColor(resultado.nivel)}18` }}
                 >
-                  <ScanLine className="h-7 w-7" style={{ color: nivelColor(resultado.nivel) }} />
+                  {createElement(iconeResultado, {
+                    className: "h-7 w-7",
+                    style: { color: nivelColor(resultado.nivel) },
+                  })}
                 </div>
                 <div>
                   <LevelChip nivel={resultado.nivel} />
-                  {resultado.confiancaIA && (
+                  {resultado.confiancaIA !== undefined && (
                     <div className="text-muted-foreground mt-1.5 text-xs">
                       Confiança: {resultado.confiancaIA}%
                     </div>
@@ -630,6 +743,11 @@ export function AvaliacaoWizard({
               {revisarDiagnostico.isSuccess && (
                 <div className="mt-3 flex items-center gap-2 rounded-xl border border-[#6EE7B7] bg-[#D1FAE5] px-3.5 py-2.5 text-[13px] font-semibold text-[#065F46]">
                   <Check className="h-4 w-4" /> Diagnóstico salvo e enviado ao paciente!
+                </div>
+              )}
+              {revisarDiagnostico.isError && (
+                <div className="border-destructive/30 bg-destructive/10 text-destructive mt-3 rounded-xl border px-3.5 py-2.5 text-[13px] font-semibold">
+                  Não foi possível salvar a revisão. Tente novamente.
                 </div>
               )}
               <Button
@@ -692,7 +810,10 @@ export function AvaliacaoWizard({
                   borderColor: nivelColor(resultado.nivel),
                 }}
               >
-                <ScanLine className="h-9 w-9" style={{ color: nivelColor(resultado.nivel) }} />
+                {createElement(iconeResultado, {
+                  className: "h-9 w-9",
+                  style: { color: nivelColor(resultado.nivel) },
+                })}
               </div>
               <LevelChip nivel={resultado.nivel} size="lg" />
               {resultado.confiancaIA && (
@@ -704,8 +825,17 @@ export function AvaliacaoWizard({
 
             <Card className="rounded-lg p-5 shadow-sm ring-0">
               <div className="mb-3.5 flex items-center gap-3.5">
-                <div className="bg-background text-primary flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px]">
-                  <ScanLine className="h-6 w-6" />
+                <div className="bg-background text-primary flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[14px]">
+                  {foto ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- preview local (blob URL), fora do domínio do next/image
+                    <img
+                      src={foto.previewUrl}
+                      alt="Imagem analisada"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <ScanLine className="h-6 w-6" />
+                  )}
                 </div>
                 <div>
                   <div className="text-muted-foreground text-[13px]">Imagem analisada</div>
@@ -734,7 +864,9 @@ export function AvaliacaoWizard({
           <div className="shell:mx-auto shell:w-full shell:max-w-135 flex flex-col gap-4">
             <div
               className="relative overflow-hidden rounded-[18px] p-4.5"
-              style={{ background: "linear-gradient(135deg, #0a3d4a, #0b6b82)" }}
+              style={{
+                background: "linear-gradient(135deg, var(--color-teal-900), var(--color-teal-800))",
+              }}
             >
               <div className="relative">
                 <Image
@@ -776,21 +908,27 @@ export function AvaliacaoWizard({
               </p>
             </div>
 
-            {dicasFiltradas.map((dica) => (
+            {resultado.conteudos.length === 0 && (
+              <EmptyState
+                icon={<Lightbulb className="h-7 w-7" />}
+                title="Nenhuma orientação cadastrada"
+                description="Ainda não há conteúdo cadastrado para essa classificação."
+              />
+            )}
+            {resultado.conteudos.map((c) => (
               <TipCard
-                key={dica.id}
-                titulo={dica.titulo}
-                categoria={dica.categoria}
-                corpo={dica.corpo}
-                formato={dica.formato}
-                midiaUrl={dica.midiaUrl}
+                key={c.id}
+                titulo={c.titulo}
+                categoria={c.categoria}
+                corpo={c.textos.join(" ")}
+                formato="texto"
               />
             ))}
 
             <Button
               size="lg"
               onClick={() => router.push(voltarHref)}
-              className="bg-[#16A34A] hover:bg-[#15803d]"
+              className="bg-green-600 hover:bg-green-700"
             >
               Concluir diagnóstico
             </Button>

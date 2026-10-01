@@ -1,12 +1,23 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { pacienteService } from "@/services/paciente-service";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { pacienteService, type FiltroPacientes } from "@/services/paciente-service";
+import { vinculoService } from "@/services/vinculo-service";
 
-export function usePacientes(filtro?: { profissionalId?: string }) {
+export function usePacientes(filtro: FiltroPacientes = {}) {
   return useQuery({
-    queryKey: ["pacientes", filtro],
+    queryKey: ["pacientes", "lista", filtro],
     queryFn: () => pacienteService.listar(filtro),
+  });
+}
+
+export function usePacientesPaginados(filtro: Omit<FiltroPacientes, "pagina"> = {}) {
+  return useInfiniteQuery({
+    queryKey: ["pacientes", "paginado", filtro],
+    queryFn: ({ pageParam }) => pacienteService.listar({ ...filtro, pagina: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (ultima) =>
+      ultima.pagina < ultima.totalPaginas ? ultima.pagina + 1 : undefined,
   });
 }
 
@@ -18,19 +29,13 @@ export function usePaciente(id: string) {
   });
 }
 
-export function useCriarPaciente() {
+export function useVincularPaciente() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: pacienteService.criar,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["pacientes"] }),
-  });
-}
-
-export function useVincularProfissional() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ pacienteId, profissionalId }: { pacienteId: string; profissionalId: string }) =>
-      pacienteService.vincularProfissional(pacienteId, profissionalId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["pacientes"] }),
+    mutationFn: (pacienteEmail: string) => vinculoService.vincular(pacienteEmail),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pacientes"] });
+      queryClient.invalidateQueries({ queryKey: ["profissional", "resumo"] });
+    },
   });
 }

@@ -1,38 +1,50 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Beaker, Clock, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { LevelChip } from "@/components/level-chip";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { CustomPeriodDialog } from "@/components/custom-period-dialog";
-import { useDiagnosticos } from "@/hooks/use-diagnosticos";
-import { useSessaoAtual } from "@/lib/auth/session-context";
+import { useDiagnosticosPaginados } from "@/hooks/use-diagnosticos";
 import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/status-format";
-import { PERIODS, periodLabel, inPeriod, type Period, type CustomRange } from "@/lib/date-period";
+import {
+  PERIODS,
+  periodLabel,
+  periodoParaFiltro,
+  type Period,
+  type CustomRange,
+} from "@/lib/date-period";
 import { cn } from "@/lib/utils";
 import type { StatusDiagnostico } from "@/types/diagnostico";
 
 const FILTROS_STATUS: { valor: StatusDiagnostico | "todos"; label: string }[] = [
   { valor: "todos", label: "Todos" },
   { valor: "aguardando_revisao", label: "Aguardando revisão" },
-  { valor: "concluido", label: "Revisado" },
+  { valor: "concluido", label: "Concluído" },
+  { valor: "processando", label: "Processando" },
+  { valor: "falha", label: "Falha" },
 ];
 
 export default function DiagnosticosProfissionalPage() {
-  const { id: profissionalId } = useSessaoAtual();
   const [filtroStatus, setFiltroStatus] = useState<StatusDiagnostico | "todos">("todos");
   const [period, setPeriod] = useState<Period>("Todos");
   const [customRange, setCustomRange] = useState<CustomRange | null>(null);
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
-  const { data: diagnosticos } = useDiagnosticos({ profissionalId });
-
-  const filtrados = (diagnosticos ?? [])
-    .filter((d) => filtroStatus === "todos" || d.status === filtroStatus)
-    .filter((d) => inPeriod(new Date(d.criadoEm).toLocaleDateString("pt-BR"), period, customRange));
+  const filtroPeriodo = useMemo(
+    () => periodoParaFiltro(period, customRange),
+    [period, customRange],
+  );
+  const lista = useDiagnosticosPaginados({
+    ...filtroPeriodo,
+    ...(filtroStatus === "todos" ? {} : { status: filtroStatus }),
+    limite: 20,
+  });
+  const itens = lista.data?.pages.flatMap((p) => p.itens) ?? [];
 
   return (
     <div className="flex flex-col">
@@ -91,20 +103,23 @@ export default function DiagnosticosProfissionalPage() {
       />
 
       <div className="cyb-grid gap-2.5 p-4">
-        {filtrados.length === 0 && (
+        {!lista.isLoading && itens.length === 0 && (
           <EmptyState
             icon={<Beaker className="h-7 w-7" />}
             title="Nenhum resultado"
             description="Ajuste os filtros para ver mais diagnósticos."
           />
         )}
-        {filtrados.map((d) => (
-          <Link key={d.id} href={`/profissional/diagnosticos/${d.id}`}>
+        {itens.map((d) => (
+          <Link
+            key={d.id}
+            href={`/profissional/diagnosticos/${d.id}${d.pacienteId ? `?paciente=${d.pacienteId}` : ""}`}
+          >
             <Card className="diag-list-card flex-row items-center gap-3.5 rounded-lg p-4 shadow-sm ring-0">
-              <AvatarWithRole nome={d.pacienteId} size={44} />
+              <AvatarWithRole nome={d.pacienteNome ?? "Paciente"} size={44} />
               <div className="min-w-0 flex-1">
                 <div className="font-heading truncate text-sm font-bold">
-                  Paciente {d.pacienteId.slice(-1)}
+                  {d.pacienteNome ?? "Paciente"}
                 </div>
                 <div className="text-muted-foreground mb-1.5 truncate text-xs">
                   {new Date(d.criadoEm).toLocaleDateString("pt-BR")}
@@ -120,15 +135,24 @@ export default function DiagnosticosProfissionalPage() {
                 ) : (
                   <Clock className="text-gray-3 h-5 w-5" />
                 )}
-                {d.confiancaIA && (
-                  <span className="text-muted-foreground text-[11px]">IA {d.confiancaIA}%</span>
-                )}
               </div>
               <ChevronRight className="text-gray-3 h-4 w-4" />
             </Card>
           </Link>
         ))}
       </div>
+
+      {lista.hasNextPage && (
+        <div className="flex justify-center px-4 pb-4">
+          <Button
+            variant="secondary"
+            onClick={() => lista.fetchNextPage()}
+            disabled={lista.isFetchingNextPage}
+          >
+            {lista.isFetchingNextPage ? "Carregando…" : "Carregar mais"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

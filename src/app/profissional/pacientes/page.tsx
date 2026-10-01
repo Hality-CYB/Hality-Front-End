@@ -1,24 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useDeferredValue, useState } from "react";
 import Link from "next/link";
-import { Search, ChevronRight, Camera } from "lucide-react";
+import { Search, ChevronRight, Camera, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
+import { EmptyState } from "@/components/empty-state";
 import { LevelChip } from "@/components/level-chip";
 import { AvatarWithRole } from "@/components/avatar-with-role";
-import { usePacientes } from "@/hooks/use-pacientes";
-import { useSessaoAtual } from "@/lib/auth/session-context";
+import { usePacientesPaginados } from "@/hooks/use-pacientes";
 
 export default function PacientesPage() {
-  const { id: profissionalId } = useSessaoAtual();
   const [busca, setBusca] = useState("");
-  const { data: pacientes } = usePacientes({ profissionalId });
-
-  const filtrados = (pacientes ?? []).filter((p) =>
-    p.nome.toLowerCase().includes(busca.toLowerCase()),
-  );
+  const buscaAdiada = useDeferredValue(busca);
+  const lista = usePacientesPaginados({ busca: buscaAdiada, limite: 20 });
+  const pacientes = lista.data?.pages.flatMap((p) => p.itens) ?? [];
 
   return (
     <div className="flex flex-col">
@@ -29,7 +26,7 @@ export default function PacientesPage() {
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar paciente..."
+            placeholder="Buscar por nome ou e-mail..."
             className="w-full rounded-xl border border-white/20 bg-white/15 py-3 pr-3.5 pl-10 text-sm text-white outline-none placeholder:text-white/50"
           />
         </div>
@@ -42,8 +39,20 @@ export default function PacientesPage() {
           </Link>
         </Button>
 
+        {!lista.isLoading && pacientes.length === 0 && (
+          <EmptyState
+            icon={<Users className="h-7 w-7" />}
+            title={busca ? "Nenhum paciente encontrado" : "Nenhum paciente vinculado"}
+            description={
+              busca
+                ? "Tente buscar por outro nome ou e-mail."
+                : "Vincule um paciente pelo e-mail em Avaliar paciente."
+            }
+          />
+        )}
+
         <div className="cyb-grid gap-2.5">
-          {filtrados.map((p) => (
+          {pacientes.map((p) => (
             <Link key={p.id} href={`/profissional/pacientes/${p.id}`}>
               <Card className="patient-list-card flex-row items-center gap-3.5 rounded-lg p-4 shadow-sm ring-0">
                 <AvatarWithRole nome={p.nome} size={48} />
@@ -57,9 +66,7 @@ export default function PacientesPage() {
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  {!p.consentimentoDadosSaude.aceito && (
-                    <StatusBadge label="Cadastro pendente" status="pending" />
-                  )}
+                  {!p.ativo && <StatusBadge label="Inativo" status="neutral" />}
                   {p.ultimoNivel !== null && <LevelChip nivel={p.ultimoNivel} size="sm" />}
                   <ChevronRight className="text-gray-3 h-4 w-4" />
                 </div>
@@ -67,6 +74,18 @@ export default function PacientesPage() {
             </Link>
           ))}
         </div>
+
+        {lista.hasNextPage && (
+          <div className="flex justify-center">
+            <Button
+              variant="secondary"
+              onClick={() => lista.fetchNextPage()}
+              disabled={lista.isFetchingNextPage}
+            >
+              {lista.isFetchingNextPage ? "Carregando…" : "Carregar mais"}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

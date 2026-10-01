@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, createElement } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Camera, ScanLine } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -10,16 +10,27 @@ import { EmptyState } from "@/components/empty-state";
 import { LevelChip } from "@/components/level-chip";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { usePaciente } from "@/hooks/use-pacientes";
-import { useDiagnosticos } from "@/hooks/use-diagnosticos";
-import { nivelColor } from "@/lib/level-format";
+import { nivelColor, nivelIcon } from "@/lib/level-format";
 import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/status-format";
 
 export default function PacienteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { data: paciente } = usePaciente(id);
-  const { data: diagnosticos } = useDiagnosticos({ pacienteId: id });
+  const { data: paciente, isError } = usePaciente(id);
 
+  if (isError) {
+    return (
+      <div className="p-4">
+        <EmptyState
+          icon={<ScanLine className="h-7 w-7" />}
+          title="Paciente não encontrado"
+          description="Ele pode não estar mais vinculado a você."
+        />
+      </div>
+    );
+  }
   if (!paciente) return null;
+
+  const diagnosticos = paciente.diagnosticos.itens;
 
   return (
     <div className="flex flex-col">
@@ -32,9 +43,11 @@ export default function PacienteDetailPage({ params }: { params: Promise<{ id: s
         </Link>
         <div className="flex items-center gap-3.5">
           <AvatarWithRole nome={paciente.nome} size={56} />
-          <div>
-            <div className="font-heading text-lg font-extrabold text-white">{paciente.nome}</div>
-            <div className="text-sm text-white/60">{paciente.email}</div>
+          <div className="min-w-0">
+            <div className="font-heading truncate text-lg font-extrabold text-white">
+              {paciente.nome}
+            </div>
+            <div className="truncate text-sm text-white/60">{paciente.email}</div>
           </div>
         </div>
       </div>
@@ -51,12 +64,14 @@ export default function PacienteDetailPage({ params }: { params: Promise<{ id: s
           <div className="flex flex-col gap-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Telefone</span>
-              <span className="font-heading font-semibold">{paciente.telefone}</span>
+              <span className="font-heading font-semibold">{paciente.telefone || "—"}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Cadastro em</span>
+              <span className="text-muted-foreground">Vinculado em</span>
               <span className="font-heading font-semibold">
-                {paciente.criadoEm ? new Date(paciente.criadoEm).toLocaleDateString("pt-BR") : "—"}
+                {paciente.vinculadoEm
+                  ? new Date(paciente.vinculadoEm).toLocaleDateString("pt-BR")
+                  : "—"}
               </span>
             </div>
           </div>
@@ -66,27 +81,30 @@ export default function PacienteDetailPage({ params }: { params: Promise<{ id: s
           <div className="mb-3 flex items-baseline justify-between">
             <h2 className="text-lg">Histórico de diagnósticos</h2>
             <span className="text-muted-foreground text-xs">
-              {(diagnosticos ?? []).length} exames
+              {paciente.diagnosticos.total} exames
             </span>
           </div>
           <div className="flex flex-col gap-2.5">
-            {(diagnosticos ?? []).length === 0 && (
+            {diagnosticos.length === 0 && (
               <EmptyState
                 icon={<ScanLine className="h-7 w-7" />}
                 title="Nenhum diagnóstico ainda"
               />
             )}
-            {diagnosticos?.map((d) => (
+            {diagnosticos.map((d) => (
               <Link
                 key={d.id}
-                href={`/profissional/diagnosticos/${d.id}?voltar=/profissional/pacientes/${id}`}
+                href={`/profissional/diagnosticos/${d.id}?paciente=${paciente.id}&voltar=/profissional/pacientes/${paciente.id}`}
               >
                 <Card className="flex-row items-center gap-3.5 rounded-lg p-4 shadow-sm ring-0">
                   <div
                     className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
                     style={{ background: `${nivelColor(d.nivel)}18` }}
                   >
-                    <ScanLine className="h-5 w-5" style={{ color: nivelColor(d.nivel) }} />
+                    {createElement(nivelIcon(d.nivel), {
+                      className: "h-5 w-5",
+                      style: { color: nivelColor(d.nivel) },
+                    })}
                   </div>
                   <div className="flex-1">
                     <div className="font-heading text-sm font-bold">

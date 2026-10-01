@@ -1,9 +1,14 @@
 /**
- * Persistência do token de acesso do usuário autenticado no navegador.
+ * Persistência do access token do usuário autenticado no navegador.
  *
- * O token emitido no login fica em `localStorage` e é lido por
- * `api-client.ts` para ser anexado no header (Authorization: Bearer <token>)
- * em chamadas autenticadas ao FastAPI.
+ * Só o access_token (JWT curto, 30min) mora aqui — vai no header
+ * Authorization de toda chamada autenticada, lido por `api-client.ts`.
+ *
+ * O refresh_token NÃO tem par aqui de propósito: ele vive só num cookie
+ * httpOnly setado pelo back (ver app/api/v1/endpoints/auth.py), com `path`
+ * restrito às rotas de auth. JavaScript nunca consegue ler esse cookie —
+ * nem `document.cookie` nem `localStorage` alcançam — então um XSS na SPA
+ * rouba no máximo o access_token, que expira em 30min.
  */
 
 const TOKEN_STORAGE_KEY = "hality:access_token";

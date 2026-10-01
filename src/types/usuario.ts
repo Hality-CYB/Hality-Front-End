@@ -13,10 +13,9 @@ export function mapBackendRoleToFrontend(role: string): Role {
   return "paciente";
 }
 
+/** O back grava o papel em português (`paciente`/`profissional`/`admin`) desde o RBAC. */
 export function mapFrontendRoleToBackend(role: Role): string {
-  if (role === "paciente") return "patient";
-  if (role === "profissional") return "professional";
-  return "admin";
+  return role;
 }
 
 export const usuarioSchema = z.object({

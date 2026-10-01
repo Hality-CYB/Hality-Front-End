@@ -1,9 +1,21 @@
 import { apiClient } from "@/lib/api-client";
-import { usuarioSchema, type Usuario, type Role } from "@/types/usuario";
+import {
+  usuarioSchema,
+  backendUserSchema,
+  adaptBackendUser,
+  type Usuario,
+  type Role,
+} from "@/types/usuario";
 import { z } from "zod";
 
-/** Só usado pelo admin (RF38 — gestão de usuários). */
 export const usuarioService = {
+  /** Usuário autenticado (dono do access_token em uso). */
+  async buscarAtual(): Promise<Usuario> {
+    const data = await apiClient.get<unknown>("/api/v1/users/me");
+    return usuarioSchema.parse(adaptBackendUser(backendUserSchema.parse(data)));
+  },
+
+  /** Só usado pelo admin (RF38 — gestão de usuários). */
   async listar(): Promise<Usuario[]> {
     const data = await apiClient.get<unknown>("/api/v1/usuarios");
     return z.array(usuarioSchema).parse(data);
