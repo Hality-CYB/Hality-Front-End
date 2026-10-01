@@ -25,8 +25,8 @@ export function BottomNav({ role }: BottomNavProps) {
 
   if (variant === "pill") {
     return (
-      <nav className="bg-background shell:hidden shrink-0 px-6.25 pt-4 pb-6.25">
-        <div className="bg-card/85 flex items-center rounded-[296px] px-0.5 shadow-[0px_8px_40px_0px_rgba(0,0,0,0.12)] backdrop-blur-xl">
+      <nav className="shell:hidden pointer-events-none absolute inset-x-0 bottom-0 z-20 px-6.25 pt-4 pb-6.25">
+        <div className="bg-card/60 pointer-events-auto flex items-center rounded-[296px] border border-white/50 px-0.5 shadow-[0px_8px_40px_0px_rgba(0,0,0,0.12)] backdrop-blur-xl backdrop-saturate-150">
           {items.map((item) => {
             const active = isActive(item.href);
             const Icon = item.icon;
@@ -61,7 +61,7 @@ export function BottomNav({ role }: BottomNavProps) {
   }
 
   return (
-    <nav className="border-border bg-card shell:hidden flex shrink-0 items-center border-t px-2 pt-2.5 pb-6.5">
+    <nav className="bg-card/60 shell:hidden absolute inset-x-0 bottom-0 z-20 flex items-center border-t border-white/50 px-2 pt-2.5 pb-6.5 backdrop-blur-xl backdrop-saturate-150">
       {items.map((item) => {
         const active = isActive(item.href);
         const Icon = item.icon;
