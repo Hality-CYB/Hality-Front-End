@@ -119,5 +119,11 @@ export const apiClient = {
       method: "PUT",
       body: serializarBody(body),
     }),
+  patch: <T>(path: string, body?: unknown, init?: RequestInit) =>
+    request<T>(path, {
+      ...init,
+      method: "PATCH",
+      body: serializarBody(body),
+    }),
   delete: <T>(path: string, init?: RequestInit) => request<T>(path, { ...init, method: "DELETE" }),
 };

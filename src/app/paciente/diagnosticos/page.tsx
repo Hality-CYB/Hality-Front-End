@@ -126,9 +126,7 @@ export default function DiagnosticosPage() {
                 </div>
                 <StatusBadge
                   label={
-                    d.status === "concluido"
-                      ? nivelLabel(d.nivel)
-                      : (STATUS_LABEL[d.status] ?? d.status)
+                    d.nivel !== null ? nivelLabel(d.nivel) : (STATUS_LABEL[d.status] ?? d.status)
                   }
                   status={nivelBadgeStatus(d.nivel)}
                 />

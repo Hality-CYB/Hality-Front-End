@@ -1,6 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { config } from "@/lib/config";
-import { seedUsuarios, seedDiagnosticos, seedDicas } from "@/services/mocks/seed-data";
+import { seedUsuarios, seedDicas } from "@/services/mocks/seed-data";
+import { diagnosticosMock, PACIENTE_MOCK_ID } from "@/services/mocks/mock-db";
 import { mapFrontendRoleToBackend } from "@/types/usuario";
 import { nivelLabel } from "@/lib/level-format";
 
@@ -15,8 +16,8 @@ export const homeHandlers = [
 
     // Mesma simplificação de diagnosticos-handlers.ts: mock não segmenta
     // diagnóstico por paciente de verdade, todos pertencem a "paciente-1".
-    const ultimo = [...seedDiagnosticos]
-      .filter((d) => d.pacienteId === "paciente-1")
+    const ultimo = [...diagnosticosMock]
+      .filter((d) => d.pacienteId === PACIENTE_MOCK_ID)
       .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime())[0];
 
     return HttpResponse.json({

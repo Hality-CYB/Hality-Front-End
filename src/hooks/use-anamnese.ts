@@ -10,14 +10,6 @@ export function useAnamnesePerguntas() {
   });
 }
 
-export function useAnamnese(id: string | undefined) {
-  return useQuery({
-    queryKey: ["anamnese", id],
-    queryFn: () => anamneseService.buscar(id!),
-    enabled: !!id,
-  });
-}
-
 export function useCriarAnamnese() {
   return useMutation({
     mutationFn: anamneseService.criar,

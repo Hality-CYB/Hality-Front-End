@@ -1,9 +1,7 @@
 import { apiClient } from "@/lib/api-client";
 import {
-  adaptBackendAnamneseDetail,
   adaptBackendQuestionario,
   backendAnamneseCreatedSchema,
-  backendAnamneseDetailSchema,
   backendQuestionarioSchema,
   mapTipoPerguntaParaBackend,
   type Anamnese,
@@ -35,16 +33,16 @@ export const anamneseService = {
     return adaptBackendQuestionario(backendQuestionarioSchema.parse(data));
   },
 
-  async buscar(id: string): Promise<Anamnese> {
-    const data = await apiClient.get<unknown>(`/api/v1/anamneses/${id}`);
-    return adaptBackendAnamneseDetail(backendAnamneseDetailSchema.parse(data));
-  },
-
+  /** Com `pacienteId`, é o profissional preenchendo para um paciente vinculado (`POST /pacientes/{id}/anamneses`). */
   async criar(input: {
     versaoQuestionario: string;
     respostas: RespostaAnamnese[];
+    pacienteId?: string;
   }): Promise<Anamnese> {
-    const data = await apiClient.post<unknown>("/api/v1/anamneses", {
+    const rota = input.pacienteId
+      ? `/api/v1/pacientes/${input.pacienteId}/anamneses`
+      : "/api/v1/anamneses";
+    const data = await apiClient.post<unknown>(rota, {
       versao_questionario: input.versaoQuestionario,
       respostas: input.respostas.map((r) => ({
         pergunta_id: r.perguntaId,

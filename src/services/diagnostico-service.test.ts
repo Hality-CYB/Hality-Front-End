@@ -8,6 +8,7 @@ import { config } from "@/lib/config";
 import { ApiError } from "@/lib/api-client";
 import { server } from "@/services/mocks/server";
 import { diagnosticoService } from "@/services/diagnostico-service";
+import { nivelFinal } from "@/types/diagnostico";
 
 const url = (path: string) => `${config.apiBaseUrl}${path}`;
 
@@ -44,7 +45,20 @@ function detalheBackend(overrides: Record<string, unknown> = {}) {
         data_captura: "2026-09-17T10:00:01",
       },
     ],
-    anamnese: { id: 101, data_preenchimento: "2026-09-17T09:59:00", respostas: [] },
+    anamnese: {
+      id: 101,
+      data_preenchimento: "2026-09-17T09:59:00",
+      respostas: [
+        {
+          valor: true,
+          pergunta_id: "boca_seca",
+          des_pergunta: "Você tem boca seca?",
+          des_resposta: "Sim",
+          tipo_pergunta: "boolean",
+          tipo_resposta: "bool",
+        },
+      ],
+    },
     revisao: null,
     tem_profissional_vinculado: false,
     conteudos: [],
@@ -255,11 +269,70 @@ describe("diagnosticoService.buscar", () => {
       status: "concluido",
       confiancaIA: 88,
       anamneseId: "101",
+      respostasAnamnese: [
+        {
+          perguntaId: "boca_seca",
+          enunciado: "Você tem boca seca?",
+          tipo: "sim_nao",
+          valor: "true",
+        },
+      ],
       imagemUrl: "/api/v1/diagnosticos/imagens/primeira.jpg",
       criadoEm: "2026-09-17T10:00:00",
       conteudos: [],
       revisao: null,
     });
+  });
+
+  it("revisão traz a classificação do profissional sem trocar o nível da IA", async () => {
+    sequenciaDeGets({
+      revisao: {
+        revisado: true,
+        profissional_nome: "Dra. Ana",
+        data_revisao: "2026-09-18T10:00:00",
+        observacoes: "Reavaliar",
+        nivel_corrigido: true,
+        classificacao: {
+          id: 11,
+          codigo: "halito_normal",
+          nome_exibicao: "Hálito Normal",
+          ordem: 1,
+        },
+        version: 2,
+      },
+    });
+
+    const diagnostico = await diagnosticoService.buscar("42");
+
+    expect(diagnostico.nivel).toBe(3);
+    expect(diagnostico.revisao).toEqual({
+      revisado: true,
+      profissionalNome: "Dra. Ana",
+      revisadoEm: "2026-09-18T10:00:00",
+      observacoes: "Reavaliar",
+      nivel: 1,
+      nivelCorrigido: true,
+    });
+    expect(nivelFinal(diagnostico)).toBe(1);
+  });
+
+  it("aguardando revisão ainda não conta como revisado", async () => {
+    sequenciaDeGets({
+      status: "aguardando_revisao",
+      revisao: {
+        profissional_nome: null,
+        data_revisao: null,
+        observacoes: null,
+        nivel_corrigido: false,
+        classificacao: null,
+        version: 0,
+      },
+    });
+
+    const diagnostico = await diagnosticoService.buscar("42");
+
+    expect(diagnostico.revisao?.revisado).toBe(false);
+    expect(nivelFinal(diagnostico)).toBe(3);
   });
 
   it("diagnóstico ainda processando vem sem nível nem confiança", async () => {
@@ -347,5 +420,175 @@ describe("diagnosticoService.aguardarResultado", () => {
       diagnosticoService.aguardarResultado("42", { intervaloMs: 1, tentativas: 2 }),
     ).rejects.toThrow("demorando mais que o esperado");
     expect(chamadas).toHaveLength(2);
+  });
+});
+
+describe("diagnosticoService.listarProfissional", () => {
+  it("chama a rota do profissional com paciente_id e adapta paciente e revisão", async () => {
+    let query = "";
+    server.use(
+      http.get(url("/api/v1/profissional/diagnosticos"), ({ request }) => {
+        query = new URL(request.url).search;
+        return HttpResponse.json({
+          itens: [
+            {
+              id: 7,
+              paciente: { id: "p-1", nome: "Ana" },
+              data_diagnostico: "2026-09-20T10:00:00",
+              status: "concluido",
+              classificacao_automatica: {
+                codigo: "halitose_intima",
+                nome_exibicao: "Halitose Íntima",
+                ordem: 2,
+              },
+              tem_revisao: true,
+              revisao: {
+                version: 1,
+                revisado: true,
+                profissional_nome: "Dra. Ana",
+                data_revisao: "2026-09-21T10:00:00",
+                observacoes: null,
+                nivel_corrigido: true,
+                classificacao: {
+                  codigo: "mau_halito_social",
+                  nome_exibicao: "Mau Hálito Social",
+                  ordem: 3,
+                },
+              },
+            },
+          ],
+          pagina: 1,
+          limite: 20,
+          total: 1,
+          total_paginas: 1,
+        });
+      }),
+    );
+
+    const pagina = await diagnosticoService.listarProfissional({ pacienteId: "p-1", limite: 20 });
+
+    expect(query).toBe("?paciente_id=p-1&limite=20");
+    // Nível final é o revisado (3), não o da IA (2).
+    expect(pagina.itens[0]).toEqual({
+      id: "7",
+      nivel: 3,
+      nivelCorrigido: true,
+      status: "concluido",
+      criadoEm: "2026-09-20T10:00:00",
+      pacienteId: "p-1",
+      pacienteNome: "Ana",
+      revisado: true,
+    });
+  });
+});
+
+describe("diagnosticoService.buscarProfissional", () => {
+  it("traz o nível original da IA, a revisão atual e a versão", async () => {
+    server.use(
+      http.get(url("/api/v1/profissional/diagnosticos/42"), () =>
+        HttpResponse.json({
+          id: 42,
+          data_diagnostico: "2026-09-17T10:00:00",
+          status: "concluido",
+          paciente: { id: "p-1", nome: "Ana" },
+          automatico: {
+            classificacao: { codigo: "halito_normal", nome_exibicao: "Hálito Normal", ordem: 1 },
+            confianca_ia: 0.91,
+          },
+          revisao: {
+            id: 9,
+            version: 2,
+            classificacao: {
+              codigo: "mau_halito_social",
+              nome_exibicao: "Mau Hálito Social",
+              ordem: 3,
+            },
+            profissional_id: "prof-1",
+            profissional_nome: "Dra. Ana",
+            observacao: null,
+            criado_em: "2026-09-18T10:00:00",
+          },
+          historico_revisoes: [],
+          version: 2,
+        }),
+      ),
+    );
+
+    const visao = await diagnosticoService.buscarProfissional("42");
+
+    expect(visao.nivelIA).toBe(1);
+    expect(visao.revisaoAtual?.nivel).toBe(3);
+    expect(visao.versao).toBe(2);
+  });
+});
+
+describe("diagnosticoService.revisar", () => {
+  const revisaoBackend = {
+    id: 3,
+    version: 2,
+    classificacao: { codigo: "mau_halito_social", nome_exibicao: "Mau Hálito Social", ordem: 3 },
+    profissional_id: "prof-1",
+    profissional_nome: "Dra. Ana",
+    observacao: "Reavaliar em 30 dias",
+    criado_em: "2026-10-02T10:00:00",
+  };
+
+  it("manda o código da classificação, a observação e a versão conhecida", async () => {
+    let corpo: unknown;
+    server.use(
+      http.patch(url("/api/v1/profissional/diagnosticos/42/revisao"), async ({ request }) => {
+        corpo = await request.json();
+        return HttpResponse.json({ revisao: revisaoBackend, version: 2 });
+      }),
+    );
+
+    const resultado = await diagnosticoService.revisar("42", {
+      nivel: 3,
+      observacoes: "  Reavaliar em 30 dias  ",
+      versao: 1,
+    });
+
+    expect(corpo).toEqual({
+      classificacao: "mau_halito_social",
+      observacao: "Reavaliar em 30 dias",
+      version: 1,
+    });
+    expect(resultado).toEqual({
+      versao: 2,
+      revisao: {
+        id: "3",
+        versao: 2,
+        nivel: 3,
+        profissionalNome: "Dra. Ana",
+        observacao: "Reavaliar em 30 dias",
+        criadoEm: "2026-10-02T10:00:00",
+      },
+    });
+  });
+
+  it("observação vazia vai como null", async () => {
+    let corpo: { observacao?: unknown } = {};
+    server.use(
+      http.patch(url("/api/v1/profissional/diagnosticos/42/revisao"), async ({ request }) => {
+        corpo = (await request.json()) as { observacao?: unknown };
+        return HttpResponse.json({ revisao: revisaoBackend, version: 1 });
+      }),
+    );
+
+    await diagnosticoService.revisar("42", { nivel: 1, observacoes: "   ", versao: 0 });
+
+    expect(corpo.observacao).toBeNull();
+  });
+
+  it("conflito de versão chega como ApiError 409", async () => {
+    server.use(
+      http.patch(url("/api/v1/profissional/diagnosticos/42/revisao"), () =>
+        HttpResponse.json({ detail: "conflito" }, { status: 409 }),
+      ),
+    );
+
+    await expect(diagnosticoService.revisar("42", { nivel: 2, versao: 0 })).rejects.toMatchObject({
+      status: 409,
+    });
   });
 });

@@ -1,5 +1,11 @@
 import { apiClient } from "@/lib/api-client";
-import { profissionalSchema, type Profissional } from "@/types/profissional";
+import {
+  adaptBackendResumoProfissional,
+  backendResumoProfissionalSchema,
+  profissionalSchema,
+  type Profissional,
+  type ResumoProfissional,
+} from "@/types/profissional";
 import { z } from "zod";
 
 export const profissionalService = {
@@ -11,5 +17,10 @@ export const profissionalService = {
   async buscar(id: string): Promise<Profissional> {
     const data = await apiClient.get<unknown>(`/api/v1/profissionais/${id}`);
     return profissionalSchema.parse(data);
+  },
+
+  async resumo(): Promise<ResumoProfissional> {
+    const data = await apiClient.get<unknown>("/api/v1/profissional/resumo");
+    return adaptBackendResumoProfissional(backendResumoProfissionalSchema.parse(data));
   },
 };

@@ -1,7 +1,12 @@
 "use client";
 
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { diagnosticoService, type FiltroDiagnosticos } from "@/services/diagnostico-service";
+import {
+  diagnosticoService,
+  type FiltroDiagnosticos,
+  type FiltroDiagnosticosProfissional,
+} from "@/services/diagnostico-service";
+import type { DiagnosticoNivel, DiagnosticoProfissional } from "@/types/diagnostico";
 
 export function useDiagnosticos(filtro: FiltroDiagnosticos = {}) {
   return useQuery({
@@ -32,15 +37,65 @@ export function useCriarDiagnostico() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: diagnosticoService.criar,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["diagnosticos"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["diagnosticos"] });
+      queryClient.invalidateQueries({ queryKey: ["pacientes"] });
+      queryClient.invalidateQueries({ queryKey: ["profissional", "resumo"] });
+    },
+  });
+}
+
+export function useDiagnosticosProfissional(filtro: FiltroDiagnosticosProfissional = {}) {
+  return useQuery({
+    queryKey: ["diagnosticos", "profissional", "lista", filtro],
+    queryFn: () => diagnosticoService.listarProfissional(filtro),
+  });
+}
+
+export function useDiagnosticosProfissionalPaginados(
+  filtro: Omit<FiltroDiagnosticosProfissional, "pagina"> = {},
+) {
+  return useInfiniteQuery({
+    queryKey: ["diagnosticos", "profissional", "paginado", filtro],
+    queryFn: ({ pageParam }) =>
+      diagnosticoService.listarProfissional({ ...filtro, pagina: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (ultima) =>
+      ultima.pagina < ultima.totalPaginas ? ultima.pagina + 1 : undefined,
+  });
+}
+
+export function useDiagnosticoProfissional(id: string) {
+  return useQuery({
+    queryKey: ["diagnosticos", "profissional", id],
+    queryFn: () => diagnosticoService.buscarProfissional(id),
+    enabled: !!id,
   });
 }
 
 export function useRevisarDiagnostico() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...input }: { id: string; nivel: 1 | 2 | 3; revisadoPor: string }) =>
-      diagnosticoService.revisar(id, input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["diagnosticos"] }),
+    mutationFn: ({
+      id,
+      ...input
+    }: {
+      id: string;
+      nivel: DiagnosticoNivel;
+      observacoes?: string;
+      versao: number;
+    }) => diagnosticoService.revisar(id, input),
+    // A próxima revisão precisa da versão nova já, sem esperar o refetch.
+    onSuccess: ({ versao }, { id }) => {
+      queryClient.setQueryData<DiagnosticoProfissional>(
+        ["diagnosticos", "profissional", id],
+        (atual) => (atual ? { ...atual, versao } : atual),
+      );
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["diagnosticos"] });
+      queryClient.invalidateQueries({ queryKey: ["pacientes"] });
+      queryClient.invalidateQueries({ queryKey: ["profissional", "resumo"] });
+    },
   });
 }
