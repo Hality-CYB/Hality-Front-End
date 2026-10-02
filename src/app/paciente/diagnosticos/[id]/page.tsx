@@ -57,7 +57,6 @@ export default function DiagnosticoDetailPage({ params }: { params: Promise<{ id
 
   const nivel = diagnostico.nivel;
   const nivelValido = nivelFinal(diagnostico);
-  const revisado = diagnostico.revisao?.revisado ?? false;
 
   return (
     <DiagnosticoDetalhe
@@ -66,7 +65,7 @@ export default function DiagnosticoDetailPage({ params }: { params: Promise<{ id
       subtitulo={new Date(diagnostico.criadoEm).toLocaleDateString("pt-BR")}
       status={{
         label:
-          revisado || diagnostico.status === "concluido"
+          nivelValido !== null
             ? nivelLabel(nivelValido)
             : (STATUS_LABEL[diagnostico.status] ?? diagnostico.status),
         tipo: nivelBadgeStatus(nivelValido),

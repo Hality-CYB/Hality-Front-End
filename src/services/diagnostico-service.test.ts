@@ -316,6 +316,25 @@ describe("diagnosticoService.buscar", () => {
     expect(nivelFinal(diagnostico)).toBe(1);
   });
 
+  it("aguardando revisão ainda não conta como revisado", async () => {
+    sequenciaDeGets({
+      status: "aguardando_revisao",
+      revisao: {
+        profissional_nome: null,
+        data_revisao: null,
+        observacoes: null,
+        nivel_corrigido: false,
+        classificacao: null,
+        version: 0,
+      },
+    });
+
+    const diagnostico = await diagnosticoService.buscar("42");
+
+    expect(diagnostico.revisao?.revisado).toBe(false);
+    expect(nivelFinal(diagnostico)).toBe(3);
+  });
+
   it("diagnóstico ainda processando vem sem nível nem confiança", async () => {
     sequenciaDeGets(PROCESSANDO);
 
@@ -460,6 +479,46 @@ describe("diagnosticoService.listarProfissional", () => {
       pacienteNome: "Ana",
       revisado: true,
     });
+  });
+});
+
+describe("diagnosticoService.buscarProfissional", () => {
+  it("traz o nível original da IA, a revisão atual e a versão", async () => {
+    server.use(
+      http.get(url("/api/v1/profissional/diagnosticos/42"), () =>
+        HttpResponse.json({
+          id: 42,
+          data_diagnostico: "2026-09-17T10:00:00",
+          status: "concluido",
+          paciente: { id: "p-1", nome: "Ana" },
+          automatico: {
+            classificacao: { codigo: "halito_normal", nome_exibicao: "Hálito Normal", ordem: 1 },
+            confianca_ia: 0.91,
+          },
+          revisao: {
+            id: 9,
+            version: 2,
+            classificacao: {
+              codigo: "mau_halito_social",
+              nome_exibicao: "Mau Hálito Social",
+              ordem: 3,
+            },
+            profissional_id: "prof-1",
+            profissional_nome: "Dra. Ana",
+            observacao: null,
+            criado_em: "2026-09-18T10:00:00",
+          },
+          historico_revisoes: [],
+          version: 2,
+        }),
+      ),
+    );
+
+    const visao = await diagnosticoService.buscarProfissional("42");
+
+    expect(visao.nivelIA).toBe(1);
+    expect(visao.revisaoAtual?.nivel).toBe(3);
+    expect(visao.versao).toBe(2);
   });
 });
 

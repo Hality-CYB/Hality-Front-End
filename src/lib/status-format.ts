@@ -3,14 +3,14 @@ import type { BadgeStatus } from "@/lib/level-format";
 
 /**
  * Cor/rótulo do status de workflow de um diagnóstico — diferente do nível
- * clínico (level-format.ts). No back, "concluido" é o fim da análise da IA;
- * ter sido revisado por um profissional é outra informação (`revisao`).
+ * clínico (level-format.ts). A IA termina em "aguardando_revisao"; o
+ * diagnóstico só fica "concluido" depois da revisão de um profissional.
  */
 
 const STATUS_LABEL: Record<StatusDiagnostico, string> = {
   processando: "Processando",
   aguardando_revisao: "Aguardando revisão",
-  concluido: "Concluído",
+  concluido: "Revisado",
   falha: "Falha na análise",
 };
 

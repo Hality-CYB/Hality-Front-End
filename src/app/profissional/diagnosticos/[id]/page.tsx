@@ -81,6 +81,7 @@ export default function DiagnosticoReviewPage({ params }: { params: Promise<{ id
       }
       avatarNome={nomePaciente}
       voltarHref={voltarHref}
+      nivelIA={visaoProfissional.nivelIA}
     >
       <Card className="border-primary rounded-lg border-2 p-5 shadow-sm ring-0">
         <div className="mb-4 flex items-center gap-2.5">

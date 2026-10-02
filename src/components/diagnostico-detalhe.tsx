@@ -44,6 +44,11 @@ type DiagnosticoDetalheProps = {
   voltarHref?: string;
   /** Entra na leitura da IA, abaixo do nível (ex.: aviso de revisão para o paciente). */
   aviso?: ReactNode;
+  /**
+   * Nível original da IA. O detalhe do back traz a classificação já revisada,
+   * então quem tiver o resultado da IA (o profissional) passa aqui.
+   */
+  nivelIA?: DiagnosticoNivel | null;
   /** Cards extras depois da anamnese (ex.: avaliação do profissional). */
   children?: ReactNode;
 };
@@ -60,6 +65,7 @@ export function DiagnosticoDetalhe({
   avatarNome,
   voltarHref,
   aviso,
+  nivelIA,
   children,
 }: DiagnosticoDetalheProps) {
   const [aba, setAba] = useState<"detalhes" | "orientacoes">("detalhes");
@@ -72,6 +78,8 @@ export function DiagnosticoDetalhe({
       ? diagnostico.revisao.nivel
       : null;
   const nivelDestaque = nivelProfissional ?? nivel;
+  const nivelOriginalIA =
+    nivelIA !== undefined ? nivelIA : nivel !== nivelProfissional ? nivel : null;
   const conteudos = diagnostico.conteudos ?? [];
   const analise = nivel ? conteudos[0] : undefined;
   const [fotoFalhou, setFotoFalhou] = useState(false);
@@ -140,16 +148,24 @@ export function DiagnosticoDetalhe({
                       {nivelProfissional ? "Resultado do profissional" : "Resultado da IA"}
                     </div>
                   </div>
-                  {nivelProfissional && nivel && (
+                  {nivelProfissional && (
                     <div
                       className="border-border bg-card/70 text-muted-foreground flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px]"
                       title="Classificação original da IA, antes da revisão"
                     >
                       <Sparkles className="h-3 w-3" />
-                      <span>
-                        IA: <span style={{ color: nivelColor(nivel) }}>{nivelLabel(nivel)}</span>
-                        {diagnostico.confiancaIA !== undefined && ` · ${diagnostico.confiancaIA}%`}
-                      </span>
+                      {nivelOriginalIA ? (
+                        <span>
+                          IA:{" "}
+                          <span style={{ color: nivelColor(nivelOriginalIA) }}>
+                            {nivelLabel(nivelOriginalIA)}
+                          </span>
+                          {diagnostico.confiancaIA !== undefined &&
+                            ` · ${diagnostico.confiancaIA}%`}
+                        </span>
+                      ) : (
+                        <span>Ajustado na revisão</span>
+                      )}
                     </div>
                   )}
                 </div>

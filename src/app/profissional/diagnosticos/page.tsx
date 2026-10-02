@@ -25,7 +25,7 @@ import type { StatusDiagnostico } from "@/types/diagnostico";
 const FILTROS_STATUS: { valor: StatusDiagnostico | "todos"; label: string }[] = [
   { valor: "todos", label: "Todos" },
   { valor: "aguardando_revisao", label: "Aguardando revisão" },
-  { valor: "concluido", label: "Concluído" },
+  { valor: "concluido", label: "Revisado" },
   { valor: "processando", label: "Processando" },
   { valor: "falha", label: "Falha" },
 ];

@@ -114,7 +114,6 @@ export const backendDiagnosticoDetailSchema = z.object({
     .optional(),
   revisao: z
     .object({
-      revisado: z.boolean(),
       profissional_nome: z.string().nullable(),
       data_revisao: z.string().nullable(),
       observacoes: z.string().nullable(),
@@ -151,7 +150,8 @@ export function adaptBackendDiagnosticoDetail(data: BackendDiagnosticoDetail): D
     })),
     revisao: data.revisao
       ? {
-          revisado: data.revisao.revisado,
+          // O status diz se houve revisão: `concluido` só depois do profissional.
+          revisado: data.status === "concluido",
           profissionalNome: data.revisao.profissional_nome,
           revisadoEm: data.revisao.data_revisao,
           observacoes: data.revisao.observacoes,
@@ -294,6 +294,13 @@ export const backendDiagnosticoProfissionalDetalheSchema = z.object({
   data_diagnostico: z.string(),
   status: statusDiagnosticoSchema,
   paciente: backendPacienteResumoSchema,
+  /** Resultado original da IA, preservado mesmo depois da revisão. */
+  automatico: z
+    .object({
+      classificacao: backendClassificacaoResumoSchema.nullable(),
+      confianca_ia: z.number().nullable(),
+    })
+    .nullable(),
   revisao: backendRevisaoProfissionalSchema.nullable(),
   historico_revisoes: z.array(backendRevisaoProfissionalSchema),
   version: z.number(),
@@ -325,6 +332,8 @@ export type DiagnosticoProfissional = {
   id: string;
   pacienteId: string;
   pacienteNome: string;
+  /** Nível dado pela IA, antes de qualquer revisão. */
+  nivelIA: DiagnosticoNivel | null;
   revisaoAtual: RevisaoProfissional | null;
   historico: RevisaoProfissional[];
   versao: number;
@@ -350,6 +359,7 @@ export function adaptBackendDiagnosticoProfissional(
     id: String(data.id),
     pacienteId: data.paciente.id,
     pacienteNome: data.paciente.nome,
+    nivelIA: nivelDaOrdem(data.automatico?.classificacao?.ordem),
     revisaoAtual: data.revisao ? adaptBackendRevisaoProfissional(data.revisao) : null,
     historico: data.historico_revisoes.map(adaptBackendRevisaoProfissional),
     versao: data.version,

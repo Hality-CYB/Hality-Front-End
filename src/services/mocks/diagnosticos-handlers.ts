@@ -76,7 +76,6 @@ function montarRevisaoPaciente(d: Diagnostico): BackendDiagnosticoDetail["revisa
   // Igual a `_montar_revisao` do back (#102): havendo revisão, conta como revisado.
   if (!ultima) {
     return {
-      revisado: false,
       profissional_nome: null,
       data_revisao: null,
       observacoes: null,
@@ -85,7 +84,6 @@ function montarRevisaoPaciente(d: Diagnostico): BackendDiagnosticoDetail["revisa
     };
   }
   return {
-    revisado: true,
     profissional_nome: nomeDoUsuario(ultima.profissionalId),
     data_revisao: ultima.criadoEm,
     observacoes: ultima.observacao,
@@ -97,9 +95,9 @@ function montarRevisaoPaciente(d: Diagnostico): BackendDiagnosticoDetail["revisa
 /**
  * Sem modelo de IA de verdade, a "análise" é aleatória — só pra ter algo
  * pra mostrar na tela de resultado durante o desenvolvimento. Igual ao
- * back, o diagnóstico nasce "processando" e só vira "concluido" num GET
- * feito depois de TEMPO_PROCESSAMENTO_MS. "concluido" é o fim da análise da
- * IA; ter sido revisado é outra coisa (`revisao.revisado`).
+ * back, o diagnóstico nasce "processando" e só sai disso num GET feito
+ * depois de TEMPO_PROCESSAMENTO_MS: a IA deixa em "aguardando_revisao", e
+ * só a revisão do profissional leva a "concluido".
  */
 function analiseFalsa(): { nivel: DiagnosticoNivel; confiancaIA: number } {
   const niveis = [1, 2, 3] as const;
@@ -121,18 +119,24 @@ const CONTEUDO_POR_NIVEL: Record<DiagnosticoNivel, { titulo: string; texto: stri
   },
 };
 
+/** Nível que vale: o da revisão mais recente, senão o da IA. */
+function nivelVigente(d: Diagnostico): DiagnosticoNivel | null {
+  return revisoes.get(d.id)?.at(-1)?.nivel ?? d.nivel;
+}
+
 function paraBackendDetail(d: Diagnostico): BackendDiagnosticoDetail {
+  const nivel = nivelVigente(d);
   return {
     id: idNumerico(d.id),
     data_diagnostico: d.criadoEm,
     status: d.status,
     classificacao:
-      d.nivel !== null
+      nivel !== null
         ? {
-            id: d.nivel,
-            codigo: CODIGO_POR_NIVEL[d.nivel],
-            nome_exibicao: nivelLabel(d.nivel),
-            ordem: d.nivel,
+            id: nivel,
+            codigo: CODIGO_POR_NIVEL[nivel],
+            nome_exibicao: nivelLabel(nivel),
+            ordem: nivel,
           }
         : null,
     escala_saburra: null,
@@ -143,12 +147,12 @@ function paraBackendDetail(d: Diagnostico): BackendDiagnosticoDetail {
       respostas: respostasDaAnamnese(String(idNumerico(d.anamneseId))),
     },
     conteudos:
-      d.nivel !== null
+      nivel !== null
         ? [
             {
-              id: d.nivel,
-              titulo: CONTEUDO_POR_NIVEL[d.nivel].titulo,
-              conteudo: { itens: [{ tipo: "texto", texto: CONTEUDO_POR_NIVEL[d.nivel].texto }] },
+              id: nivel,
+              titulo: CONTEUDO_POR_NIVEL[nivel].titulo,
+              conteudo: { itens: [{ tipo: "texto", texto: CONTEUDO_POR_NIVEL[nivel].texto }] },
             },
           ]
         : [],
@@ -221,7 +225,11 @@ export const diagnosticosHandlers = [
     filtrados = [...filtrados].sort(maisRecentesPrimeiro);
     if (ordem === "data_asc") filtrados.reverse();
 
-    return HttpResponse.json(paginar(filtrados.map(paraBackendListItem), pagina, limite));
+    const itens = filtrados.map((d) => ({
+      ...paraBackendListItem(d),
+      classificacao: classificacaoResumo(nivelVigente(d)),
+    }));
+    return HttpResponse.json(paginar(itens, pagina, limite));
   }),
 
   http.get(url("/api/v1/diagnosticos/:id"), ({ params, request }) => {
@@ -240,7 +248,7 @@ export const diagnosticosHandlers = [
       criadoEm !== undefined &&
       Date.now() - criadoEm >= TEMPO_PROCESSAMENTO_MS
     ) {
-      diagnosticos[index] = { ...diagnostico, ...analiseFalsa(), status: "concluido" };
+      diagnosticos[index] = { ...diagnostico, ...analiseFalsa(), status: "aguardando_revisao" };
     }
     return HttpResponse.json(paraBackendDetail(diagnosticos[index] ?? diagnostico));
   }),
@@ -352,6 +360,13 @@ export const diagnosticosHandlers = [
       data_diagnostico: diagnostico.criadoEm,
       status: diagnostico.status,
       paciente: pacienteResumo(diagnostico),
+      automatico: STATUS_COM_RESULTADO.has(diagnostico.status)
+        ? {
+            classificacao: classificacaoResumo(diagnostico.nivel),
+            confianca_ia:
+              diagnostico.confiancaIA === undefined ? null : diagnostico.confiancaIA / 100,
+          }
+        : null,
       revisao: atual ? paraBackendRevisao(atual) : null,
       historico_revisoes: historico.map(paraBackendRevisao),
       version: atual?.versao ?? 0,
@@ -398,7 +413,12 @@ export const diagnosticosHandlers = [
       criadoEm: new Date().toISOString(),
     };
     revisoes.set(atual.id, [...historico, nova]);
-    diagnosticos[index] = { ...atual, revisadoPor: usuario.id, revisadoEm: nova.criadoEm };
+    diagnosticos[index] = {
+      ...atual,
+      status: "concluido",
+      revisadoPor: usuario.id,
+      revisadoEm: nova.criadoEm,
+    };
     return HttpResponse.json({ revisao: paraBackendRevisao(nova), version: nova.versao });
   }),
 ];
