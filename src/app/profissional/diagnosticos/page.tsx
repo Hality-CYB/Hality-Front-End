@@ -4,8 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Beaker, Clock, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
+import { ScrollInfinito } from "@/components/scroll-infinito";
 import { EmptyState } from "@/components/empty-state";
 import { LevelChip } from "@/components/level-chip";
 import { AvatarWithRole } from "@/components/avatar-with-role";
@@ -139,17 +139,13 @@ export default function DiagnosticosProfissionalPage() {
         ))}
       </div>
 
-      {lista.hasNextPage && (
-        <div className="flex justify-center px-4 pb-4">
-          <Button
-            variant="secondary"
-            onClick={() => lista.fetchNextPage()}
-            disabled={lista.isFetchingNextPage}
-          >
-            {lista.isFetchingNextPage ? "Carregando…" : "Carregar mais"}
-          </Button>
-        </div>
-      )}
+      <ScrollInfinito
+        temMais={!!lista.hasNextPage}
+        carregando={lista.isFetchingNextPage}
+        erro={lista.isFetchNextPageError}
+        onCarregarMais={() => lista.fetchNextPage()}
+        className="px-4 pb-4"
+      />
     </div>
   );
 }

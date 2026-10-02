@@ -6,6 +6,7 @@ import { Search, ChevronRight, Camera, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
+import { ScrollInfinito } from "@/components/scroll-infinito";
 import { EmptyState } from "@/components/empty-state";
 import { LevelChip } from "@/components/level-chip";
 import { AvatarWithRole } from "@/components/avatar-with-role";
@@ -75,17 +76,12 @@ export default function PacientesPage() {
           ))}
         </div>
 
-        {lista.hasNextPage && (
-          <div className="flex justify-center">
-            <Button
-              variant="secondary"
-              onClick={() => lista.fetchNextPage()}
-              disabled={lista.isFetchingNextPage}
-            >
-              {lista.isFetchingNextPage ? "Carregando…" : "Carregar mais"}
-            </Button>
-          </div>
-        )}
+        <ScrollInfinito
+          temMais={!!lista.hasNextPage}
+          carregando={lista.isFetchingNextPage}
+          erro={lista.isFetchNextPageError}
+          onCarregarMais={() => lista.fetchNextPage()}
+        />
       </div>
     </div>
   );
