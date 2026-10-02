@@ -5,6 +5,20 @@ import { seedProfissionais, seedUsuarios } from "@/services/mocks/seed-data";
 import { mapFrontendRoleToBackend, type Usuario, type BackendUser } from "@/types/usuario";
 
 const usuarios = [...seedUsuarios];
+
+/** Senha de todo usuário mockado até ele trocar pela tela "Alterar senha". */
+export const SENHA_MOCK = "123456";
+/** Mesmo mínimo do back (`SENHA_TAMANHO_MINIMO`). */
+const SENHA_TAMANHO_MINIMO = 8;
+const senhasAlteradas = new Map<string, string>();
+
+export function senhaMockDe(usuarioId: string): string {
+  return senhasAlteradas.get(usuarioId) ?? SENHA_MOCK;
+}
+
+const alterarSenhaSchema = z
+  .object({ senha_atual: z.string().min(1), nova_senha: z.string().min(SENHA_TAMANHO_MINIMO) })
+  .strict();
 const url = (path: string) => `${config.apiBaseUrl}${path}`;
 
 type PerfilProfissionalMock = { registro: string | null; especialidade: string | null };
@@ -114,5 +128,21 @@ export const authHandlers = [
       });
     }
     return HttpResponse.json(paraBackendUser(atualizado));
+  }),
+
+  // Igual ao back (#104): 400 se a senha atual não confere, 422 se o corpo é inválido.
+  http.patch(url("/api/v1/users/me/senha"), async ({ request }) => {
+    const usuario = usuarioDoRequest(request);
+    if (!usuario) return new HttpResponse(null, { status: 401 });
+
+    const body = alterarSenhaSchema.safeParse(await request.json());
+    if (!body.success) {
+      return HttpResponse.json({ detail: "senha inválida" }, { status: 422 });
+    }
+    if (body.data.senha_atual !== senhaMockDe(usuario.id)) {
+      return HttpResponse.json({ detail: "senha atual inválida" }, { status: 400 });
+    }
+    senhasAlteradas.set(usuario.id, body.data.nova_senha);
+    return new HttpResponse(null, { status: 204 });
   }),
 ];

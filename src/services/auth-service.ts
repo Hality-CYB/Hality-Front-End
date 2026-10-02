@@ -9,7 +9,7 @@ import { ApiError } from "@/lib/api-client";
 import { config } from "@/lib/config";
 import { setStoredToken, clearStoredToken } from "@/lib/session";
 import { seedUsuarios } from "@/services/mocks/seed-data";
-import { adicionarUsuarioMock } from "@/services/mocks/auth-handlers";
+import { adicionarUsuarioMock, senhaMockDe } from "@/services/mocks/auth-handlers";
 
 /**
  * Fala direto com o FastAPI (fastapi-users): sem BFF do Next no meio.
@@ -21,8 +21,6 @@ import { adicionarUsuarioMock } from "@/services/mocks/auth-handlers";
  * chamada de auth: sem isso o navegador nem recebe nem reenvia esse
  * cookie). JavaScript não tem como ler nem guardar o que nunca vê.
  */
-
-const SENHA_MOCK = "123456";
 
 /**
  * Prefixo do "access_token" mockado — não é um JWT de verdade, só
@@ -47,8 +45,9 @@ export type RegisterInput = {
 };
 
 async function loginMock(email: string, senha: string): Promise<Usuario | null> {
-  if (senha !== SENHA_MOCK) return null;
-  return seedUsuarios.find((u) => u.email === email) ?? null;
+  const usuario = seedUsuarios.find((u) => u.email === email);
+  if (!usuario || senha !== senhaMockDe(usuario.id)) return null;
+  return usuario;
 }
 
 async function registrarMock(input: RegisterInput): Promise<Usuario> {

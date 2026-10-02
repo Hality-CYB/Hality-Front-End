@@ -9,7 +9,12 @@ import { AboutDialog } from "@/components/about-dialog";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { PrivacyDialog } from "@/components/privacy-dialog";
 import { useLogout } from "@/hooks/use-auth";
-import { useAtualizarPerfil, useUsuarioAtual } from "@/hooks/use-usuarios";
+import {
+  mensagemErroAlterarSenha,
+  useAlterarSenha,
+  useAtualizarPerfil,
+  useUsuarioAtual,
+} from "@/hooks/use-usuarios";
 import { useSessaoAtual } from "@/lib/auth/session-context";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +49,7 @@ export default function PerfilPage() {
   const sessao = useSessaoAtual();
   const { data: usuario } = useUsuarioAtual();
   const atualizarPerfil = useAtualizarPerfil();
+  const alterarSenha = useAlterarSenha();
   const [editing, setEditing] = useState(false);
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
@@ -193,6 +199,11 @@ export default function PerfilPage() {
       <ChangePasswordDialog
         open={dialogAberto === "senha"}
         onOpenChange={(open) => setDialogAberto(open ? "senha" : null)}
+        onSalvar={(senhas) => alterarSenha.mutate(senhas)}
+        salvando={alterarSenha.isPending}
+        salvo={alterarSenha.isSuccess}
+        erro={alterarSenha.isError ? mensagemErroAlterarSenha(alterarSenha.error) : null}
+        onReset={alterarSenha.reset}
       />
       <PrivacyDialog
         open={dialogAberto === "privacidade"}

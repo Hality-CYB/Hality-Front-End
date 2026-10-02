@@ -6,7 +6,7 @@ import {
   type FiltroDiagnosticos,
   type FiltroDiagnosticosProfissional,
 } from "@/services/diagnostico-service";
-import type { DiagnosticoNivel } from "@/types/diagnostico";
+import type { DiagnosticoNivel, DiagnosticoProfissional } from "@/types/diagnostico";
 
 export function useDiagnosticos(filtro: FiltroDiagnosticos = {}) {
   return useQuery({
@@ -85,6 +85,13 @@ export function useRevisarDiagnostico() {
       observacoes?: string;
       versao: number;
     }) => diagnosticoService.revisar(id, input),
+    // A próxima revisão precisa da versão nova já, sem esperar o refetch.
+    onSuccess: ({ versao }, { id }) => {
+      queryClient.setQueryData<DiagnosticoProfissional>(
+        ["diagnosticos", "profissional", id],
+        (atual) => (atual ? { ...atual, versao } : atual),
+      );
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["diagnosticos"] });
       queryClient.invalidateQueries({ queryKey: ["pacientes"] });

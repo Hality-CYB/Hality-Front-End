@@ -22,7 +22,12 @@ import {
   type PerfilProfissional,
 } from "@/components/edit-profissional-perfil-dialog";
 import { useLogout } from "@/hooks/use-auth";
-import { useAtualizarPerfil, useUsuarioAtual } from "@/hooks/use-usuarios";
+import {
+  mensagemErroAlterarSenha,
+  useAlterarSenha,
+  useAtualizarPerfil,
+  useUsuarioAtual,
+} from "@/hooks/use-usuarios";
 import { useSessaoAtual } from "@/lib/auth/session-context";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +62,7 @@ export default function ProfissionalPerfilPage() {
   const sessao = useSessaoAtual();
   const { data: usuario } = useUsuarioAtual();
   const atualizarPerfil = useAtualizarPerfil();
+  const alterarSenha = useAlterarSenha();
   const perfil: PerfilProfissional = {
     nome: usuario?.nome ?? sessao.nome,
     telefone: usuario?.telefone ?? "",
@@ -178,6 +184,11 @@ export default function ProfissionalPerfilPage() {
       <ChangePasswordDialog
         open={dialogAberto === "senha"}
         onOpenChange={(open) => setDialogAberto(open ? "senha" : null)}
+        onSalvar={(senhas) => alterarSenha.mutate(senhas)}
+        salvando={alterarSenha.isPending}
+        salvo={alterarSenha.isSuccess}
+        erro={alterarSenha.isError ? mensagemErroAlterarSenha(alterarSenha.error) : null}
+        onReset={alterarSenha.reset}
       />
       <AboutDialog
         open={dialogAberto === "sobre"}

@@ -151,6 +151,8 @@ export function AvaliacaoWizard({
     null,
   );
   const [observacoes, setObservacoes] = useState("");
+  // Versão da revisão que o back conhece; cada revisão salva devolve a próxima.
+  const [versaoRevisao, setVersaoRevisao] = useState(0);
   const [foto, setFoto] = useState<FotoCapturada | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const inputCameraRef = useRef<HTMLInputElement>(null);
@@ -289,13 +291,10 @@ export function AvaliacaoWizard({
 
   function salvarRevisaoProfissional() {
     if (!resultado || !classificacaoAtual) return;
-    // Diagnóstico recém-criado ainda não tem revisão: a versão conhecida é 0.
-    revisarDiagnostico.mutate({
-      id: resultado.id,
-      nivel: classificacaoAtual,
-      observacoes,
-      versao: 0,
-    });
+    revisarDiagnostico.mutate(
+      { id: resultado.id, nivel: classificacaoAtual, observacoes, versao: versaoRevisao },
+      { onSuccess: ({ versao }) => setVersaoRevisao(versao) },
+    );
   }
 
   return (

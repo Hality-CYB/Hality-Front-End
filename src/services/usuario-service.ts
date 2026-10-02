@@ -39,6 +39,17 @@ export const usuarioService = {
     return usuarioSchema.parse(adaptBackendUser(backendUserSchema.parse(data)));
   },
 
+  /**
+   * `PATCH /users/me/senha` (#104 do back): 204 se trocou, 400 se a senha
+   * atual não confere. `PATCH /users/me` não aceita senha (422).
+   */
+  async alterarSenha(input: { senhaAtual: string; novaSenha: string }): Promise<void> {
+    await apiClient.patch<void>("/api/v1/users/me/senha", {
+      senha_atual: input.senhaAtual,
+      nova_senha: input.novaSenha,
+    });
+  },
+
   /** Só usado pelo admin (RF38 — gestão de usuários). */
   async listar(): Promise<Usuario[]> {
     const data = await apiClient.get<unknown>("/api/v1/usuarios");
