@@ -1,13 +1,12 @@
 import { apiClient } from "@/lib/api-client";
 import {
   adaptBackendPacienteDetail,
-  adaptBackendPacienteItem,
   adaptBackendPacienteList,
   backendPacienteCriadoSchema,
   backendPacienteDetailSchema,
   backendPacienteListResponseSchema,
   type PacienteDetalhe,
-  type PacienteResumo,
+  type PacienteCriado,
   type PaginaPacientes,
 } from "@/types/paciente";
 
@@ -39,13 +38,21 @@ export const pacienteService = {
     return adaptBackendPacienteDetail(backendPacienteDetailSchema.parse(data));
   },
 
-  /** Cadastro simples pelo profissional, que já sai vinculado a ele. Ver TODO em types/paciente.ts. */
-  async criar(input: NovoPaciente): Promise<PacienteResumo> {
+  /**
+   * Cadastro simples pelo profissional (#101 do back). Sem `senha`, o back cria a
+   * conta com uma senha provisória padrão, que o paciente deve trocar depois.
+   */
+  async criar(input: NovoPaciente): Promise<PacienteCriado> {
     const data = await apiClient.post<unknown>("/api/v1/pacientes", {
-      nome: input.nome,
-      email: input.email,
-      telefone: input.telefone || null,
+      nome: input.nome.trim(),
+      email: input.email.trim(),
+      telefone: input.telefone?.trim() || null,
     });
-    return adaptBackendPacienteItem(backendPacienteCriadoSchema.parse(data));
+    const criado = backendPacienteCriadoSchema.parse(data);
+    return {
+      pacienteId: criado.paciente_id,
+      nome: criado.paciente_nome,
+      email: criado.paciente_email,
+    };
   },
 };

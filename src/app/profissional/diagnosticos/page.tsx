@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/empty-state";
 import { LevelChip } from "@/components/level-chip";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { CustomPeriodDialog } from "@/components/custom-period-dialog";
-import { useDiagnosticosPaginados } from "@/hooks/use-diagnosticos";
+import { useDiagnosticosProfissionalPaginados } from "@/hooks/use-diagnosticos";
 import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/status-format";
 import {
   PERIODS,
@@ -39,7 +39,7 @@ export default function DiagnosticosProfissionalPage() {
     () => periodoParaFiltro(period, customRange),
     [period, customRange],
   );
-  const lista = useDiagnosticosPaginados({
+  const lista = useDiagnosticosProfissionalPaginados({
     ...filtroPeriodo,
     ...(filtroStatus === "todos" ? {} : { status: filtroStatus }),
     limite: 20,
@@ -111,10 +111,7 @@ export default function DiagnosticosProfissionalPage() {
           />
         )}
         {itens.map((d) => (
-          <Link
-            key={d.id}
-            href={`/profissional/diagnosticos/${d.id}${d.pacienteId ? `?paciente=${d.pacienteId}` : ""}`}
-          >
+          <Link key={d.id} href={`/profissional/diagnosticos/${d.id}`}>
             <Card className="diag-list-card flex-row items-center gap-3.5 rounded-lg p-4 shadow-sm ring-0">
               <AvatarWithRole nome={d.pacienteNome ?? "Paciente"} size={44} />
               <div className="min-w-0 flex-1">
@@ -125,8 +122,8 @@ export default function DiagnosticosProfissionalPage() {
                   {new Date(d.criadoEm).toLocaleDateString("pt-BR")}
                 </div>
                 <StatusBadge
-                  label={statusDiagnosticoLabel(d.status)}
-                  status={statusDiagnosticoBadgeStatus(d.status)}
+                  label={d.revisado ? "Revisado" : statusDiagnosticoLabel(d.status)}
+                  status={d.revisado ? "success" : statusDiagnosticoBadgeStatus(d.status)}
                 />
               </div>
               <div className="flex flex-col items-end gap-1.5">

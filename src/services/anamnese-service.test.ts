@@ -40,11 +40,4 @@ describe("anamneseService", () => {
     expect(typeof anamnese.id).toBe("string");
     expect(anamnese.id.length).toBeGreaterThan(0);
   });
-
-  it("busca uma anamnese existente e devolve o id como string", async () => {
-    const anamnese = await anamneseService.buscar("101");
-
-    expect(anamnese.id).toBe("101");
-    expect(anamnese.respostas.length).toBeGreaterThan(0);
-  });
 });

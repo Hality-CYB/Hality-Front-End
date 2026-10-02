@@ -1,10 +1,34 @@
 import { http, HttpResponse } from "msw";
+import { z } from "zod";
 import { config } from "@/lib/config";
-import { seedUsuarios } from "@/services/mocks/seed-data";
+import { seedProfissionais, seedUsuarios } from "@/services/mocks/seed-data";
 import { mapFrontendRoleToBackend, type Usuario, type BackendUser } from "@/types/usuario";
 
 const usuarios = [...seedUsuarios];
 const url = (path: string) => `${config.apiBaseUrl}${path}`;
+
+type PerfilProfissionalMock = { registro: string | null; especialidade: string | null };
+const perfisProfissionais = new Map<string, PerfilProfissionalMock>(
+  seedProfissionais.map((p) => [
+    p.id,
+    { registro: p.registroProfissional, especialidade: p.especialidade ?? null },
+  ]),
+);
+
+/** Espelha `UserUpdate` do back (#93): campos fora da lista são recusados com 422. */
+const atualizarPerfilSchema = z
+  .object({
+    name: z.string().trim().min(2).max(255).optional(),
+    phone: z.string().max(20).nullable().optional(),
+    profissional: z
+      .object({
+        registro_profissional: z.string().max(50).nullable().optional(),
+        especialidade: z.string().max(100).nullable().optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
 
 /**
  * Usado só por `registrarMock` (auth-service.ts) pra registrar um
@@ -27,20 +51,68 @@ export function usuarioDoRequest(request: Request): Usuario | undefined {
   return usuarios.find((u) => u.id === usuarioId);
 }
 
+function paraBackendUser(usuario: Usuario): BackendUser {
+  const perfil = usuario.role === "profissional" ? perfisProfissionais.get(usuario.id) : undefined;
+  return {
+    id: usuario.id,
+    email: usuario.email,
+    name: usuario.nome,
+    phone: usuario.telefone ?? null,
+    role: mapFrontendRoleToBackend(usuario.role),
+    is_active: true,
+    profissional: perfil
+      ? {
+          registro_profissional: perfil.registro,
+          especialidade: perfil.especialidade,
+          vinculado_hality: false,
+        }
+      : null,
+  };
+}
+
 export const authHandlers = [
   // Usado por RoleLayout pra descobrir quem está logado.
   http.get(url("/api/v1/users/me"), ({ request }) => {
     const usuario = usuarioDoRequest(request);
     if (!usuario) return new HttpResponse(null, { status: 401 });
+    return HttpResponse.json(paraBackendUser(usuario));
+  }),
 
-    const backendUser: BackendUser = {
-      id: usuario.id,
-      email: usuario.email,
-      name: usuario.nome,
-      phone: usuario.telefone ?? null,
-      role: mapFrontendRoleToBackend(usuario.role),
-      is_active: true,
+  http.patch(url("/api/v1/users/me"), async ({ request }) => {
+    const usuario = usuarioDoRequest(request);
+    if (!usuario) return new HttpResponse(null, { status: 401 });
+
+    const body = atualizarPerfilSchema.safeParse(await request.json());
+    if (!body.success) {
+      return HttpResponse.json({ detail: "campo não permitido ou inválido" }, { status: 422 });
+    }
+    if (body.data.profissional && usuario.role !== "profissional") {
+      return HttpResponse.json(
+        { detail: "dados profissionais restritos a profissionais" },
+        { status: 403 },
+      );
+    }
+
+    const index = usuarios.findIndex((u) => u.id === usuario.id);
+    const atualizado: Usuario = {
+      ...usuario,
+      ...(body.data.name !== undefined ? { nome: body.data.name } : {}),
+      ...(body.data.phone !== undefined ? { telefone: body.data.phone } : {}),
     };
-    return HttpResponse.json(backendUser);
+    usuarios[index] = atualizado;
+    if (body.data.profissional) {
+      const atual = perfisProfissionais.get(usuario.id) ?? { registro: null, especialidade: null };
+      perfisProfissionais.set(usuario.id, {
+        registro:
+          body.data.profissional.registro_profissional !== undefined
+            ? body.data.profissional.registro_profissional
+            : atual.registro,
+        especialidade:
+          body.data.profissional.especialidade !== undefined
+            ? body.data.profissional.especialidade
+            : atual.especialidade,
+      });
+    }
+    return HttpResponse.json(paraBackendUser(atualizado));
   }),
 ];

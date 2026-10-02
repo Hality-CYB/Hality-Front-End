@@ -7,22 +7,32 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import { LevelChip } from "@/components/level-chip";
 import { AvatarWithRole } from "@/components/avatar-with-role";
-import { useDiagnosticos } from "@/hooks/use-diagnosticos";
+import { useDiagnosticosProfissional } from "@/hooks/use-diagnosticos";
 import { useResumoProfissional } from "@/hooks/use-profissional";
 import { useSessaoAtual } from "@/lib/auth/session-context";
 import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/status-format";
 import type { DiagnosticoResumo } from "@/types/diagnostico";
 
 function hrefRevisao(d: DiagnosticoResumo) {
-  const paciente = d.pacienteId ? `&paciente=${d.pacienteId}` : "";
-  return `/profissional/diagnosticos/${d.id}?voltar=/profissional${paciente}`;
+  return `/profissional/diagnosticos/${d.id}?voltar=/profissional`;
+}
+
+function selo(d: DiagnosticoResumo) {
+  if (d.revisado) return { label: "Revisado", status: "success" as const };
+  return {
+    label: statusDiagnosticoLabel(d.status),
+    status: statusDiagnosticoBadgeStatus(d.status),
+  };
 }
 
 export default function ProfissionalHomePage() {
   const { nome } = useSessaoAtual();
   const { data: resumo } = useResumoProfissional();
-  const { data: pendentes } = useDiagnosticos({ status: "aguardando_revisao", limite: 2 });
-  const { data: recentes } = useDiagnosticos({ limite: 4 });
+  const { data: pendentes } = useDiagnosticosProfissional({
+    status: "aguardando_revisao",
+    limite: 2,
+  });
+  const { data: recentes } = useDiagnosticosProfissional({ limite: 4 });
 
   const ultimo = resumo?.ultimoDiagnosticoEm
     ? new Date(resumo.ultimoDiagnosticoEm).toLocaleDateString("pt-BR")
@@ -149,10 +159,7 @@ export default function ProfissionalHomePage() {
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   {d.nivel !== null && <LevelChip nivel={d.nivel} size="sm" />}
-                  <StatusBadge
-                    label={statusDiagnosticoLabel(d.status)}
-                    status={statusDiagnosticoBadgeStatus(d.status)}
-                  />
+                  <StatusBadge {...selo(d)} />
                 </div>
               </Link>
             ))}

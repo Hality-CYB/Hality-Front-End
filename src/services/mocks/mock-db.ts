@@ -1,6 +1,6 @@
 import { seedDiagnosticos, seedPacientes, seedUsuarios } from "@/services/mocks/seed-data";
 import { nivelLabel } from "@/lib/level-format";
-import type { Diagnostico } from "@/types/diagnostico";
+import { CODIGO_POR_NIVEL, type Diagnostico } from "@/types/diagnostico";
 
 /**
  * Estado mutável compartilhado entre os handlers que precisam enxergar os
@@ -40,20 +40,21 @@ export function nomeDoUsuario(id: string | undefined): string | null {
 
 export const idNumerico = (id: string) => Number(id.replace(/\D/g, ""));
 
-/** Item de `GET /diagnosticos`, com o paciente (campo proposto, ver types/diagnostico.ts). */
-export function paraBackendListItem(d: Diagnostico, comPaciente = false) {
-  const paciente = comPaciente ? pacientesMock.find((p) => p.id === d.pacienteId) : undefined;
+/** Item de `GET /diagnosticos` (listagem do próprio paciente). */
+export function paraBackendListItem(d: Diagnostico) {
   return {
     id: idNumerico(d.id),
     data_diagnostico: d.criadoEm,
     status: d.status,
-    classificacao:
-      d.nivel !== null
-        ? { codigo: `nivel_${d.nivel}`, nome_exibicao: nivelLabel(d.nivel), ordem: d.nivel }
-        : null,
+    classificacao: classificacaoResumo(d.nivel),
     escala_saburra: null,
-    ...(paciente ? { paciente_id: paciente.id, paciente_nome: paciente.nome } : {}),
   };
+}
+
+export function classificacaoResumo(nivel: Diagnostico["nivel"]) {
+  return nivel !== null
+    ? { codigo: CODIGO_POR_NIVEL[nivel], nome_exibicao: nivelLabel(nivel), ordem: nivel }
+    : null;
 }
 
 export function paginar<T>(itens: T[], pagina: number, limite: number) {

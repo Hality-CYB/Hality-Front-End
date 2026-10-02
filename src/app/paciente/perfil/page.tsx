@@ -9,12 +9,9 @@ import { AboutDialog } from "@/components/about-dialog";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { PrivacyDialog } from "@/components/privacy-dialog";
 import { useLogout } from "@/hooks/use-auth";
+import { useAtualizarPerfil, useUsuarioAtual } from "@/hooks/use-usuarios";
 import { useSessaoAtual } from "@/lib/auth/session-context";
 import { cn } from "@/lib/utils";
-
-// Telefone não existe em types/usuario.ts ainda (só id/nome/email/role) —
-// segue local-only como já era em Design/'s Profile (useState hardcoded).
-const TELEFONE_PLACEHOLDER = "(11) 99999-1234";
 
 const ITENS_CONFIGURACAO = [
   {
@@ -45,9 +42,26 @@ const ITENS_CONFIGURACAO = [
 
 export default function PerfilPage() {
   const sessao = useSessaoAtual();
+  const { data: usuario } = useUsuarioAtual();
+  const atualizarPerfil = useAtualizarPerfil();
   const [editing, setEditing] = useState(false);
-  const [nome, setNome] = useState(sessao.nome);
-  const [telefone, setTelefone] = useState(TELEFONE_PLACEHOLDER);
+  const [nome, setNome] = useState("");
+  const [telefone, setTelefone] = useState("");
+  const nomeAtual = usuario?.nome ?? sessao.nome;
+  const telefoneAtual = usuario?.telefone ?? "";
+
+  function alternarEdicao() {
+    if (!editing) {
+      setNome(nomeAtual);
+      setTelefone(telefoneAtual);
+      atualizarPerfil.reset();
+    }
+    setEditing((e) => !e);
+  }
+
+  function salvar() {
+    atualizarPerfil.mutate({ nome, telefone }, { onSuccess: () => setEditing(false) });
+  }
   const [dialogAberto, setDialogAberto] = useState<"senha" | "privacidade" | "sobre" | null>(null);
   const logout = useLogout();
 
@@ -57,8 +71,8 @@ export default function PerfilPage() {
         className="flex flex-col items-center p-8 pb-13 text-center"
         style={{ background: "var(--gradient-brand)" }}
       >
-        <AvatarWithRole nome={nome} size={72} className="mb-2.5" />
-        <div className="font-heading mb-1 text-xl font-extrabold text-white">{nome}</div>
+        <AvatarWithRole nome={nomeAtual} size={72} className="mb-2.5" />
+        <div className="font-heading mb-1 text-xl font-extrabold text-white">{nomeAtual}</div>
         <div className="text-sm text-white/55">{sessao.email}</div>
       </div>
 
@@ -66,7 +80,7 @@ export default function PerfilPage() {
         <Card className="rounded-lg p-5 shadow-sm ring-0">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg">Dados pessoais</h2>
-            <Button variant="secondary" size="sm" onClick={() => setEditing((e) => !e)}>
+            <Button variant="secondary" size="sm" onClick={alternarEdicao}>
               {editing ? "Cancelar" : "Editar"}
             </Button>
           </div>
@@ -83,7 +97,8 @@ export default function PerfilPage() {
                   Nome
                 </div>
                 <input
-                  value={nome}
+                  aria-label="Nome"
+                  value={editing ? nome : nomeAtual}
                   onChange={(e) => setNome(e.target.value)}
                   disabled={!editing}
                   className="w-full bg-transparent text-[15px] outline-none disabled:opacity-100"
@@ -111,7 +126,10 @@ export default function PerfilPage() {
                   Telefone
                 </div>
                 <input
-                  value={telefone}
+                  aria-label="Telefone"
+                  type="tel"
+                  placeholder={editing ? "(11) 99999-9999" : "Não informado"}
+                  value={editing ? telefone : telefoneAtual}
                   onChange={(e) => setTelefone(e.target.value)}
                   disabled={!editing}
                   className="w-full bg-transparent text-[15px] outline-none disabled:opacity-100"
@@ -119,9 +137,18 @@ export default function PerfilPage() {
               </div>
             </div>
           </div>
+          {editing && atualizarPerfil.isError && (
+            <p className="text-destructive mt-3 text-[13px]">
+              Não foi possível salvar. Confira o nome (mínimo de 2 letras) e tente novamente.
+            </p>
+          )}
           {editing && (
-            <Button className="mt-4 w-full" onClick={() => setEditing(false)}>
-              Salvar alterações
+            <Button
+              className="mt-4 w-full"
+              onClick={salvar}
+              disabled={nome.trim().length < 2 || atualizarPerfil.isPending}
+            >
+              {atualizarPerfil.isPending ? "Salvando…" : "Salvar alterações"}
             </Button>
           )}
         </Card>

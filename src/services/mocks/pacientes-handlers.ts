@@ -16,12 +16,17 @@ import type { Paciente } from "@/types/paciente";
 import type { Usuario } from "@/types/usuario";
 
 const url = (path: string) => `${config.apiBaseUrl}${path}`;
+let proximoVinculoId = 500;
 
-const criarPacienteSchema = z.object({
-  nome: z.string().trim().min(1),
-  email: z.email(),
-  telefone: z.string().nullable().optional(),
-});
+/** Espelha `PacienteCreate` do back (#101): campos extras são recusados. */
+const criarPacienteSchema = z
+  .object({
+    nome: z.string().trim().min(2).max(255),
+    email: z.email(),
+    telefone: z.string().max(20).nullable().optional(),
+    senha: z.string().min(8).optional(),
+  })
+  .strict();
 
 /** Espelha `paciente_service.listar_pacientes` da PR #97: profissional vê só os vinculados, admin vê todos. */
 function visiveisPara(usuario: Usuario): Paciente[] {
@@ -116,7 +121,7 @@ export const pacientesHandlers = [
     });
   }),
 
-  // TODO(backend): cadastro simples pelo profissional, contrato proposto pelo front.
+  // Cadastro simples pelo profissional (#101): cria o paciente já vinculado e devolve o vínculo.
   http.post(url("/api/v1/pacientes"), async ({ request }) => {
     const usuario = usuarioDoRequest(request);
     if (!usuario) return new HttpResponse(null, { status: 401 });
@@ -126,7 +131,7 @@ export const pacientesHandlers = [
 
     const body = criarPacienteSchema.safeParse(await request.json());
     if (!body.success) {
-      return HttpResponse.json({ detail: "nome e e-mail são obrigatórios" }, { status: 422 });
+      return HttpResponse.json({ detail: "dados inválidos" }, { status: 422 });
     }
     const email = body.data.email.toLowerCase();
     const emailEmUso =
@@ -150,6 +155,16 @@ export const pacientesHandlers = [
     };
     pacientesMock.push(novo);
     vinculadoEmMock.set(novo.id, agora);
-    return HttpResponse.json(paraBackendListItemPaciente(novo), { status: 201 });
+    return HttpResponse.json(
+      {
+        id: proximoVinculoId++,
+        paciente_id: novo.id,
+        paciente_nome: novo.nome,
+        paciente_email: novo.email,
+        data_vinculo: agora,
+        ativo: true,
+      },
+      { status: 201 },
+    );
   }),
 ];

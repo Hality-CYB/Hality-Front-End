@@ -15,7 +15,10 @@ type SelecionarPacienteProps = {
 
 function mensagemDoCadastro(erro: unknown): string {
   if (erro instanceof ApiError && erro.status === 409) {
-    return "Já existe um usuário com este e-mail.";
+    return "Já existe uma conta com este e-mail. Use outro e-mail ou busque o paciente na lista.";
+  }
+  if (erro instanceof ApiError && erro.status === 422) {
+    return "Confira os dados: nome com pelo menos 2 letras e um e-mail válido.";
   }
   return "Não foi possível cadastrar o paciente. Tente novamente.";
 }
@@ -35,12 +38,12 @@ export function SelecionarPaciente({ onSelecionar, onCancelar }: SelecionarPacie
 
   const { data: pacientes, isLoading } = usePacientes({ busca: buscaAdiada, limite: 20 });
   const criarPaciente = useCriarPaciente();
-  const novoPacienteValido = nome.trim().length > 0 && email.trim().includes("@");
+  const novoPacienteValido = nome.trim().length >= 2 && email.trim().includes("@");
 
   function cadastrarEContinuar() {
     criarPaciente.mutate(
       { nome: nome.trim(), email: email.trim(), telefone: telefone.trim() || undefined },
-      { onSuccess: (paciente) => onSelecionar(paciente.id) },
+      { onSuccess: (paciente) => onSelecionar(paciente.pacienteId) },
     );
   }
 
@@ -116,8 +119,8 @@ export function SelecionarPaciente({ onSelecionar, onCancelar }: SelecionarPacie
         <div className="bg-secondary flex items-start gap-2 rounded-[10px] px-3.5 py-2.5">
           <Info className="text-primary mt-0.5 h-3.75 w-3.75 shrink-0" />
           <span className="text-muted-foreground text-xs leading-relaxed">
-            O paciente fica vinculado a você e pode completar o cadastro (senha e consentimentos)
-            depois.
+            O paciente já sai vinculado a você, com uma senha provisória que ele deve trocar no
+            primeiro acesso.
           </span>
         </div>
         <Button

@@ -10,12 +10,15 @@ import { EmptyState } from "@/components/empty-state";
 import { LevelChip } from "@/components/level-chip";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { usePaciente } from "@/hooks/use-pacientes";
+import { useDiagnosticosProfissionalPaginados } from "@/hooks/use-diagnosticos";
 import { nivelColor, nivelIcon } from "@/lib/level-format";
 import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/status-format";
 
 export default function PacienteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { data: paciente, isError } = usePaciente(id);
+  // A lista embutida em /pacientes/{id} não diz se houve revisão; a do profissional diz.
+  const historico = useDiagnosticosProfissionalPaginados({ pacienteId: id, limite: 20 });
 
   if (isError) {
     return (
@@ -30,7 +33,7 @@ export default function PacienteDetailPage({ params }: { params: Promise<{ id: s
   }
   if (!paciente) return null;
 
-  const diagnosticos = paciente.diagnosticos.itens;
+  const diagnosticos = historico.data?.pages.flatMap((p) => p.itens) ?? [];
 
   return (
     <div className="flex flex-col">
@@ -81,11 +84,11 @@ export default function PacienteDetailPage({ params }: { params: Promise<{ id: s
           <div className="mb-3 flex items-baseline justify-between">
             <h2 className="text-lg">Histórico de diagnósticos</h2>
             <span className="text-muted-foreground text-xs">
-              {paciente.diagnosticos.total} exames
+              {historico.data?.pages[0]?.total ?? paciente.totalDiagnosticos} exames
             </span>
           </div>
           <div className="flex flex-col gap-2.5">
-            {diagnosticos.length === 0 && (
+            {!historico.isLoading && diagnosticos.length === 0 && (
               <EmptyState
                 icon={<ScanLine className="h-7 w-7" />}
                 title="Nenhum diagnóstico ainda"
@@ -94,7 +97,7 @@ export default function PacienteDetailPage({ params }: { params: Promise<{ id: s
             {diagnosticos.map((d) => (
               <Link
                 key={d.id}
-                href={`/profissional/diagnosticos/${d.id}?paciente=${paciente.id}&voltar=/profissional/pacientes/${paciente.id}`}
+                href={`/profissional/diagnosticos/${d.id}?voltar=/profissional/pacientes/${paciente.id}`}
               >
                 <Card className="flex-row items-center gap-3.5 rounded-lg p-4 shadow-sm ring-0">
                   <div
@@ -112,8 +115,8 @@ export default function PacienteDetailPage({ params }: { params: Promise<{ id: s
                     </div>
                     <StatusBadge
                       className="mt-1"
-                      label={statusDiagnosticoLabel(d.status)}
-                      status={statusDiagnosticoBadgeStatus(d.status)}
+                      label={d.revisado ? "Revisado" : statusDiagnosticoLabel(d.status)}
+                      status={d.revisado ? "success" : statusDiagnosticoBadgeStatus(d.status)}
                     />
                   </div>
                   {d.nivel !== null && <LevelChip nivel={d.nivel} size="sm" />}
@@ -122,6 +125,17 @@ export default function PacienteDetailPage({ params }: { params: Promise<{ id: s
               </Link>
             ))}
           </div>
+          {historico.hasNextPage && (
+            <div className="mt-3 flex justify-center">
+              <Button
+                variant="secondary"
+                onClick={() => historico.fetchNextPage()}
+                disabled={historico.isFetchingNextPage}
+              >
+                {historico.isFetchingNextPage ? "Carregando…" : "Carregar mais"}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>

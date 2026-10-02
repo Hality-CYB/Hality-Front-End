@@ -16,6 +16,16 @@ const criarAnamneseSchema = z.object({
   respostas: z.array(backendRespostaItemSchema),
 });
 
+/** Respostas da anamnese, como o back embute no detalhe do diagnóstico. */
+export function respostasDaAnamnese(id: string): BackendAnamneseDetail["respostas"] {
+  return anamneses.find((a) => String(a.id) === id)?.respostas ?? [];
+}
+
+/** Paciente dono da anamnese — é dele que o diagnóstico criado a partir dela passa a ser. */
+export function titularDaAnamnese(id: string): string | undefined {
+  return anamneses.find((a) => String(a.id) === id)?.paciente_id;
+}
+
 export const anamneseHandlers = [
   http.get(url("/api/v1/anamneses/questionario"), () =>
     HttpResponse.json(ANAMNESE_QUESTIONARIO_MOCK),

@@ -2,7 +2,14 @@
 
 import { useState, createElement, type ReactNode } from "react";
 import Link from "next/link";
-import { Sparkles, ChevronRight, ChevronLeft, Lightbulb, Image as ImageIcon } from "lucide-react";
+import {
+  Sparkles,
+  Stethoscope,
+  ChevronRight,
+  ChevronLeft,
+  Lightbulb,
+  Image as ImageIcon,
+} from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { LevelChip } from "@/components/level-chip";
 import { StatusBadge } from "@/components/status-badge";
@@ -14,9 +21,13 @@ import { formatarResposta } from "@/lib/anamnese-format";
 import { config } from "@/lib/config";
 import { cn } from "@/lib/utils";
 import type { Diagnostico, DiagnosticoNivel } from "@/types/diagnostico";
-import type { Anamnese } from "@/types/anamnese";
 
 export const NIVEIS: DiagnosticoNivel[] = [1, 2, 3];
+
+/** O back devolve um caminho da própria API; uma URL absoluta (ex.: CDN) é usada como veio. */
+function urlDaImagem(url: string): string {
+  return /^https?:\/\//.test(url) ? url : `${config.apiBaseUrl}${url}`;
+}
 
 const ABAS = [
   { valor: "detalhes", label: "Detalhes" },
@@ -25,7 +36,6 @@ const ABAS = [
 
 type DiagnosticoDetalheProps = {
   diagnostico: Diagnostico;
-  anamnese?: Anamnese;
   titulo: string;
   subtitulo: string;
   status: { label: string; tipo: BadgeStatus };
@@ -44,7 +54,6 @@ type DiagnosticoDetalheProps = {
  */
 export function DiagnosticoDetalhe({
   diagnostico,
-  anamnese,
   titulo,
   subtitulo,
   status,
@@ -57,9 +66,16 @@ export function DiagnosticoDetalhe({
   const [anamneseAberta, setAnamneseAberta] = useState(false);
 
   const nivel = diagnostico.nivel;
+  // Quando o profissional muda o nível da IA, o dele vira o resultado em destaque.
+  const nivelProfissional =
+    diagnostico.revisao?.revisado && diagnostico.revisao.nivelCorrigido
+      ? diagnostico.revisao.nivel
+      : null;
+  const nivelDestaque = nivelProfissional ?? nivel;
   const conteudos = diagnostico.conteudos ?? [];
   const analise = nivel ? conteudos[0] : undefined;
-  const fotoUrl = diagnostico.imagemUrl ? `${config.apiBaseUrl}${diagnostico.imagemUrl}` : null;
+  const [fotoFalhou, setFotoFalhou] = useState(false);
+  const fotoUrl = diagnostico.imagemUrl && !fotoFalhou ? urlDaImagem(diagnostico.imagemUrl) : null;
 
   return (
     <div className="flex flex-col">
@@ -111,27 +127,51 @@ export function DiagnosticoDetalhe({
                   background: "linear-gradient(135deg,rgba(11,107,130,0.05),rgba(22,163,74,0.04))",
                 }}
               >
-                <div className="mb-3 flex items-center gap-3">
-                  <div className="bg-secondary text-primary flex h-8 w-8 items-center justify-center rounded-[9px]">
-                    <Sparkles className="h-4 w-4" />
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-secondary text-primary flex h-8 w-8 items-center justify-center rounded-[9px]">
+                      {nivelProfissional ? (
+                        <Stethoscope className="h-4 w-4" />
+                      ) : (
+                        <Sparkles className="h-4 w-4" />
+                      )}
+                    </div>
+                    <div className="font-heading text-primary text-sm font-extrabold">
+                      {nivelProfissional ? "Resultado do profissional" : "Resultado da IA"}
+                    </div>
                   </div>
-                  <div className="font-heading text-primary text-sm font-extrabold">
-                    Resultado da IA
-                  </div>
+                  {nivelProfissional && nivel && (
+                    <div
+                      className="border-border bg-card/70 text-muted-foreground flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px]"
+                      title="Classificação original da IA, antes da revisão"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      <span>
+                        IA: <span style={{ color: nivelColor(nivel) }}>{nivelLabel(nivel)}</span>
+                        {diagnostico.confiancaIA !== undefined && ` · ${diagnostico.confiancaIA}%`}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-4">
                   <div
                     className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[18px]"
-                    style={{ background: `${nivelColor(nivel)}18` }}
+                    style={{ background: `${nivelColor(nivelDestaque)}18` }}
                   >
-                    {createElement(nivelIcon(nivel), {
+                    {createElement(nivelIcon(nivelDestaque), {
                       className: "h-7 w-7",
-                      style: { color: nivelColor(nivel) },
+                      style: { color: nivelColor(nivelDestaque) },
                     })}
                   </div>
                   <div>
-                    <LevelChip nivel={nivel} />
-                    {diagnostico.confiancaIA !== undefined && (
+                    <LevelChip nivel={nivelDestaque} />
+                    {nivelProfissional && (
+                      <div className="text-muted-foreground mt-1.5 text-xs">
+                        Revisado por{" "}
+                        {diagnostico.revisao?.profissionalNome ?? "profissional Hality"}
+                      </div>
+                    )}
+                    {!nivelProfissional && diagnostico.confiancaIA !== undefined && (
                       <>
                         <div className="text-muted-foreground mt-1.5 mb-1.5 text-xs">
                           Confiança: {diagnostico.confiancaIA}%
@@ -149,14 +189,14 @@ export function DiagnosticoDetalhe({
 
                 {aviso && <div className="mt-4">{aviso}</div>}
 
-                {nivel && (
+                {nivelDestaque && (
                   <div className="shell:block mt-6 hidden">
                     <div className="text-muted-foreground mb-2 text-xs font-semibold">
                       Onde a classificação está na escala
                     </div>
                     <div className="flex gap-1.5">
                       {NIVEIS.map((l) => {
-                        const atual = nivel === l;
+                        const atual = nivelDestaque === l;
                         return (
                           <div key={l} className="flex-1">
                             <div
@@ -202,13 +242,15 @@ export function DiagnosticoDetalhe({
                       src={fotoUrl}
                       alt="Foto da língua capturada"
                       className="h-full w-full object-cover"
+                      onError={() => setFotoFalhou(true)}
                     />
                   ) : (
                     <>
                       <ImageIcon className="h-9 w-9 text-white/20" />
                       <span className="text-xs text-white/30">
-                        Imagem capturada ·{" "}
-                        {new Date(diagnostico.criadoEm).toLocaleDateString("pt-BR")}
+                        {fotoFalhou
+                          ? "Imagem indisponível"
+                          : `Imagem capturada · ${new Date(diagnostico.criadoEm).toLocaleDateString("pt-BR")}`}
                       </span>
                     </>
                   )}
@@ -232,7 +274,7 @@ export function DiagnosticoDetalhe({
               </button>
               {anamneseAberta && (
                 <div className="shell:grid shell:grid-cols-2 flex flex-col gap-1.5 px-5 pb-5">
-                  {anamnese?.respostas.map((r) => (
+                  {diagnostico.respostasAnamnese?.map((r) => (
                     <div
                       key={r.perguntaId}
                       className="bg-background flex justify-between gap-3 rounded-[10px] px-3 py-2"

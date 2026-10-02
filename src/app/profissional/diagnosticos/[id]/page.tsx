@@ -8,31 +8,39 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/empty-state";
 import { DiagnosticoDetalhe, NIVEIS } from "@/components/diagnostico-detalhe";
-import { useDiagnostico, useRevisarDiagnostico } from "@/hooks/use-diagnosticos";
-import { useAnamnese } from "@/hooks/use-anamnese";
-import { usePaciente } from "@/hooks/use-pacientes";
+import {
+  useDiagnostico,
+  useDiagnosticoProfissional,
+  useRevisarDiagnostico,
+} from "@/hooks/use-diagnosticos";
+import { ApiError } from "@/lib/api-client";
 import { nivelColor, nivelLabel } from "@/lib/level-format";
 import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/status-format";
 import type { DiagnosticoNivel } from "@/types/diagnostico";
 
+function mensagemDaRevisao(erro: unknown): string {
+  if (erro instanceof ApiError && erro.status === 409) {
+    return "Outra revisão foi salva enquanto você editava. A tela foi atualizada; confira e salve de novo.";
+  }
+  return "Não foi possível salvar a revisão. Tente novamente.";
+}
+
 /**
- * O detalhe do diagnóstico no back não diz de quem ele é, então o paciente
- * chega pela URL (`?paciente=`), vindo da lista ou do detalhe do paciente.
+ * Junta o detalhe comum (foto, IA, análise, orientações) com a visão do
+ * profissional (paciente, revisão atual, histórico e versão para revisar).
  */
 export default function DiagnosticoReviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const searchParams = useSearchParams();
   const voltarHref = searchParams.get("voltar") ?? "/profissional/diagnosticos";
-  const pacienteId = searchParams.get("paciente") ?? "";
   const [classificacao, setClassificacao] = useState<DiagnosticoNivel | null>(null);
   const [observacoes, setObservacoes] = useState("");
 
   const { data: diagnostico, isError } = useDiagnostico(id);
-  const { data: anamnese } = useAnamnese(diagnostico?.anamneseId);
-  const { data: paciente } = usePaciente(pacienteId);
+  const { data: visaoProfissional, isError: erroProfissional } = useDiagnosticoProfissional(id);
   const revisar = useRevisarDiagnostico();
 
-  if (isError) {
+  if (isError || erroProfissional) {
     return (
       <div className="p-4">
         <EmptyState
@@ -43,28 +51,34 @@ export default function DiagnosticoReviewPage({ params }: { params: Promise<{ id
       </div>
     );
   }
-  if (!diagnostico) return null;
+  if (!diagnostico || !visaoProfissional) return null;
 
-  const revisao = diagnostico.revisao;
+  const revisaoAtual = visaoProfissional.revisaoAtual;
   const podeRevisar = diagnostico.status !== "processando" && diagnostico.status !== "falha";
-  const classificacaoAtual = classificacao ?? diagnostico.nivel;
-  const nomePaciente = paciente?.nome ?? "Paciente";
+  const classificacaoAtual = classificacao ?? revisaoAtual?.nivel ?? diagnostico.nivel;
+  const nomePaciente = visaoProfissional.pacienteNome;
 
   function salvarRevisao() {
-    if (!classificacaoAtual) return;
-    revisar.mutate({ id, nivel: classificacaoAtual, observacoes });
+    if (!classificacaoAtual || !visaoProfissional) return;
+    revisar.mutate(
+      { id, nivel: classificacaoAtual, observacoes, versao: visaoProfissional.versao },
+      { onSuccess: () => setObservacoes("") },
+    );
   }
 
   return (
     <DiagnosticoDetalhe
       diagnostico={diagnostico}
-      anamnese={anamnese}
       titulo={nomePaciente}
       subtitulo={`${new Date(diagnostico.criadoEm).toLocaleDateString("pt-BR")} · Diagnóstico #${diagnostico.id}`}
-      status={{
-        label: statusDiagnosticoLabel(diagnostico.status),
-        tipo: statusDiagnosticoBadgeStatus(diagnostico.status),
-      }}
+      status={
+        revisaoAtual
+          ? { label: "Revisado", tipo: "success" }
+          : {
+              label: statusDiagnosticoLabel(diagnostico.status),
+              tipo: statusDiagnosticoBadgeStatus(diagnostico.status),
+            }
+      }
       avatarNome={nomePaciente}
       voltarHref={voltarHref}
     >
@@ -76,19 +90,21 @@ export default function DiagnosticoReviewPage({ params }: { params: Promise<{ id
           <div className="font-heading text-primary text-[15px] font-extrabold">Sua avaliação</div>
         </div>
 
-        {revisao?.revisado && (
+        {revisaoAtual && (
           <div className="border-secondary bg-secondary/40 mb-3.5 rounded-xl border p-3.5">
             <div className="font-heading text-primary mb-1 flex items-center gap-1.5 text-[13px] font-bold">
-              <BadgeCheck className="h-4 w-4" /> Já revisado
+              <BadgeCheck className="h-4 w-4" />
+              Revisado como {nivelLabel(revisaoAtual.nivel)}
             </div>
             <p className="text-muted-foreground text-xs leading-relaxed">
-              {revisao.profissionalNome ?? "Profissional Hality"}
-              {revisao.revisadoEm &&
-                ` · ${new Date(revisao.revisadoEm).toLocaleDateString("pt-BR")}`}
+              {revisaoAtual.profissionalNome ?? "Profissional Hality"} ·{" "}
+              {new Date(revisaoAtual.criadoEm).toLocaleDateString("pt-BR")}
+              {visaoProfissional.historico.length > 1 &&
+                ` · ${visaoProfissional.historico.length} revisões no histórico`}
             </p>
-            {revisao.observacoes && (
+            {revisaoAtual.observacao && (
               <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-                {revisao.observacoes}
+                {revisaoAtual.observacao}
               </p>
             )}
           </div>
@@ -143,6 +159,7 @@ export default function DiagnosticoReviewPage({ params }: { params: Promise<{ id
                 value={observacoes}
                 onChange={(e) => setObservacoes(e.target.value)}
                 rows={4}
+                maxLength={2000}
                 className="shell:flex-1"
               />
               {revisar.isSuccess && (
@@ -152,7 +169,7 @@ export default function DiagnosticoReviewPage({ params }: { params: Promise<{ id
               )}
               {revisar.isError && (
                 <div className="border-destructive/30 bg-destructive/10 text-destructive mt-3 rounded-xl border px-3.5 py-2.5 text-[13px] font-semibold">
-                  Não foi possível salvar a revisão. Tente novamente.
+                  {mensagemDaRevisao(revisar.error)}
                 </div>
               )}
               <Button
@@ -162,7 +179,7 @@ export default function DiagnosticoReviewPage({ params }: { params: Promise<{ id
                 disabled={!classificacaoAtual || revisar.isPending}
               >
                 <CircleCheck className="h-4 w-4" />
-                {revisao?.revisado ? "Atualizar revisão" : "Salvar revisão"}
+                {revisaoAtual ? "Salvar nova revisão" : "Salvar revisão"}
               </Button>
             </div>
           </div>

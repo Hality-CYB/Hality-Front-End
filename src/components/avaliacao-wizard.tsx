@@ -252,15 +252,13 @@ export function AvaliacaoWizard({
       valor: answers[q.id] ?? "",
     }));
     try {
-      // No atendimento pelo profissional, o titular é o paciente selecionado (PR #91 do back).
-      const titular = isProfissional ? pacienteId : undefined;
+      // No atendimento pelo profissional, a anamnese nasce no nome do paciente; o diagnóstico herda dela.
       const anamnese = await criarAnamnese.mutateAsync({
         versaoQuestionario: perguntas.data?.versao ?? "",
         respostas,
-        pacienteId: titular,
+        pacienteId: isProfissional ? pacienteId : undefined,
       });
       const criado = await criarDiagnostico.mutateAsync({
-        pacienteId: titular,
         anamneseId: anamnese.id,
         imagem: foto.file,
         parametrosCaptura: {
@@ -291,7 +289,13 @@ export function AvaliacaoWizard({
 
   function salvarRevisaoProfissional() {
     if (!resultado || !classificacaoAtual) return;
-    revisarDiagnostico.mutate({ id: resultado.id, nivel: classificacaoAtual, observacoes });
+    // Diagnóstico recém-criado ainda não tem revisão: a versão conhecida é 0.
+    revisarDiagnostico.mutate({
+      id: resultado.id,
+      nivel: classificacaoAtual,
+      observacoes,
+      versao: 0,
+    });
   }
 
   return (

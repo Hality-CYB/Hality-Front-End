@@ -117,6 +117,30 @@ export const backendRespostaItemSchema = z.object({
 export type BackendRespostaItem = z.infer<typeof backendRespostaItemSchema>;
 
 /**
+ * No detalhe do diagnóstico o back devolve as respostas como estão gravadas
+ * (`des_pergunta`/`tipo_pergunta`), e não no formato de `GET /anamneses/{id}`
+ * (`enunciado`/`tipo`) — o detalhe não tem `response_model`. Aceita os dois
+ * e normaliza para o formato documentado.
+ */
+export const backendRespostaArmazenadaSchema = z
+  .object({
+    pergunta_id: z.string(),
+    enunciado: z.string().optional(),
+    des_pergunta: z.string().optional(),
+    tipo: backendTipoPerguntaSchema.optional(),
+    tipo_pergunta: backendTipoPerguntaSchema.optional(),
+    valor: z.union([z.boolean(), z.string(), z.number()]),
+  })
+  .refine((r) => (r.enunciado ?? r.des_pergunta) !== undefined, "resposta sem enunciado")
+  .refine((r) => (r.tipo ?? r.tipo_pergunta) !== undefined, "resposta sem tipo")
+  .transform((r): BackendRespostaItem => ({
+    pergunta_id: r.pergunta_id,
+    enunciado: r.enunciado ?? r.des_pergunta ?? "",
+    tipo: r.tipo ?? r.tipo_pergunta ?? "text",
+    valor: r.valor,
+  }));
+
+/**
  * Só `Diagnostico.anamneseId` aponta pra cá — não o contrário. A
  * anamnese é coletada antes do diagnóstico existir (RF08: formulário vem
  * antes da captura da imagem), então ela não pode nascer já apontando pra
@@ -136,16 +160,13 @@ export const backendAnamneseDetailSchema = z.object({
 });
 export type BackendAnamneseDetail = z.infer<typeof backendAnamneseDetailSchema>;
 
-export function adaptBackendAnamneseDetail(data: BackendAnamneseDetail): Anamnese {
-  return {
-    id: String(data.id),
-    respostas: data.respostas.map((r) => ({
-      perguntaId: r.pergunta_id,
-      enunciado: r.enunciado,
-      tipo: mapBackendTipoPergunta(r.tipo),
-      valor: String(r.valor),
-    })),
-  };
+export function adaptBackendRespostas(respostas: BackendRespostaItem[]): RespostaAnamnese[] {
+  return respostas.map((r) => ({
+    perguntaId: r.pergunta_id,
+    enunciado: r.enunciado,
+    tipo: mapBackendTipoPergunta(r.tipo),
+    valor: String(r.valor),
+  }));
 }
 
 /** Corpo de resposta do POST — o back não devolve as respostas nele (issue #18). */

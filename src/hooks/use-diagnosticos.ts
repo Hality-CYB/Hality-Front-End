@@ -1,7 +1,11 @@
 "use client";
 
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { diagnosticoService, type FiltroDiagnosticos } from "@/services/diagnostico-service";
+import {
+  diagnosticoService,
+  type FiltroDiagnosticos,
+  type FiltroDiagnosticosProfissional,
+} from "@/services/diagnostico-service";
 import type { DiagnosticoNivel } from "@/types/diagnostico";
 
 export function useDiagnosticos(filtro: FiltroDiagnosticos = {}) {
@@ -41,12 +45,47 @@ export function useCriarDiagnostico() {
   });
 }
 
+export function useDiagnosticosProfissional(filtro: FiltroDiagnosticosProfissional = {}) {
+  return useQuery({
+    queryKey: ["diagnosticos", "profissional", "lista", filtro],
+    queryFn: () => diagnosticoService.listarProfissional(filtro),
+  });
+}
+
+export function useDiagnosticosProfissionalPaginados(
+  filtro: Omit<FiltroDiagnosticosProfissional, "pagina"> = {},
+) {
+  return useInfiniteQuery({
+    queryKey: ["diagnosticos", "profissional", "paginado", filtro],
+    queryFn: ({ pageParam }) =>
+      diagnosticoService.listarProfissional({ ...filtro, pagina: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (ultima) =>
+      ultima.pagina < ultima.totalPaginas ? ultima.pagina + 1 : undefined,
+  });
+}
+
+export function useDiagnosticoProfissional(id: string) {
+  return useQuery({
+    queryKey: ["diagnosticos", "profissional", id],
+    queryFn: () => diagnosticoService.buscarProfissional(id),
+    enabled: !!id,
+  });
+}
+
 export function useRevisarDiagnostico() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...input }: { id: string; nivel: DiagnosticoNivel; observacoes?: string }) =>
-      diagnosticoService.revisar(id, input),
-    onSuccess: () => {
+    mutationFn: ({
+      id,
+      ...input
+    }: {
+      id: string;
+      nivel: DiagnosticoNivel;
+      observacoes?: string;
+      versao: number;
+    }) => diagnosticoService.revisar(id, input),
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["diagnosticos"] });
       queryClient.invalidateQueries({ queryKey: ["pacientes"] });
       queryClient.invalidateQueries({ queryKey: ["profissional", "resumo"] });
