@@ -1,49 +1,58 @@
 import { apiClient } from "@/lib/api-client";
-import { pacienteSchema, type Paciente } from "@/types/paciente";
-import { diagnosticoNivelSchema } from "@/types/diagnostico";
-import { z } from "zod";
+import {
+  adaptBackendPacienteDetail,
+  adaptBackendPacienteList,
+  backendPacienteCriadoSchema,
+  backendPacienteDetailSchema,
+  backendPacienteListResponseSchema,
+  type PacienteDetalhe,
+  type PacienteCriado,
+  type PaginaPacientes,
+} from "@/types/paciente";
 
-/** Resumo usado nas listas (RF30 — histórico por paciente vinculado). */
-const pacienteComResumoSchema = pacienteSchema.extend({
-  totalDiagnosticos: z.number(),
-  ultimoDiagnosticoEm: z.iso.datetime().optional(),
-  ultimoNivel: diagnosticoNivelSchema.nullable(),
-});
-export type PacienteComResumo = z.infer<typeof pacienteComResumoSchema>;
-
-export const pacienteService = {
-  async listar(filtro?: { profissionalId?: string }): Promise<PacienteComResumo[]> {
-    const query = filtro?.profissionalId ? `?profissionalId=${filtro.profissionalId}` : "";
-    const data = await apiClient.get<unknown>(`/api/v1/pacientes${query}`);
-    return z.array(pacienteComResumoSchema).parse(data);
-  },
-
-  async buscar(id: string): Promise<PacienteComResumo> {
-    const data = await apiClient.get<unknown>(`/api/v1/pacientes/${id}`);
-    return pacienteComResumoSchema.parse(data);
-  },
-
-  /** Cadastro básico feito pelo profissional, pra liberar uma avaliação na hora. */
-  async criar(input: {
-    nome: string;
-    email: string;
-    telefone?: string;
-    profissionalVinculadoId?: string;
-  }): Promise<PacienteComResumo> {
-    const data = await apiClient.post<unknown>("/api/v1/pacientes", input);
-    return pacienteComResumoSchema.parse(data);
-  },
-
-  async vincularProfissional(
-    pacienteId: string,
-    profissionalId: string,
-  ): Promise<PacienteComResumo> {
-    const data = await apiClient.put<unknown>(
-      `/api/v1/pacientes/${pacienteId}/vincular-profissional`,
-      { profissionalId },
-    );
-    return pacienteComResumoSchema.parse(data);
-  },
+export type FiltroPacientes = {
+  busca?: string;
+  pagina?: number;
+  limite?: number;
 };
 
-export type { Paciente };
+export type NovoPaciente = {
+  nome: string;
+  email: string;
+  telefone?: string;
+};
+
+export const pacienteService = {
+  async listar(filtro: FiltroPacientes = {}): Promise<PaginaPacientes> {
+    const params = new URLSearchParams();
+    if (filtro.busca?.trim()) params.set("busca", filtro.busca.trim());
+    if (filtro.pagina) params.set("pagina", String(filtro.pagina));
+    if (filtro.limite) params.set("limite", String(filtro.limite));
+    const query = params.size ? `?${params.toString()}` : "";
+    const data = await apiClient.get<unknown>(`/api/v1/pacientes${query}`);
+    return adaptBackendPacienteList(backendPacienteListResponseSchema.parse(data));
+  },
+
+  async buscar(id: string): Promise<PacienteDetalhe> {
+    const data = await apiClient.get<unknown>(`/api/v1/pacientes/${id}`);
+    return adaptBackendPacienteDetail(backendPacienteDetailSchema.parse(data));
+  },
+
+  /**
+   * Cadastro simples pelo profissional (#101 do back). Sem `senha`, o back cria a
+   * conta com uma senha provisória padrão, que o paciente deve trocar depois.
+   */
+  async criar(input: NovoPaciente): Promise<PacienteCriado> {
+    const data = await apiClient.post<unknown>("/api/v1/pacientes", {
+      nome: input.nome.trim(),
+      email: input.email.trim(),
+      telefone: input.telefone?.trim() || null,
+    });
+    const criado = backendPacienteCriadoSchema.parse(data);
+    return {
+      pacienteId: criado.paciente_id,
+      nome: criado.paciente_nome,
+      email: criado.paciente_email,
+    };
+  },
+};

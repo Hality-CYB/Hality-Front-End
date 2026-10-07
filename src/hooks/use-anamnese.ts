@@ -5,16 +5,8 @@ import { anamneseService } from "@/services/anamnese-service";
 
 export function useAnamnesePerguntas() {
   return useQuery({
-    queryKey: ["anamnese", "perguntas"],
+    queryKey: ["anamnese", "questionario"],
     queryFn: () => anamneseService.listarPerguntas(),
-  });
-}
-
-export function useAnamnese(id: string | undefined) {
-  return useQuery({
-    queryKey: ["anamnese", id],
-    queryFn: () => anamneseService.buscar(id!),
-    enabled: !!id,
   });
 }
 

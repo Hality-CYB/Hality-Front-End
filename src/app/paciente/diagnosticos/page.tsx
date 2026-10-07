@@ -1,0 +1,153 @@
+"use client";
+
+import { useMemo, useState, createElement } from "react";
+import Link from "next/link";
+import { ScanLine, ChevronRight, Clock } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { StatusBadge } from "@/components/status-badge";
+import { EmptyState } from "@/components/empty-state";
+import { CustomPeriodDialog } from "@/components/custom-period-dialog";
+import { Button } from "@/components/ui/button";
+import { useDiagnosticos, useDiagnosticosPaginados } from "@/hooks/use-diagnosticos";
+import { nivelColor, nivelLabel, nivelBadgeStatus, nivelIcon } from "@/lib/level-format";
+import {
+  PERIODS,
+  periodLabel,
+  periodoParaFiltro,
+  type Period,
+  type CustomRange,
+} from "@/lib/date-period";
+import { cn } from "@/lib/utils";
+
+const STATUS_LABEL: Record<string, string> = {
+  processando: "Aguardando análise",
+  aguardando_revisao: "Aguardando revisão",
+  falha: "Falha na análise",
+};
+
+export default function DiagnosticosPage() {
+  const [period, setPeriod] = useState<Period>("Todos");
+  const [customRange, setCustomRange] = useState<CustomRange | null>(null);
+  const [customDialogOpen, setCustomDialogOpen] = useState(false);
+  const filtroPeriodo = useMemo(
+    () => periodoParaFiltro(period, customRange),
+    [period, customRange],
+  );
+  const { data: todos } = useDiagnosticos({ limite: 1 });
+  const lista = useDiagnosticosPaginados({ ...filtroPeriodo, limite: 20 });
+
+  const totalGeral = todos?.total ?? 0;
+  const filtrados = lista.data?.pages.flatMap((p) => p.itens) ?? [];
+
+  return (
+    <div className="flex flex-col">
+      <div className="relative overflow-hidden p-5" style={{ background: "var(--gradient-brand)" }}>
+        <h1 className="mb-0.5 text-xl text-white">Meus Diagnósticos</h1>
+        <p className="text-sm text-white/60">{totalGeral} exames realizados</p>
+      </div>
+
+      {totalGeral > 0 && (
+        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pt-3.5">
+          {PERIODS.map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={cn(
+                "font-heading shrink-0 rounded-4xl border-[1.5px] px-3.5 py-1.5 text-xs font-bold whitespace-nowrap",
+                period === p
+                  ? "border-primary bg-primary text-white"
+                  : "border-border text-muted-foreground bg-card",
+              )}
+            >
+              {periodLabel(p, null)}
+            </button>
+          ))}
+          <button
+            onClick={() => setCustomDialogOpen(true)}
+            className={cn(
+              "font-heading flex shrink-0 items-center gap-1.5 rounded-4xl border-[1.5px] px-3.5 py-1.5 text-xs font-bold whitespace-nowrap",
+              period === "custom"
+                ? "border-primary bg-primary text-white"
+                : "border-border text-muted-foreground bg-card",
+            )}
+          >
+            <Clock className="h-3.5 w-3.5" /> {periodLabel("custom", customRange)}
+          </button>
+        </div>
+      )}
+
+      <CustomPeriodDialog
+        open={customDialogOpen}
+        onOpenChange={setCustomDialogOpen}
+        initial={customRange}
+        onApply={(range) => {
+          setCustomRange(range);
+          setPeriod("custom");
+          setCustomDialogOpen(false);
+        }}
+      />
+
+      <div className="cyb-grid gap-2.5 p-4">
+        {todos && totalGeral === 0 && (
+          <EmptyState
+            icon={<ScanLine className="h-7 w-7" />}
+            title="Nenhum diagnóstico"
+            description="Faça seu primeiro diagnóstico agora."
+          />
+        )}
+        {totalGeral > 0 && lista.isSuccess && filtrados.length === 0 && (
+          <EmptyState
+            icon={<Clock className="h-7 w-7" />}
+            title="Nenhum diagnóstico neste período"
+            description="Tente selecionar um período maior."
+          />
+        )}
+        {filtrados.map((d) => {
+          const iconeNivel = nivelIcon(d.nivel);
+          return (
+            <Link key={d.id} href={`/paciente/diagnosticos/${d.id}`}>
+              <Card className="diag-list-card flex-row items-center gap-3.5 rounded-lg p-4 shadow-sm ring-0">
+                <div
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px]"
+                  style={{ background: `${nivelColor(d.nivel)}18` }}
+                >
+                  {createElement(iconeNivel, {
+                    className: "h-5.5 w-5.5",
+                    style: { color: nivelColor(d.nivel) },
+                  })}
+                </div>
+                <div className="flex-1">
+                  <div className="font-heading text-sm font-bold">
+                    Diagnóstico #{d.id.slice(-4)}
+                  </div>
+                  <div className="text-muted-foreground text-xs">
+                    {new Date(d.criadoEm).toLocaleDateString("pt-BR")}
+                  </div>
+                </div>
+                <StatusBadge
+                  label={
+                    d.nivel !== null ? nivelLabel(d.nivel) : (STATUS_LABEL[d.status] ?? d.status)
+                  }
+                  status={nivelBadgeStatus(d.nivel)}
+                />
+                <ChevronRight className="text-gray-3 h-4 w-4" />
+              </Card>
+            </Link>
+          );
+        })}
+      </div>
+
+      {lista.hasNextPage && (
+        <div className="flex justify-center px-4 pb-4">
+          <Button
+            variant="secondary"
+            onClick={() => lista.fetchNextPage()}
+            disabled={lista.isFetchingNextPage}
+          >
+            {lista.isFetchingNextPage ? "Carregando…" : "Carregar mais"}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}

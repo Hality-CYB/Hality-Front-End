@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState, createElement, type ChangeEvent } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
@@ -14,12 +14,12 @@ import {
   ClipboardList,
   ChevronLeft,
   Check,
-  ImageUp,
   Phone,
   Mail,
   Stethoscope,
   TriangleAlert,
   ChartColumn,
+  Lightbulb,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,27 +28,40 @@ import { StepBar } from "@/components/step-bar";
 import { ScanLoader } from "@/components/scan-loader";
 import { LevelChip } from "@/components/level-chip";
 import { TipCard } from "@/components/tip-card";
-import { nivelColor, nivelLabel } from "@/lib/level-format";
+import { EmptyState } from "@/components/empty-state";
+import { nivelColor, nivelLabel, nivelIcon } from "@/lib/level-format";
 import { useAnamnesePerguntas, useCriarAnamnese } from "@/hooks/use-anamnese";
-import { useCriarDiagnostico } from "@/hooks/use-diagnosticos";
-import { useDicas } from "@/hooks/use-dicas";
+import { useCriarDiagnostico, useRevisarDiagnostico } from "@/hooks/use-diagnosticos";
+import { usePaciente } from "@/hooks/use-pacientes";
+import { ApiError } from "@/lib/api-client";
+import { diagnosticoService } from "@/services/diagnostico-service";
+import { useCamera } from "@/hooks/use-camera";
+import { CapturaLingua } from "@/components/captura/captura-lingua";
 import { cn } from "@/lib/utils";
-import type { DiagnosticoNivel } from "@/types/diagnostico";
+import type { Diagnostico, DiagnosticoNivel } from "@/types/diagnostico";
+import type { RespostaAnamnese } from "@/types/anamnese";
 import halityLogo from "@/assets/images/logo-hality-inline.png";
 
 /**
- * Fluxo de avaliação — 9 passos internos, uma rota só (como em Design/'s
- * DiagnosisFlow), com o estado do wizard em memória. Sem persistência em
- * sessionStorage ainda (o plano original previa rota por passo +
- * sessionStorage — simplificado aqui pra cobrir a tela toda primeiro; dá
- * pra evoluir depois sem mudar a UI).
+ * Fluxo de avaliação — passos internos, uma rota só (como em Design/'s
+ * DiagnosisFlow/EvaluatePatient), com o estado do wizard em memória. Sem
+ * persistência em sessionStorage ainda (o plano original previa rota por
+ * passo + sessionStorage — simplificado aqui pra cobrir a tela toda
+ * primeiro; dá pra evoluir depois sem mudar a UI).
  *
  * Compartilhado entre paciente (autoavaliação) e profissional (avalia um
- * paciente selecionado) — só o `pacienteId`/`voltarHref` mudam.
+ * paciente já selecionado em SelecionarPaciente) — `perfil` muda a barra de
+ * passos (profissional ganha "Paciente" já concluído na frente, e não tem
+ * a tela de introdução) e a etapa final: paciente só acompanha o
+ * pré-diagnóstico "aguardando revisão"; profissional confirma a
+ * classificação e salva na hora (igual Design/'s EvaluatePatient passo 3,
+ * diferente do DiagnosisFlow do paciente).
  */
 
-const VISUAL_STEPS = ["Anamnese", "Captura", "Pré-diagnóstico"];
-const toVisual = (step: number) => (step === 0 ? -1 : step <= 2 ? 0 : step <= 5 ? 1 : 2);
+const VISUAL_STEPS_PACIENTE = ["Anamnese", "Captura", "Pré-diagnóstico"];
+const VISUAL_STEPS_PROFISSIONAL = ["Paciente", "Anamnese", "Captura", "Revisão"];
+const toVisualPaciente = (step: number) => (step === 0 ? -1 : step <= 2 ? 0 : step <= 5 ? 1 : 2);
+const toVisualProfissional = (step: number) => (step <= 2 ? 1 : step <= 5 ? 2 : 3);
 
 const PREPARO = [
   {
@@ -75,31 +88,105 @@ const ORIENTACOES_CAPTURA = [
   { Icon: CircleCheck, title: "Língua relaxada", desc: "Completamente estendida" },
 ];
 
-type AvaliacaoWizardProps = {
-  pacienteId: string;
-  voltarHref: string;
+const TIPOS_IMAGEM_ACEITOS = "image/jpeg,image/png,image/webp";
+
+type FotoCapturada = {
+  file: File;
+  previewUrl: string;
+  origem: "camera" | "galeria";
+  largura: number;
+  altura: number;
+  facingMode?: string;
 };
 
-export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps) {
+function lerDimensoes(url: string): Promise<{ largura: number; altura: number }> {
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.onload = () => resolve({ largura: img.naturalWidth, altura: img.naturalHeight });
+    img.onerror = () => resolve({ largura: 0, altura: 0 });
+    img.src = url;
+  });
+}
+
+function mensagemDeErro(erro: unknown): string {
+  if (erro instanceof ApiError) {
+    let corpo: { motivo?: unknown; detail?: unknown } | null;
+    try {
+      corpo = JSON.parse(erro.message) as { motivo?: unknown; detail?: unknown };
+    } catch {
+      corpo = null;
+    }
+    if (typeof corpo?.motivo === "string") return corpo.motivo;
+    if (typeof corpo?.detail === "string") return corpo.detail;
+    if (erro.status === 413) return "A imagem é grande demais. Envie uma foto de até 10 MB.";
+  }
+  if (erro instanceof TypeError) return "Não foi possível conectar ao servidor. Tente novamente.";
+  if (erro instanceof Error && erro.message) return erro.message;
+  return "Não foi possível concluir a análise. Tente novamente.";
+}
+
+type AvaliacaoWizardProps = {
+  pacienteId?: string;
+  voltarHref: string;
+  perfil?: "paciente" | "profissional";
+};
+
+export function AvaliacaoWizard({
+  pacienteId,
+  voltarHref,
+  perfil = "paciente",
+}: AvaliacaoWizardProps) {
+  const isProfissional = perfil === "profissional";
   const router = useRouter();
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(isProfissional ? 1 : 0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [aIdx, setAIdx] = useState(0);
   const [resultado, setResultado] = useState<{
+    id: string;
     nivel: DiagnosticoNivel;
     confiancaIA?: number;
+    conteudos: NonNullable<Diagnostico["conteudos"]>;
   } | null>(null);
+  const [classificacaoConfirmada, setClassificacaoConfirmada] = useState<DiagnosticoNivel | null>(
+    null,
+  );
+  const [observacoes, setObservacoes] = useState("");
+  // Versão da revisão que o back conhece; cada revisão salva devolve a próxima.
+  const [versaoRevisao, setVersaoRevisao] = useState(0);
+  const [foto, setFoto] = useState<FotoCapturada | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const inputCameraRef = useRef<HTMLInputElement>(null);
+  const inputGaleriaRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (!foto) return;
+    return () => URL.revokeObjectURL(foto.previewUrl);
+  }, [foto]);
+
+  const {
+    videoRef: cameraVideoRef,
+    estado: estadoDaCamera,
+    capturar: capturarDaCamera,
+    podeAlternar: podeAlternarCamera,
+    alternarCamera,
+  } = useCamera(step === 4 || (step === 5 && foto?.origem === "camera"));
+  const [capturando, setCapturando] = useState(false);
+  const [falhaNaCaptura, setFalhaNaCaptura] = useState(false);
+  const estadoCamera = falhaNaCaptura ? "erro" : estadoDaCamera;
+
+  const paciente = usePaciente(isProfissional ? (pacienteId ?? "") : "");
   const perguntas = useAnamnesePerguntas();
   const criarAnamnese = useCriarAnamnese();
   const criarDiagnostico = useCriarDiagnostico();
-  const dicasDoResultado = useDicas({ publicado: true });
+  const revisarDiagnostico = useRevisarDiagnostico();
 
   const next = () => setStep((s) => s + 1);
-  const back = () => (step > 0 ? setStep((s) => s - 1) : router.push(voltarHref));
+  const primeiroStep = isProfissional ? 1 : 0;
+  const back = () => (step > primeiroStep ? setStep((s) => s - 1) : router.push(voltarHref));
 
-  const questoes = perguntas.data ?? [];
+  const questoes = perguntas.data?.perguntas ?? [];
   const questaoAtual = questoes[aIdx];
+  const iconeResultado = nivelIcon(resultado?.nivel ?? null);
 
   function responder(valor: string) {
     if (!questaoAtual) return;
@@ -111,40 +198,118 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
     else next();
   }
 
-  async function confirmarAnamneseECaptura() {
-    setStep(6);
-    const respostas = questoes.map((q) => ({ perguntaId: q.id, valor: answers[q.id] ?? "" }));
-    const trabalho = (async () => {
-      const anamnese = await criarAnamnese.mutateAsync(respostas);
-      return criarDiagnostico.mutateAsync({
-        pacienteId,
-        imagemUrl: "",
-        anamneseId: anamnese.id,
-      });
-    })();
-    // Igual Design/'s DiagnosisFlow (startProcessing): a ScanLoader fica visível
-    // por um tempo mínimo, já que a mutação mockada resolve rápido demais pra
-    // dar tempo da animação de análise aparecer.
-    const [diagnostico] = await Promise.all([
-      trabalho,
-      new Promise((resolve) => setTimeout(resolve, 2500)),
-    ]);
-    setResultado({ nivel: diagnostico.nivel ?? 1, confiancaIA: diagnostico.confiancaIA });
+  async function selecionarFoto(
+    event: ChangeEvent<HTMLInputElement>,
+    origem: FotoCapturada["origem"],
+  ) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const previewUrl = URL.createObjectURL(file);
+    const { largura, altura } = await lerDimensoes(previewUrl);
+    setFoto({ file, previewUrl, origem, largura, altura });
+    setStep(5);
   }
 
-  const dicasFiltradas = (dicasDoResultado.data ?? []).filter(
-    (d) => resultado && d.niveis.includes(resultado.nivel),
-  );
+  async function capturarFoto() {
+    if (estadoCamera !== "ativa") {
+      inputCameraRef.current?.click();
+      return;
+    }
+    setCapturando(true);
+    try {
+      const { file, largura, altura, facingMode } = await capturarDaCamera();
+      setFoto({
+        file,
+        previewUrl: URL.createObjectURL(file),
+        origem: "camera",
+        largura,
+        altura,
+        facingMode,
+      });
+      setStep(5);
+    } catch {
+      // Depois da contagem já não há gesto do usuário para abrir o input; o próximo toque abre.
+      setFalhaNaCaptura(true);
+    } finally {
+      setCapturando(false);
+    }
+  }
+
+  function tirarNovamente() {
+    setFoto(null);
+    setErro(null);
+    setFalhaNaCaptura(false);
+    setStep(4);
+  }
+
+  async function confirmarAnamneseECaptura() {
+    if (!foto) return;
+    setErro(null);
+    setStep(6);
+    const respostas: RespostaAnamnese[] = questoes.map((q) => ({
+      perguntaId: q.id,
+      enunciado: q.texto,
+      tipo: q.tipo,
+      valor: answers[q.id] ?? "",
+    }));
+    try {
+      // No atendimento pelo profissional, a anamnese nasce no nome do paciente; o diagnóstico herda dela.
+      const anamnese = await criarAnamnese.mutateAsync({
+        versaoQuestionario: perguntas.data?.versao ?? "",
+        respostas,
+        pacienteId: isProfissional ? pacienteId : undefined,
+      });
+      const criado = await criarDiagnostico.mutateAsync({
+        anamneseId: anamnese.id,
+        imagem: foto.file,
+        parametrosCaptura: {
+          origem: foto.origem,
+          mime_type: foto.file.type,
+          tamanho_bytes: foto.file.size,
+          largura: foto.largura,
+          altura: foto.altura,
+          ...(foto.facingMode ? { facing_mode: foto.facingMode } : {}),
+        },
+      });
+      const diagnostico = await diagnosticoService.aguardarResultado(criado.id);
+      if (diagnostico.status === "falha" || diagnostico.nivel === null) {
+        throw new Error("Não foi possível analisar a imagem. Tente enviar outra foto.");
+      }
+      setResultado({
+        id: diagnostico.id,
+        nivel: diagnostico.nivel,
+        confiancaIA: diagnostico.confiancaIA,
+        conteudos: diagnostico.conteudos ?? [],
+      });
+    } catch (e) {
+      setErro(mensagemDeErro(e));
+    }
+  }
+
+  const classificacaoAtual = classificacaoConfirmada ?? resultado?.nivel ?? null;
+
+  function salvarRevisaoProfissional() {
+    if (!resultado || !classificacaoAtual) return;
+    revisarDiagnostico.mutate(
+      { id: resultado.id, nivel: classificacaoAtual, observacoes, versao: versaoRevisao },
+      { onSuccess: ({ versao }) => setVersaoRevisao(versao) },
+    );
+  }
 
   return (
     <div className="bg-background flex min-h-full flex-col">
       <div className="border-border shrink-0 border-b bg-white p-3.5">
-        <StepBar steps={VISUAL_STEPS} current={toVisual(step)} />
+        {isProfissional ? (
+          <StepBar steps={VISUAL_STEPS_PROFISSIONAL} current={toVisualProfissional(step)} />
+        ) : (
+          <StepBar steps={VISUAL_STEPS_PACIENTE} current={toVisualPaciente(step)} />
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
-        {/* 0 — Intro */}
-        {step === 0 && (
+        {/* 0 — Intro (só paciente — profissional já veio de SelecionarPaciente) */}
+        {!isProfissional && step === 0 && (
           <div className="shell:mx-auto shell:w-full shell:max-w-135 flex flex-col gap-5">
             <div className="pt-5 pb-2 text-center">
               <div className="bg-secondary text-primary mx-auto mb-4 flex h-18 w-18 items-center justify-center rounded-[22px]">
@@ -198,9 +363,16 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
               </div>
             </div>
             <Card className="rounded-lg p-5 shadow-sm ring-0">
-              <p className="font-heading mb-5 text-lg leading-snug font-semibold">
-                {questaoAtual.texto}
-              </p>
+              <div className="mb-5 flex items-start justify-between gap-3">
+                <p className="font-heading text-lg leading-snug font-semibold">
+                  {questaoAtual.texto}
+                </p>
+                {questaoAtual.obrigatoria && (
+                  <span className="font-heading text-destructive bg-destructive/10 shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold whitespace-nowrap">
+                    Obrigatória
+                  </span>
+                )}
+              </div>
 
               {questaoAtual.tipo === "sim_nao" && (
                 <div className="grid grid-cols-2 gap-2.5">
@@ -212,10 +384,10 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
                         nextAns();
                       }}
                       className={cn(
-                        "font-heading rounded-[14px] border-2 p-4 text-[15px] font-bold transition-colors",
+                        "font-heading rounded-[14px] border-2 p-4 text-[15px] font-bold transition-all active:scale-[0.97]",
                         answers[questaoAtual.id] === opt
                           ? "border-primary bg-secondary text-primary"
-                          : "border-border bg-background text-foreground",
+                          : "border-border bg-background text-foreground hover:border-primary/50 hover:bg-secondary/50",
                       )}
                     >
                       {opt}
@@ -234,10 +406,10 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
                         nextAns();
                       }}
                       className={cn(
-                        "font-heading rounded-xl border-2 p-3.5 text-left text-sm font-semibold transition-colors",
+                        "font-heading rounded-xl border-2 p-3.5 text-left text-sm font-semibold transition-all active:scale-[0.98]",
                         answers[questaoAtual.id] === opt
                           ? "border-primary bg-secondary text-primary"
-                          : "border-border bg-background text-foreground",
+                          : "border-border bg-background text-foreground hover:border-primary/50 hover:bg-secondary/50",
                       )}
                     >
                       {opt}
@@ -254,7 +426,12 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
                     onChange={(e) => responder(e.target.value)}
                     className="border-border bg-background focus:bg-card focus:border-primary focus:ring-primary/10 w-full rounded-xl border-[1.5px] p-3.5 text-[15px] transition-colors outline-none focus:ring-3"
                   />
-                  <Button onClick={nextAns}>Próximo</Button>
+                  <Button
+                    onClick={nextAns}
+                    disabled={questaoAtual.obrigatoria && !answers[questaoAtual.id]?.trim()}
+                  >
+                    Próximo
+                  </Button>
                 </div>
               )}
 
@@ -266,10 +443,10 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
                         key={n}
                         onClick={() => responder(String(n))}
                         className={cn(
-                          "font-heading flex h-13 w-13 items-center justify-center rounded-2xl border-2 text-xl font-extrabold transition-colors",
+                          "font-heading flex h-13 w-13 items-center justify-center rounded-2xl border-2 text-xl font-extrabold transition-all active:scale-90",
                           answers[questaoAtual.id] === String(n)
                             ? "border-primary bg-primary text-white"
-                            : "border-border bg-background text-foreground",
+                            : "border-border bg-background text-foreground hover:border-primary/50 hover:bg-secondary/50",
                         )}
                       >
                         {n}
@@ -280,7 +457,10 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
                     <span>Ruim</span>
                     <span>Excelente</span>
                   </div>
-                  <Button onClick={nextAns} disabled={!answers[questaoAtual.id]}>
+                  <Button
+                    onClick={nextAns}
+                    disabled={questaoAtual.obrigatoria && !answers[questaoAtual.id]}
+                  >
                     Próximo
                   </Button>
                 </div>
@@ -412,99 +592,212 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
           </div>
         )}
 
-        {/* 4 — Captura */}
-        {step === 4 && (
-          <div className="flex flex-col gap-4">
-            <p className="text-muted-foreground text-center text-sm">
-              Posicione sua língua dentro da área indicada
-            </p>
-            <div className="shell:flex-row shell:items-center shell:justify-center shell:gap-8 flex flex-col gap-4">
-              <div className="shell:w-100 shell:shrink-0 relative aspect-square overflow-hidden rounded-[20px] bg-[#0a3d4a]">
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    background:
-                      "radial-gradient(circle at 30% 70%, rgba(22,163,74,0.15), transparent 60%)",
-                  }}
-                />
-                <div className="relative flex h-full items-center justify-center">
-                  <div className="aspect-[1.4] w-[70%] rounded-[30px] border border-dashed border-white/20" />
-                </div>
-                <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5 rounded-4xl bg-[#4ade80] px-3 py-1">
-                  <div className="h-1.5 w-1.5 rounded-full bg-white" />
-                  <span className="font-heading text-[11px] font-bold text-[#065F46]">Pronto</span>
-                </div>
-              </div>
-
-              <div className="shell:w-80 flex flex-col gap-3">
-                <Button size="lg" onClick={next} className="bg-[#16A34A] hover:bg-[#15803d]">
-                  <Camera className="h-4.5 w-4.5" /> Capturar foto
-                </Button>
-                <button
-                  onClick={next}
-                  className="border-border text-primary font-heading border-1.5 bg-background flex items-center justify-center gap-2 rounded-2xl border-dashed p-3.5 text-sm font-semibold"
-                >
-                  <ImageUp className="h-4.5 w-4.5" />
-                  Escolher da galeria
-                </button>
-                <Button variant="ghost" onClick={back}>
-                  <ChevronLeft className="h-4 w-4" /> Voltar
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 5 — Revisar imagem */}
-        {step === 5 && (
-          <div className="flex flex-col gap-4">
-            <div className="shell:text-center">
-              <h2 className="mb-1 text-xl">A imagem está boa?</h2>
-              <p className="text-muted-foreground text-sm">
-                Verifique se a língua está nítida e bem enquadrada
-              </p>
-            </div>
-            <div className="shell:flex-row shell:items-center shell:justify-center shell:gap-8 flex flex-col gap-4">
-              <div className="shell:w-100 shell:shrink-0 relative flex aspect-square items-center justify-center overflow-hidden rounded-[20px] bg-[#0a3d4a]">
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    background:
-                      "radial-gradient(ellipse at center, rgba(11,107,130,0.25), transparent 70%)",
-                  }}
-                />
-                <div className="relative flex flex-col items-center gap-1.5">
-                  <div className="h-17.5 w-30 rounded-[50%_50%_40%_40%] border border-white/12 bg-white/6" />
-                  <div className="font-heading text-[11px] text-white/35">Imagem capturada</div>
-                </div>
-              </div>
-
-              <div className="shell:w-80 flex flex-col gap-3">
-                <Button
-                  size="lg"
-                  onClick={confirmarAnamneseECaptura}
-                  className="bg-[#16A34A] hover:bg-[#15803d]"
-                >
-                  <Check className="h-4 w-4" /> Usar esta foto
-                </Button>
-                <Button variant="secondary" onClick={() => setStep(4)}>
-                  <Camera className="h-4 w-4" /> Tirar novamente
-                </Button>
-              </div>
-            </div>
-          </div>
+        {/* 4 e 5 — Captura e revisão da foto */}
+        {(step === 4 || step === 5) && (
+          <>
+            <input
+              ref={inputCameraRef}
+              type="file"
+              accept={TIPOS_IMAGEM_ACEITOS}
+              capture="environment"
+              className="hidden"
+              data-testid="input-camera"
+              onChange={(e) => selecionarFoto(e, "camera")}
+            />
+            <input
+              ref={inputGaleriaRef}
+              type="file"
+              accept={TIPOS_IMAGEM_ACEITOS}
+              className="hidden"
+              data-testid="input-galeria"
+              onChange={(e) => selecionarFoto(e, "galeria")}
+            />
+            <CapturaLingua
+              videoRef={cameraVideoRef}
+              estadoCamera={estadoCamera}
+              podeAlternarCamera={podeAlternarCamera}
+              onAlternarCamera={alternarCamera}
+              foto={step === 5 ? foto : null}
+              ocupado={capturando}
+              onCapturar={capturarFoto}
+              onGaleria={() => inputGaleriaRef.current?.click()}
+              onVoltar={() => {
+                setFalhaNaCaptura(false);
+                setStep(3);
+              }}
+              onUsarFoto={confirmarAnamneseECaptura}
+              onTirarOutra={tirarNovamente}
+            />
+          </>
         )}
 
         {/* 6 — Processando */}
-        {step === 6 && !resultado && (
+        {step === 6 && !resultado && erro && (
+          <div className="shell:mx-auto shell:w-full shell:max-w-135 flex flex-col gap-4 pt-5">
+            <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-start gap-2.5 rounded-2xl border px-4 py-3">
+              <TriangleAlert className="h-4.5 w-4.5 shrink-0" />
+              <div>
+                <div className="font-heading mb-0.5 text-[13px] font-bold">
+                  Não foi possível concluir a análise
+                </div>
+                <p className="text-xs leading-relaxed">{erro}</p>
+              </div>
+            </div>
+            <Button size="lg" onClick={tirarNovamente}>
+              <Camera className="h-4 w-4" /> Enviar outra foto
+            </Button>
+            <Button variant="secondary" onClick={() => router.push(voltarHref)}>
+              Voltar ao início
+            </Button>
+          </div>
+        )}
+
+        {step === 6 && !resultado && !erro && (
           <ScanLoader
             title="Analisando sua imagem"
             subtitle="Nossa inteligência artificial está processando o diagnóstico. Isso pode levar alguns instantes."
           />
         )}
 
-        {/* 7 — Resultado */}
-        {step === 6 && resultado && (
+        {/* 7 — Revisão (profissional) — Design/'s EvaluatePatient passo 3:
+            confirma a classificação e salva na hora, diferente do
+            DiagnosisFlow do paciente (que só acompanha "aguardando
+            revisão"). */}
+        {isProfissional && step === 6 && resultado && (
+          <div className="shell:mx-auto shell:w-full shell:max-w-135 flex flex-col gap-3.5">
+            {foto && (
+              <Card className="rounded-lg p-5 shadow-sm ring-0">
+                <div className="font-heading mb-3 text-sm font-extrabold">Imagem capturada</div>
+                <div className="relative aspect-4/3 overflow-hidden rounded-2xl bg-[#0a3d4a]">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- preview local (blob URL), fora do domínio do next/image */}
+                  <img
+                    src={foto.previewUrl}
+                    alt="Foto da língua capturada"
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              </Card>
+            )}
+            <Card
+              className="rounded-lg border border-[rgba(11,107,130,0.12)] p-5 shadow-sm ring-0"
+              style={{
+                background: "linear-gradient(135deg,rgba(11,107,130,0.05),rgba(22,163,74,0.04))",
+              }}
+            >
+              <div className="mb-3 flex items-center gap-3">
+                <div className="bg-secondary text-primary flex h-8 w-8 items-center justify-center rounded-[9px]">
+                  <Sparkles className="h-4 w-4" />
+                </div>
+                <div className="font-heading text-primary text-sm font-extrabold">
+                  Resultado da IA — {paciente.data?.nome ?? "paciente"}
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div
+                  className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[18px]"
+                  style={{ background: `${nivelColor(resultado.nivel)}18` }}
+                >
+                  {createElement(iconeResultado, {
+                    className: "h-7 w-7",
+                    style: { color: nivelColor(resultado.nivel) },
+                  })}
+                </div>
+                <div>
+                  <LevelChip nivel={resultado.nivel} />
+                  {resultado.confiancaIA !== undefined && (
+                    <div className="text-muted-foreground mt-1.5 text-xs">
+                      Confiança: {resultado.confiancaIA}%
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Card>
+
+            <Card className="border-primary rounded-lg border-2 p-5 shadow-sm ring-0">
+              <div className="mb-4 flex items-center gap-2.5">
+                <div className="bg-secondary text-primary flex h-7.5 w-7.5 items-center justify-center rounded-[9px]">
+                  <Stethoscope className="h-4 w-4" />
+                </div>
+                <div className="font-heading text-primary text-[15px] font-extrabold">
+                  Sua avaliação
+                </div>
+              </div>
+              <div className="mb-3.5">
+                <label className="text-muted-foreground font-heading mb-1.5 block text-xs font-bold tracking-wide uppercase">
+                  Classificação confirmada
+                </label>
+                <div className="flex flex-col gap-2">
+                  {([1, 2, 3] as DiagnosticoNivel[]).map((l) => (
+                    <button
+                      key={l}
+                      type="button"
+                      onClick={() => setClassificacaoConfirmada(l)}
+                      className="flex items-center gap-2.5 rounded-xl border-2 p-3.5 text-left"
+                      style={{
+                        borderColor: classificacaoAtual === l ? nivelColor(l) : "var(--border)",
+                        background: classificacaoAtual === l ? `${nivelColor(l)}10` : "var(--card)",
+                      }}
+                    >
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ background: nivelColor(l) }}
+                      />
+                      <span className="font-heading text-sm font-bold">
+                        {l} — {nivelLabel(l)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <textarea
+                placeholder="Descreva suas observações clínicas..."
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.target.value)}
+                rows={4}
+                className="placeholder:text-muted-foreground bg-background focus:bg-card focus:border-primary focus:ring-primary/10 w-full rounded-[13px] border-[1.5px] border-transparent p-4 text-[15px] transition-colors outline-none focus:ring-3"
+              />
+              {revisarDiagnostico.isSuccess && (
+                <div className="mt-3 flex items-center gap-2 rounded-xl border border-[#6EE7B7] bg-[#D1FAE5] px-3.5 py-2.5 text-[13px] font-semibold text-[#065F46]">
+                  <Check className="h-4 w-4" /> Diagnóstico salvo e enviado ao paciente!
+                </div>
+              )}
+              {revisarDiagnostico.isError && (
+                <div className="border-destructive/30 bg-destructive/10 text-destructive mt-3 rounded-xl border px-3.5 py-2.5 text-[13px] font-semibold">
+                  Não foi possível salvar a revisão. Tente novamente.
+                </div>
+              )}
+              <Button
+                size="lg"
+                className="mt-3.5 bg-[#16A34A] hover:bg-[#15803d]"
+                disabled={!classificacaoAtual || revisarDiagnostico.isPending}
+                onClick={salvarRevisaoProfissional}
+              >
+                <Check className="h-4 w-4" /> Salvar diagnóstico
+              </Button>
+            </Card>
+
+            {revisarDiagnostico.isSuccess && (
+              <div className="flex flex-col gap-2.5">
+                <Button
+                  size="lg"
+                  onClick={() => router.push(`/profissional/pacientes/${pacienteId}`)}
+                >
+                  Concluir e ir ao paciente
+                </Button>
+                <Button
+                  size="lg"
+                  variant="secondary"
+                  onClick={() => router.push("/profissional/pacientes")}
+                >
+                  Ver todos os pacientes
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 7 — Resultado (paciente) */}
+        {!isProfissional && step === 6 && resultado && (
           <div className="shell:mx-auto shell:w-full shell:max-w-135 flex flex-col gap-4">
             <div className="flex items-start gap-2.5 rounded-2xl border border-[#FFC107] bg-[#FFF3CD] px-4 py-3">
               <TriangleAlert className="h-4.5 w-4.5 shrink-0 text-[#92400E]" />
@@ -533,7 +826,10 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
                   borderColor: nivelColor(resultado.nivel),
                 }}
               >
-                <ScanLine className="h-9 w-9" style={{ color: nivelColor(resultado.nivel) }} />
+                {createElement(iconeResultado, {
+                  className: "h-9 w-9",
+                  style: { color: nivelColor(resultado.nivel) },
+                })}
               </div>
               <LevelChip nivel={resultado.nivel} size="lg" />
               {resultado.confiancaIA && (
@@ -545,8 +841,17 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
 
             <Card className="rounded-lg p-5 shadow-sm ring-0">
               <div className="mb-3.5 flex items-center gap-3.5">
-                <div className="bg-background text-primary flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px]">
-                  <ScanLine className="h-6 w-6" />
+                <div className="bg-background text-primary flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[14px]">
+                  {foto ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- preview local (blob URL), fora do domínio do next/image
+                    <img
+                      src={foto.previewUrl}
+                      alt="Imagem analisada"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <ScanLine className="h-6 w-6" />
+                  )}
                 </div>
                 <div>
                   <div className="text-muted-foreground text-[13px]">Imagem analisada</div>
@@ -570,12 +875,14 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
           </div>
         )}
 
-        {/* 8 — Orientações / Dicas */}
-        {step === 7 && resultado && (
+        {/* 8 — Orientações / Dicas (paciente) */}
+        {!isProfissional && step === 7 && resultado && (
           <div className="shell:mx-auto shell:w-full shell:max-w-135 flex flex-col gap-4">
             <div
               className="relative overflow-hidden rounded-[18px] p-4.5"
-              style={{ background: "linear-gradient(135deg, #0a3d4a, #0b6b82)" }}
+              style={{
+                background: "linear-gradient(135deg, var(--color-teal-900), var(--color-teal-800))",
+              }}
             >
               <div className="relative">
                 <Image
@@ -617,21 +924,27 @@ export function AvaliacaoWizard({ pacienteId, voltarHref }: AvaliacaoWizardProps
               </p>
             </div>
 
-            {dicasFiltradas.map((dica) => (
+            {resultado.conteudos.length === 0 && (
+              <EmptyState
+                icon={<Lightbulb className="h-7 w-7" />}
+                title="Nenhuma orientação cadastrada"
+                description="Ainda não há conteúdo cadastrado para essa classificação."
+              />
+            )}
+            {resultado.conteudos.map((c) => (
               <TipCard
-                key={dica.id}
-                titulo={dica.titulo}
-                categoria={dica.categoria}
-                corpo={dica.corpo}
-                formato={dica.formato}
-                midiaUrl={dica.midiaUrl}
+                key={c.id}
+                titulo={c.titulo}
+                categoria={c.categoria}
+                corpo={c.textos.join(" ")}
+                formato="texto"
               />
             ))}
 
             <Button
               size="lg"
               onClick={() => router.push(voltarHref)}
-              className="bg-[#16A34A] hover:bg-[#15803d]"
+              className="bg-green-600 hover:bg-green-700"
             >
               Concluir diagnóstico
             </Button>

@@ -62,3 +62,19 @@ export function inPeriod(dateStr: string, period: Period, range: CustomRange | n
   const diffMs = Date.now() - parseBRDate(dateStr).getTime();
   return diffMs >= 0 && diffMs <= days * 24 * 60 * 60 * 1000;
 }
+
+export function periodoParaFiltro(
+  period: Period,
+  range: CustomRange | null,
+  agora: Date = new Date(),
+): { dataInicio?: string; dataFim?: string } {
+  if (period === "custom") {
+    if (!range?.start || !range?.end) return {};
+    const fim = parseISODate(range.end);
+    fim.setHours(23, 59, 59, 999);
+    return { dataInicio: parseISODate(range.start).toISOString(), dataFim: fim.toISOString() };
+  }
+  const days = periodDays[period];
+  if (days === null) return {};
+  return { dataInicio: new Date(agora.getTime() - days * 24 * 60 * 60 * 1000).toISOString() };
+}

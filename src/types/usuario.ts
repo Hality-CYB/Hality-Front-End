@@ -13,10 +13,9 @@ export function mapBackendRoleToFrontend(role: string): Role {
   return "paciente";
 }
 
+/** O back grava o papel em português (`paciente`/`profissional`/`admin`) desde o RBAC. */
 export function mapFrontendRoleToBackend(role: Role): string {
-  if (role === "paciente") return "patient";
-  if (role === "profissional") return "professional";
-  return "admin";
+  return role;
 }
 
 export const usuarioSchema = z.object({
@@ -27,6 +26,14 @@ export const usuarioSchema = z.object({
   telefone: z.string().nullable().optional(),
   criadoEm: z.string().optional(),
   ativo: z.boolean().optional(),
+  perfilProfissional: z
+    .object({
+      registro: z.string().nullable(),
+      especialidade: z.string().nullable(),
+      vinculadoHality: z.boolean(),
+    })
+    .nullable()
+    .optional(),
 });
 export type Usuario = z.infer<typeof usuarioSchema>;
 
@@ -40,6 +47,15 @@ export const backendUserSchema = z.object({
   is_superuser: z.boolean().optional(),
   is_verified: z.boolean().optional(),
   created_at: z.string().optional(),
+  /** Só vem em `/users/me` para profissionais (#93 do back). */
+  profissional: z
+    .object({
+      registro_profissional: z.string().nullable().optional(),
+      especialidade: z.string().nullable().optional(),
+      vinculado_hality: z.boolean().optional(),
+    })
+    .nullable()
+    .optional(),
 });
 export type BackendUser = z.infer<typeof backendUserSchema>;
 
@@ -52,5 +68,12 @@ export function adaptBackendUser(data: BackendUser): Usuario {
     telefone: data.phone ?? undefined,
     criadoEm: data.created_at,
     ativo: data.is_active,
+    perfilProfissional: data.profissional
+      ? {
+          registro: data.profissional.registro_profissional ?? null,
+          especialidade: data.profissional.especialidade ?? null,
+          vinculadoHality: data.profissional.vinculado_hality ?? false,
+        }
+      : null,
   };
 }
