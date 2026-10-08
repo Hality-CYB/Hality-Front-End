@@ -1,8 +1,16 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { DicaForm } from "@/components/dica-form";
+import { useCriarDica } from "@/hooks/use-dicas";
+import type { DicaInput } from "@/types/dica";
 
 export default function NovaDicaPage() {
+  const router = useRouter();
+  const criar = useCriarDica();
+
   return (
     <div className="flex flex-col">
       <div className="p-5" style={{ background: "var(--gradient-brand)" }}>
@@ -15,7 +23,14 @@ export default function NovaDicaPage() {
         <h1 className="text-xl text-white">Nova dica</h1>
       </div>
       <div className="p-4">
-        <DicaForm />
+        <DicaForm
+          salvando={criar.isPending}
+          erro={criar.isError ? "Não foi possível salvar a dica. Tente novamente." : null}
+          // Na criação o formulário sempre manda todos os campos.
+          onSalvar={(input) =>
+            criar.mutate(input as DicaInput, { onSuccess: () => router.push("/admin/dicas") })
+          }
+        />
       </div>
     </div>
   );

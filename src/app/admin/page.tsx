@@ -4,14 +4,15 @@ import Link from "next/link";
 import { Shield, Users, Beaker, CircleCheck, Lightbulb, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/status-badge";
-import { LevelChip } from "@/components/level-chip";
-import { AvatarWithRole } from "@/components/avatar-with-role";
+import { DiagnosticoAdminCard } from "@/components/diagnostico-admin-card";
 import { useUsuarios } from "@/hooks/use-usuarios";
-import { useDiagnosticos } from "@/hooks/use-diagnosticos";
+import { useDiagnosticosAdmin } from "@/hooks/use-diagnosticos";
 import { useDicas } from "@/hooks/use-dicas";
 import { useSessaoAtual } from "@/lib/auth/session-context";
 import { roleLabel, roleBadgeStatus } from "@/lib/role-format";
-import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/status-format";
+import type { Role } from "@/types/usuario";
+
+const PAPEIS: Role[] = ["paciente", "profissional", "admin"];
 
 const ACOES_RAPIDAS = [
   {
@@ -46,23 +47,23 @@ const ACOES_RAPIDAS = [
 
 export default function AdminHomePage() {
   const { nome } = useSessaoAtual();
-  const { data: usuarios } = useUsuarios();
-  const { data: diagnosticos } = useDiagnosticos();
+  // Os números vêm do `total` das listas paginadas (`limite: 1`): o back não tem rota de resumo do admin.
+  const totalUsuarios = useUsuarios({ limite: 1 }).data?.total;
+  const porPapel = {
+    paciente: useUsuarios({ role: "paciente", limite: 1 }).data?.total,
+    profissional: useUsuarios({ role: "profissional", limite: 1 }).data?.total,
+    admin: useUsuarios({ role: "admin", limite: 1 }).data?.total,
+  };
+  const totalDiagnosticos = useDiagnosticosAdmin({ limite: 1 }).data?.total;
+  const totalRevisados = useDiagnosticosAdmin({ status: "concluido", limite: 1 }).data?.total;
+  const recentes = useDiagnosticosAdmin({ limite: 3 }).data?.itens ?? [];
   const { data: dicas } = useDicas();
 
   const stats = [
-    { valor: usuarios?.length ?? 0, label: "usuários", Icon: Users },
-    { valor: diagnosticos?.length ?? 0, label: "diagnósticos", Icon: Beaker },
-    {
-      valor: diagnosticos?.filter((d) => d.status === "concluido").length ?? 0,
-      label: "revisados",
-      Icon: CircleCheck,
-    },
-    {
-      valor: dicas?.filter((d) => d.publicado).length ?? 0,
-      label: "dicas ativas",
-      Icon: Lightbulb,
-    },
+    { valor: totalUsuarios, label: "usuários", Icon: Users },
+    { valor: totalDiagnosticos, label: "diagnósticos", Icon: Beaker },
+    { valor: totalRevisados, label: "revisados", Icon: CircleCheck },
+    { valor: dicas?.filter((d) => d.publicado).length, label: "dicas publicadas", Icon: Lightbulb },
   ];
 
   return (
@@ -85,7 +86,7 @@ export default function AdminHomePage() {
               <Icon className="h-4.5 w-4.5 text-white/80" />
               <div>
                 <div className="font-heading text-xl leading-none font-black text-white">
-                  {valor}
+                  {valor ?? "—"}
                 </div>
                 <div className="mt-0.5 text-[10px] text-white/50">{label}</div>
               </div>
@@ -112,7 +113,7 @@ export default function AdminHomePage() {
 
         <Card className="rounded-lg p-5 shadow-sm ring-0">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg">Últimos usuários</h2>
+            <h2 className="text-lg">Usuários por papel</h2>
             <Link
               href="/admin/usuarios"
               className="font-heading text-primary text-[13px] font-bold"
@@ -121,24 +122,16 @@ export default function AdminHomePage() {
             </Link>
           </div>
           <div className="flex flex-col">
-            {usuarios?.slice(0, 3).map((u, i) => (
+            {PAPEIS.map((papel, i) => (
               <Link
-                key={u.id}
-                href={`/admin/usuarios/${u.id}?voltar=/admin`}
-                className={`flex items-center gap-3 py-3 ${i < 2 ? "border-border border-b" : ""}`}
+                key={papel}
+                href={`/admin/usuarios?role=${papel}`}
+                className={`flex items-center justify-between py-3 ${
+                  i < PAPEIS.length - 1 ? "border-border border-b" : ""
+                }`}
               >
-                <AvatarWithRole
-                  nome={u.nome}
-                  size={36}
-                  role={u.role === "paciente" ? undefined : u.role}
-                />
-                <div className="flex-1">
-                  <div className="font-heading text-[13px] font-bold">{u.nome}</div>
-                  <div className="text-muted-foreground text-[11px]">
-                    {u.criadoEm ? new Date(u.criadoEm).toLocaleDateString("pt-BR") : "—"}
-                  </div>
-                </div>
-                <StatusBadge label={roleLabel(u.role)} status={roleBadgeStatus(u.role)} />
+                <StatusBadge label={roleLabel(papel)} status={roleBadgeStatus(papel)} />
+                <span className="font-heading text-sm font-bold">{porPapel[papel] ?? "—"}</span>
               </Link>
             ))}
           </div>
@@ -154,31 +147,17 @@ export default function AdminHomePage() {
               Ver todos
             </Link>
           </div>
-          <div className="flex flex-col">
-            {diagnosticos?.slice(0, 3).map((d, i) => (
-              <Link
+          <div className="flex flex-col gap-2.5">
+            {recentes.length === 0 && (
+              <p className="text-muted-foreground text-sm">Nenhum diagnóstico ainda.</p>
+            )}
+            {recentes.map((d) => (
+              <DiagnosticoAdminCard
                 key={d.id}
+                diagnostico={d}
+                titulo={`Diagnóstico #${d.id}`}
                 href={`/admin/diagnosticos/${d.id}?voltar=/admin`}
-                className={`flex items-center gap-3 py-3 ${i < 2 ? "border-border border-b" : ""}`}
-              >
-                <div className="bg-background flex h-9 w-9 items-center justify-center rounded-[10px]">
-                  <Beaker className="text-primary h-4.5 w-4.5" />
-                </div>
-                <div className="flex-1">
-                  <div className="font-heading text-[13px] font-bold">
-                    {usuarios?.find((u) => u.id === d.pacienteId)?.nome ??
-                      `Paciente ${d.pacienteId.slice(-1)}`}
-                  </div>
-                  <div className="text-muted-foreground text-[11px]">
-                    {new Date(d.criadoEm).toLocaleDateString("pt-BR")}
-                  </div>
-                </div>
-                <LevelChip nivel={d.nivel} size="sm" />
-                <StatusBadge
-                  label={statusDiagnosticoLabel(d.status)}
-                  status={statusDiagnosticoBadgeStatus(d.status)}
-                />
-              </Link>
+              />
             ))}
           </div>
         </Card>

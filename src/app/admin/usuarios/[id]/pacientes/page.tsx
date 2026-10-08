@@ -2,27 +2,34 @@
 
 import { use } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/empty-state";
-import { StatusBadge } from "@/components/status-badge";
-import { LevelChip } from "@/components/level-chip";
+import { ScrollInfinito } from "@/components/scroll-infinito";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { useUsuario } from "@/hooks/use-usuarios";
-import { usePacientes } from "@/hooks/use-pacientes";
+import { useVinculosPaginados } from "@/hooks/use-vinculos";
 
+/** Pacientes com vínculo ativo com o profissional (`/admin/vinculos?profissional_id=`). */
 export default function ProfissionalPacientesPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const searchParams = useSearchParams();
+  const voltarHref = searchParams.get("voltar") ?? `/admin/usuarios/${id}`;
   const { data: profissional } = useUsuario(id);
-  const { data: pacientes } = usePacientes({ profissionalId: id });
+  const lista = useVinculosPaginados({ profissionalId: id, ativo: true, limite: 20 });
+  const vinculos = lista.data?.pages.flatMap((p) => p.itens) ?? [];
+  const total = lista.data?.pages[0]?.total ?? 0;
 
   if (!profissional) return null;
+
+  const hrefAtual = `/admin/usuarios/${id}/pacientes?voltar=${encodeURIComponent(voltarHref)}`;
 
   return (
     <div className="flex flex-col">
       <div className="p-5 pb-6" style={{ background: "var(--gradient-brand)" }}>
         <Link
-          href={`/admin/usuarios/${id}`}
+          href={voltarHref}
           className="font-heading mb-3.5 inline-flex items-center gap-1.5 rounded-[10px] bg-white/15 px-3 py-2 text-[13px] font-semibold text-white"
         >
           <ChevronLeft className="h-3.5 w-3.5" /> {profissional.nome}
@@ -31,13 +38,15 @@ export default function ProfissionalPacientesPage({ params }: { params: Promise<
           <AvatarWithRole nome={profissional.nome} size={44} role="profissional" />
           <div>
             <div className="font-heading text-base font-extrabold text-white">Pacientes</div>
-            <div className="text-xs text-white/60">{pacientes?.length ?? 0} pacientes</div>
+            <div className="text-xs text-white/60">
+              {total} paciente{total === 1 ? "" : "s"} vinculado{total === 1 ? "" : "s"}
+            </div>
           </div>
         </div>
       </div>
 
       <div className="flex flex-col gap-2.5 p-4">
-        {pacientes?.length === 0 && (
+        {lista.isSuccess && vinculos.length === 0 && (
           <EmptyState
             icon={<Users className="h-7 w-7" />}
             title="Nenhum paciente"
@@ -45,21 +54,17 @@ export default function ProfissionalPacientesPage({ params }: { params: Promise<
           />
         )}
         <div className="cyb-grid gap-2.5">
-          {pacientes?.map((p) => (
+          {vinculos.map((v) => (
             <Link
-              key={p.id}
-              href={`/admin/usuarios/${p.id}?voltar=/admin/usuarios/${id}/pacientes`}
+              key={v.id}
+              href={`/admin/usuarios/${v.pacienteId}?voltar=${encodeURIComponent(hrefAtual)}`}
             >
               <Card className="patient-list-card flex-row items-center gap-3.5 rounded-lg p-4 shadow-sm ring-0">
-                <AvatarWithRole nome={p.nome} size={48} />
+                <AvatarWithRole nome={v.pacienteNome} size={48} />
                 <div className="min-w-0 flex-1">
-                  <div className="font-heading truncate text-sm font-bold">{p.nome}</div>
-                  <div className="text-muted-foreground mb-1.5 truncate text-xs">{p.email}</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {!p.consentimentoDadosSaude.aceito && (
-                      <StatusBadge label="Cadastro pendente" status="pending" />
-                    )}
-                    {p.ultimoNivel !== null && <LevelChip nivel={p.ultimoNivel} size="sm" />}
+                  <div className="font-heading truncate text-sm font-bold">{v.pacienteNome}</div>
+                  <div className="text-muted-foreground truncate text-xs">
+                    Vinculado em {new Date(v.vinculadoEm).toLocaleDateString("pt-BR")}
                   </div>
                 </div>
                 <ChevronRight className="text-gray-3 h-4 w-4" />
@@ -67,6 +72,12 @@ export default function ProfissionalPacientesPage({ params }: { params: Promise<
             </Link>
           ))}
         </div>
+        <ScrollInfinito
+          temMais={!!lista.hasNextPage}
+          carregando={lista.isFetchingNextPage}
+          erro={lista.isFetchNextPageError}
+          onCarregarMais={() => lista.fetchNextPage()}
+        />
       </div>
     </div>
   );

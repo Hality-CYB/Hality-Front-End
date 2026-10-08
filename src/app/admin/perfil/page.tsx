@@ -10,7 +10,12 @@ import { AboutDialog } from "@/components/about-dialog";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { EditUsuarioDialog } from "@/components/edit-usuario-dialog";
 import { useLogout } from "@/hooks/use-auth";
-import { useUsuario, useAtualizarUsuario } from "@/hooks/use-usuarios";
+import {
+  mensagemErroAlterarSenha,
+  useAlterarSenha,
+  useAtualizarPerfil,
+  useUsuarioAtual,
+} from "@/hooks/use-usuarios";
 import { useSessaoAtual } from "@/lib/auth/session-context";
 import { cn } from "@/lib/utils";
 
@@ -18,8 +23,9 @@ type DialogAberto = "editar" | "senha" | "sobre" | null;
 
 export default function AdminPerfilPage() {
   const sessao = useSessaoAtual();
-  const { data: usuario } = useUsuario(sessao.id);
-  const atualizar = useAtualizarUsuario();
+  const { data: usuario } = useUsuarioAtual();
+  const atualizar = useAtualizarPerfil();
+  const alterarSenha = useAlterarSenha();
   const [dialogAberto, setDialogAberto] = useState<DialogAberto>(null);
   const logout = useLogout();
 
@@ -135,14 +141,18 @@ export default function AdminPerfilPage() {
           usuario={usuario}
           titulo="Editar perfil"
           salvando={atualizar.isPending}
-          onSave={(v) =>
-            atualizar.mutate({ id: usuario.id, ...v }, { onSuccess: () => setDialogAberto(null) })
-          }
+          erro={atualizar.isError ? "Não foi possível salvar o perfil. Tente novamente." : null}
+          onSave={(v) => atualizar.mutate(v, { onSuccess: () => setDialogAberto(null) })}
         />
       )}
       <ChangePasswordDialog
         open={dialogAberto === "senha"}
         onOpenChange={(open) => setDialogAberto(open ? "senha" : null)}
+        onSalvar={(senhas) => alterarSenha.mutate(senhas)}
+        salvando={alterarSenha.isPending}
+        salvo={alterarSenha.isSuccess}
+        erro={alterarSenha.isError ? mensagemErroAlterarSenha(alterarSenha.error) : null}
+        onReset={alterarSenha.reset}
       />
       <AboutDialog
         open={dialogAberto === "sobre"}

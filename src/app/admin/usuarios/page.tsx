@@ -1,15 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useDeferredValue, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Search, Plus, ChevronRight, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
+import { ScrollInfinito } from "@/components/scroll-infinito";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { CriarUsuarioDialog } from "@/components/criar-usuario-dialog";
-import { useUsuarios, useCriarUsuario } from "@/hooks/use-usuarios";
+import {
+  mensagemErroCriarUsuario,
+  useCriarUsuario,
+  useUsuariosPaginados,
+} from "@/hooks/use-usuarios";
 import { roleLabel, roleBadgeStatus } from "@/lib/role-format";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types/usuario";
@@ -24,14 +29,21 @@ const FILTROS: { valor: Role | "todos"; label: string }[] = [
 export default function UsuariosPage() {
   const searchParams = useSearchParams();
   const [busca, setBusca] = useState("");
-  const [filtroRole, setFiltroRole] = useState<Role | "todos">("todos");
+  const [filtroRole, setFiltroRole] = useState<Role | "todos">(() => {
+    const role = searchParams.get("role");
+    return FILTROS.some((f) => f.valor === role) ? (role as Role) : "todos";
+  });
   const [criarAberto, setCriarAberto] = useState(() => searchParams.get("criar") === "1");
-  const { data: usuarios } = useUsuarios();
+  const buscaAdiada = useDeferredValue(busca);
+  // Busca (nome ou e-mail) e papel são filtrados no back.
+  const lista = useUsuariosPaginados({
+    busca: buscaAdiada,
+    role: filtroRole === "todos" ? undefined : filtroRole,
+    limite: 20,
+  });
+  const usuarios = lista.data?.pages.flatMap((p) => p.itens) ?? [];
+  const total = lista.data?.pages[0]?.total;
   const criar = useCriarUsuario();
-
-  const filtrados = (usuarios ?? [])
-    .filter((u) => filtroRole === "todos" || u.role === filtroRole)
-    .filter((u) => u.nome.toLowerCase().includes(busca.toLowerCase()));
 
   return (
     <div className="flex flex-col">
@@ -50,7 +62,8 @@ export default function UsuariosPage() {
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar usuário..."
+            placeholder="Buscar por nome ou e-mail..."
+            aria-label="Buscar usuário"
             className="w-full rounded-xl border border-white/20 bg-white/15 py-3 pr-3.5 pl-10 text-sm text-white outline-none placeholder:text-white/50"
           />
         </div>
@@ -73,11 +86,16 @@ export default function UsuariosPage() {
       </div>
 
       <div className="flex flex-col gap-2.5 p-4">
+        {total !== undefined && (
+          <span className="text-muted-foreground text-xs">
+            {total} usuário{total === 1 ? "" : "s"}
+          </span>
+        )}
         <div className="cyb-grid gap-2.5">
-          {filtrados.length === 0 && (
+          {lista.isSuccess && usuarios.length === 0 && (
             <EmptyState icon={<Users className="h-7 w-7" />} title="Nenhum usuário encontrado" />
           )}
-          {filtrados.map((u) => (
+          {usuarios.map((u) => (
             <Link key={u.id} href={`/admin/usuarios/${u.id}?voltar=/admin/usuarios`}>
               <Card className="user-list-card flex-row items-center gap-3.5 rounded-lg p-4 shadow-sm ring-0">
                 <AvatarWithRole
@@ -90,6 +108,7 @@ export default function UsuariosPage() {
                   <div className="text-muted-foreground mb-1.5 truncate text-xs">{u.email}</div>
                   <div className="flex flex-wrap gap-1.5">
                     <StatusBadge label={roleLabel(u.role)} status={roleBadgeStatus(u.role)} />
+                    {u.ativo === false && <StatusBadge label="Bloqueado" status="danger" />}
                   </div>
                 </div>
                 <ChevronRight className="text-gray-3 h-4 w-4" />
@@ -97,12 +116,20 @@ export default function UsuariosPage() {
             </Link>
           ))}
         </div>
+        <ScrollInfinito
+          temMais={!!lista.hasNextPage}
+          carregando={lista.isFetchingNextPage}
+          erro={lista.isFetchNextPageError}
+          onCarregarMais={() => lista.fetchNextPage()}
+        />
       </div>
 
       <CriarUsuarioDialog
         open={criarAberto}
         onOpenChange={setCriarAberto}
         salvando={criar.isPending}
+        erro={criar.isError ? mensagemErroCriarUsuario(criar.error) : null}
+        onReset={criar.reset}
         onCreate={(v) => criar.mutate(v, { onSuccess: () => setCriarAberto(false) })}
       />
     </div>

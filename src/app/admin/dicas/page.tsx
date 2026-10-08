@@ -10,24 +10,21 @@ import {
   Video,
   FileText,
   Home,
-  ScanLine,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
-import { LevelChip } from "@/components/level-chip";
 import { PreviewHomeDialog } from "@/components/preview-home-dialog";
-import { PreviewOrientacoesDialog } from "@/components/preview-orientacoes-dialog";
 import { useDicas } from "@/hooks/use-dicas";
+import { categoriaDicaLabel } from "@/types/dica";
 
-const ICONE_FORMATO = { texto: FileText, imagem: ImageIcon, video: Video };
+const ICONE_FORMATO = { texto: FileText, imagem: ImageIcon, video: Video, outro: FileText };
 
 export default function DicasAdminPage() {
   const { data: dicas } = useDicas();
   const ordenadas = [...(dicas ?? [])].sort((a, b) => a.ordem - b.ordem);
   const [previewHome, setPreviewHome] = useState(false);
-  const [previewOrientacoes, setPreviewOrientacoes] = useState(false);
 
   return (
     <div className="flex flex-col">
@@ -42,25 +39,13 @@ export default function DicasAdminPage() {
           </Link>
         </Button>
 
-        <div className="flex gap-2.5">
-          <Button variant="secondary" className="flex-1" onClick={() => setPreviewHome(true)}>
-            <Home className="h-4 w-4" /> Preview: Home
-          </Button>
-          <Button
-            variant="secondary"
-            className="flex-1"
-            onClick={() => setPreviewOrientacoes(true)}
-          >
-            <ScanLine className="h-4 w-4" /> Preview: Classificações
-          </Button>
-        </div>
+        {/* TODO(backend): o preview das orientações por nível saiu: sem rota que liste
+            as classificações, o front não sabe qual `classificacao_id` é qual nível. */}
+        <Button variant="secondary" onClick={() => setPreviewHome(true)}>
+          <Home className="h-4 w-4" /> Preview: Home
+        </Button>
 
         <PreviewHomeDialog open={previewHome} onOpenChange={setPreviewHome} dicas={dicas ?? []} />
-        <PreviewOrientacoesDialog
-          open={previewOrientacoes}
-          onOpenChange={setPreviewOrientacoes}
-          dicas={dicas ?? []}
-        />
 
         <div className="content-tip-card cyb-grid flex flex-col gap-2.5">
           {ordenadas.length === 0 && (
@@ -77,13 +62,13 @@ export default function DicasAdminPage() {
                   <div className="content-tip-card-body min-w-0 flex-1">
                     <div className="font-heading truncate text-sm font-bold">{dica.titulo}</div>
                     <div className="text-muted-foreground mb-1.5 truncate text-xs">
-                      {dica.categoria} · Ordem {dica.ordem}
+                      {categoriaDicaLabel(dica.categoria)} · Ordem {dica.ordem}
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      {dica.niveis.map((n) => (
-                        <LevelChip key={n} nivel={n} size="sm" />
-                      ))}
                       {dica.mostrarNaHome && <StatusBadge label="Na home" status="info" />}
+                      {dica.classificacaoIds.length > 0 && (
+                        <StatusBadge label="Nas orientações" status="neutral" />
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1.5">

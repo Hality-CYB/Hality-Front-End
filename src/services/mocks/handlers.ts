@@ -1,9 +1,8 @@
-import { usuariosHandlers } from "@/services/mocks/usuarios-handlers";
 import { pacientesHandlers } from "@/services/mocks/pacientes-handlers";
 import { profissionaisHandlers } from "@/services/mocks/profissionais-handlers";
 import { diagnosticosHandlers } from "@/services/mocks/diagnosticos-handlers";
 import { anamneseHandlers } from "@/services/mocks/anamnese-handlers";
-import { dicasHandlers } from "@/services/mocks/dicas-handlers";
+import { adminHandlers } from "@/services/mocks/admin-handlers";
 import { authHandlers } from "@/services/mocks/auth-handlers";
 import { homeHandlers } from "@/services/mocks/home-handlers";
 
@@ -15,12 +14,11 @@ import { homeHandlers } from "@/services/mocks/home-handlers";
  * apiClient pra descobrir quem está logado, então precisa de handler.
  */
 export const handlers = [
-  ...usuariosHandlers,
   ...pacientesHandlers,
   ...profissionaisHandlers,
   ...diagnosticosHandlers,
   ...anamneseHandlers,
-  ...dicasHandlers,
+  ...adminHandlers,
   ...authHandlers,
   ...homeHandlers,
 ];

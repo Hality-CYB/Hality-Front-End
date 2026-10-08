@@ -3,7 +3,7 @@ import type { Profissional } from "@/types/profissional";
 import type { Usuario } from "@/types/usuario";
 import type { Diagnostico } from "@/types/diagnostico";
 import type { BackendAnamneseDetail } from "@/types/anamnese";
-import type { Dica } from "@/types/dica";
+import type { BackendConteudoAdmin } from "@/types/dica";
 
 /**
  * Dados de mock pro MSW, adaptados dos arrays que existiam em Design/
@@ -306,90 +306,156 @@ export const seedDiagnosticos: Diagnostico[] = [
   },
 ];
 
-export const seedDicas: Dica[] = [
+/**
+ * Conteúdos no formato de `/admin/conteudos` (ConteudoDetail do back). Os
+ * `classificacao_ids` usam 11-13 como o banco real (ver CLASSIFICACAO_ID_POR_NIVEL).
+ */
+export const seedConteudos: BackendConteudoAdmin[] = [
   {
-    id: "dica-1",
+    id: 1,
     titulo: "Higiene da Língua",
-    categoria: "Higiene",
-    formato: "texto",
-    corpo:
-      "Use um limpador de língua pela manhã. A saburra lingual é a principal causa da halitose. Passe suavemente 3 a 5 vezes da parte posterior para a ponta.",
-    niveis: [1, 2, 3],
-    mostrarNaHome: true,
-    publicado: true,
+    categoria: "higiene",
+    conteudo: {
+      itens: [
+        {
+          tipo: "texto",
+          texto:
+            "Use um limpador de língua pela manhã. A saburra lingual é a principal causa da halitose. Passe suavemente 3 a 5 vezes da parte posterior para a ponta.",
+        },
+      ],
+    },
+    classificacao_ids: [11, 12, 13],
+    aparece_na_home: true,
+    status: "publicado",
     ordem: 1,
-    criadoEm: isoDate("10/08/2026"),
-    visualizacoes: 1230,
+    created_at: isoDate("10/08/2026"),
+    updated_at: isoDate("10/08/2026"),
+    criado_por_id: "admin-1",
+    atualizado_por_id: "admin-1",
+    publicado_por_id: "admin-1",
+    publicado_em: isoDate("10/08/2026"),
   },
   {
-    id: "dica-2",
+    id: 2,
     titulo: "Hidratação",
-    categoria: "Saúde",
-    formato: "texto",
-    corpo:
-      "Beba 2 litros de água por dia. A boca seca favorece o crescimento de bactérias anaeróbias que produzem compostos sulfurados, causadores do mau hálito.",
-    niveis: [1, 2, 3],
-    mostrarNaHome: true,
-    publicado: true,
+    categoria: "saude",
+    conteudo: {
+      itens: [
+        {
+          tipo: "texto",
+          texto:
+            "Beba 2 litros de água por dia. A boca seca favorece o crescimento de bactérias anaeróbias que produzem compostos sulfurados, causadores do mau hálito.",
+        },
+      ],
+    },
+    classificacao_ids: [11, 12, 13],
+    aparece_na_home: true,
+    status: "publicado",
     ordem: 2,
-    criadoEm: isoDate("08/08/2026"),
-    visualizacoes: 874,
+    created_at: isoDate("08/08/2026"),
+    updated_at: isoDate("08/08/2026"),
+    criado_por_id: "admin-1",
+    atualizado_por_id: "admin-1",
+    publicado_por_id: "admin-1",
+    publicado_em: isoDate("08/08/2026"),
   },
   {
-    id: "dica-3",
+    id: 3,
     titulo: "Alimentos Aliados",
-    categoria: "Nutrição",
-    formato: "texto",
-    corpo:
-      "Consuma maçã, cenoura, salsinha e iogurte natural. Esses alimentos ajudam a neutralizar os compostos causadores do mau hálito de forma natural.",
-    niveis: [2, 3],
-    mostrarNaHome: true,
-    publicado: true,
+    categoria: "nutricao",
+    conteudo: {
+      itens: [
+        {
+          tipo: "texto",
+          texto:
+            "Consuma maçã, cenoura, salsinha e iogurte natural. Esses alimentos ajudam a neutralizar os compostos causadores do mau hálito de forma natural.",
+        },
+      ],
+    },
+    classificacao_ids: [12, 13],
+    aparece_na_home: true,
+    status: "publicado",
     ordem: 3,
-    criadoEm: isoDate("05/08/2026"),
-    visualizacoes: 401,
+    created_at: isoDate("05/08/2026"),
+    updated_at: isoDate("05/08/2026"),
+    criado_por_id: "admin-1",
+    atualizado_por_id: "admin-1",
+    publicado_por_id: "admin-1",
+    publicado_em: isoDate("05/08/2026"),
   },
   {
-    id: "dica-4",
+    id: 4,
     titulo: "Rotina de Higiene",
-    categoria: "Rotina",
-    formato: "video",
-    corpo:
-      "Vídeo demonstrativo: escove os dentes após cada refeição, use fio dental diariamente e enxaguante sem álcool para completar a limpeza bucal.",
-    niveis: [1, 2, 3],
-    mostrarNaHome: false,
-    publicado: true,
+    categoria: "rotina",
+    conteudo: {
+      itens: [
+        {
+          tipo: "video",
+          url: "",
+          legenda:
+            "Vídeo demonstrativo: escove os dentes após cada refeição, use fio dental diariamente e enxaguante sem álcool para completar a limpeza bucal.",
+        },
+      ],
+    },
+    classificacao_ids: [11, 12, 13],
+    aparece_na_home: false,
+    status: "publicado",
     ordem: 4,
-    criadoEm: isoDate("01/08/2026"),
-    visualizacoes: 512,
+    created_at: isoDate("01/08/2026"),
+    updated_at: isoDate("01/08/2026"),
+    criado_por_id: "admin-1",
+    atualizado_por_id: "admin-1",
+    publicado_por_id: "admin-1",
+    publicado_em: isoDate("01/08/2026"),
   },
   {
-    id: "dica-5",
+    id: 5,
     titulo: "Consulta Periódica",
-    categoria: "Saúde",
-    formato: "texto",
-    corpo:
-      "Visite seu dentista a cada 6 meses. Cáries e doença periodontal são causas frequentes de halitose que exigem tratamento profissional.",
-    niveis: [2, 3],
-    mostrarNaHome: false,
-    publicado: true,
+    categoria: "saude",
+    conteudo: {
+      itens: [
+        {
+          tipo: "texto",
+          texto:
+            "Visite seu dentista a cada 6 meses. Cáries e doença periodontal são causas frequentes de halitose que exigem tratamento profissional.",
+        },
+      ],
+    },
+    classificacao_ids: [12, 13],
+    aparece_na_home: false,
+    status: "publicado",
     ordem: 5,
-    criadoEm: isoDate("28/07/2026"),
-    visualizacoes: 340,
+    created_at: isoDate("28/07/2026"),
+    updated_at: isoDate("28/07/2026"),
+    criado_por_id: "admin-1",
+    atualizado_por_id: "admin-1",
+    publicado_por_id: "admin-1",
+    publicado_em: isoDate("28/07/2026"),
   },
   {
-    id: "dica-6",
+    id: 6,
     titulo: "Evite Tabagismo",
-    categoria: "Estilo de Vida",
-    formato: "imagem",
-    corpo:
-      "O cigarro resseca a mucosa oral e deposita substâncias odoríferas nos tecidos. Parar de fumar melhora significativamente o hálito.",
-    niveis: [3],
-    mostrarNaHome: false,
-    publicado: false,
+    categoria: "estilo_de_vida",
+    conteudo: {
+      itens: [
+        {
+          tipo: "imagem",
+          url: "",
+          legenda:
+            "O cigarro resseca a mucosa oral e deposita substâncias odoríferas nos tecidos. Parar de fumar melhora significativamente o hálito.",
+        },
+      ],
+    },
+    classificacao_ids: [13],
+    aparece_na_home: false,
+    status: "rascunho",
     ordem: 6,
-    criadoEm: isoDate("20/07/2026"),
-    visualizacoes: 0,
+    created_at: isoDate("20/07/2026"),
+    updated_at: isoDate("20/07/2026"),
+    criado_por_id: "admin-1",
+    atualizado_por_id: "admin-1",
+    publicado_por_id: null,
+    publicado_em: null,
   },
 ];
 

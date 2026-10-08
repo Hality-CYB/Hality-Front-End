@@ -40,7 +40,7 @@ export function PreviewHomeDialog({ open, onOpenChange, dicas }: PreviewHomeDial
                 titulo={dica.titulo}
                 categoria={dica.categoria}
                 corpo={dica.corpo}
-                formato={dica.formato}
+                formato={dica.formato === "outro" ? "texto" : dica.formato}
                 midiaUrl={dica.midiaUrl}
                 compact
               />

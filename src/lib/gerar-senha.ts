@@ -1,8 +1,11 @@
+const ALFABETO = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
 /**
- * Gera uma senha temporária (só teatro de UI por enquanto — quando o
- * back-end existir, isso vira um evento "redefinir senha" que a API
- * processa e a senha real vem da resposta, não daqui).
+ * Senha inicial sugerida no cadastro feito pelo admin. Usa `crypto` e tem
+ * tamanho fixo (10), acima do mínimo de 8 do back; sem caracteres ambíguos
+ * (0/O, 1/l/I) porque o admin repassa a senha ao usuário.
  */
-export function gerarSenhaTemporaria(): string {
-  return Math.random().toString(36).slice(-8);
+export function gerarSenhaTemporaria(tamanho = 10): string {
+  const bytes = crypto.getRandomValues(new Uint32Array(tamanho));
+  return Array.from(bytes, (b) => ALFABETO[b % ALFABETO.length]).join("");
 }

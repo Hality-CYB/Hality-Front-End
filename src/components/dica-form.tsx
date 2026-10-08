@@ -1,110 +1,108 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Check, FileText, Image as ImageIcon, Video } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/alert";
-import { useCriarDica, useAtualizarDica } from "@/hooks/use-dicas";
-import { nivelColor, nivelLabel } from "@/lib/level-format";
 import { cn } from "@/lib/utils";
-import type { Dica, FormatoDica } from "@/types/dica";
-import type { DiagnosticoNivel } from "@/types/diagnostico";
+import {
+  CATEGORIAS_DICA,
+  type CategoriaDica,
+  type Dica,
+  type DicaInput,
+  type FormatoDica,
+} from "@/types/dica";
 
 type DicaFormProps = {
   dica?: Dica;
+  /** Recebe só o que deve ir ao back; na edição o corpo só vai se o formato for editável. */
+  onSalvar: (input: Partial<DicaInput>) => void;
+  salvando?: boolean;
+  erro?: string | null;
 };
 
-const NIVEIS: DiagnosticoNivel[] = [1, 2, 3];
-
-const CATEGORIAS = [
-  "Higiene",
-  "Saúde",
-  "Nutrição",
-  "Rotina",
-  "Estilo de Vida",
-  "Dieta",
-  "Tratamento",
-];
-
-const FORMATOS: { valor: FormatoDica; label: string; Icon: typeof FileText }[] = [
+const FORMATOS: { valor: Exclude<FormatoDica, "outro">; label: string; Icon: typeof FileText }[] = [
   { valor: "texto", label: "Texto", Icon: FileText },
   { valor: "imagem", label: "Imagem", Icon: ImageIcon },
   { valor: "video", label: "Vídeo", Icon: Video },
 ];
 
-export function DicaForm({ dica }: DicaFormProps) {
-  const router = useRouter();
+const classeLabel = "text-muted-foreground font-heading mb-1.5 block text-xs font-bold";
+const classeCampo =
+  "border-border w-full rounded-xl border-[1.5px] px-3.5 py-3 text-sm outline-none";
+
+/** Formulário de conteúdo do admin; quem usa decide se cria ou atualiza. */
+export function DicaForm({ dica, onSalvar, salvando = false, erro }: DicaFormProps) {
   const [titulo, setTitulo] = useState(dica?.titulo ?? "");
-  const [categoria, setCategoria] = useState(dica?.categoria ?? "");
-  const [corpo, setCorpo] = useState(dica?.corpo ?? "");
+  const [categoria, setCategoria] = useState<CategoriaDica | "">(dica?.categoria ?? "");
   const [formato, setFormato] = useState<FormatoDica>(dica?.formato ?? "texto");
-  const [niveis, setNiveis] = useState<DiagnosticoNivel[]>(dica?.niveis ?? []);
+  const [corpo, setCorpo] = useState(dica?.corpo ?? "");
+  const [midiaUrl, setMidiaUrl] = useState(dica?.midiaUrl ?? "");
   const [mostrarNaHome, setMostrarNaHome] = useState(dica?.mostrarNaHome ?? false);
-  const [ordem, setOrdem] = useState(dica?.ordem ?? 1);
-  const [salvo, setSalvo] = useState(false);
+  const [ordem, setOrdem] = useState(dica?.ordem ?? 0);
 
-  const criar = useCriarDica();
-  const atualizar = useAtualizarDica();
-  const salvando = criar.isPending || atualizar.isPending;
+  const formatoEditavel = formato !== "outro";
+  const podeSalvar =
+    titulo.trim().length > 0 &&
+    categoria !== "" &&
+    (!formatoEditavel || corpo.trim().length > 0) &&
+    !salvando;
 
-  function toggleNivel(n: DiagnosticoNivel) {
-    setNiveis((atual) => (atual.includes(n) ? atual.filter((x) => x !== n) : [...atual, n]));
+  function salvar(publicado: boolean) {
+    if (categoria === "") return;
+    onSalvar({
+      titulo,
+      categoria,
+      mostrarNaHome,
+      publicado,
+      ordem,
+      ...(formatoEditavel ? { formato, corpo, midiaUrl } : {}),
+    });
   }
-
-  async function salvar(publicado: boolean) {
-    const payload = { titulo, categoria, corpo, formato, niveis, mostrarNaHome, publicado, ordem };
-    if (dica) {
-      await atualizar.mutateAsync({ id: dica.id, ...payload });
-    } else {
-      await criar.mutateAsync(payload);
-    }
-    setSalvo(true);
-    router.push("/admin/dicas");
-  }
-
-  const podeSalvar = titulo.trim().length > 0 && !salvando;
 
   return (
     <div className="flex flex-col gap-3.5">
       <Card className="rounded-lg p-5 shadow-sm ring-0">
         <div className="flex flex-col gap-3.5">
           <div>
-            <label className="text-muted-foreground font-heading mb-1.5 block text-xs font-bold tracking-wide uppercase">
+            <label htmlFor="dica-titulo" className={classeLabel}>
               Título
             </label>
             <input
+              id="dica-titulo"
               value={titulo}
               onChange={(e) => setTitulo(e.target.value)}
-              placeholder="Título da dica..."
-              className="border-border w-full rounded-xl border-[1.5px] px-3.5 py-3 text-sm outline-none"
+              placeholder="Título da dica"
+              className={classeCampo}
             />
           </div>
           <div>
-            <label className="text-muted-foreground font-heading mb-1.5 block text-xs font-bold tracking-wide uppercase">
+            <label htmlFor="dica-categoria" className={classeLabel}>
               Categoria
             </label>
             <select
+              id="dica-categoria"
               value={categoria}
-              onChange={(e) => setCategoria(e.target.value)}
-              className="border-border bg-card w-full rounded-xl border-[1.5px] px-3.5 py-3 text-sm outline-none"
+              onChange={(e) => setCategoria(e.target.value as CategoriaDica)}
+              className={cn(classeCampo, "bg-card")}
             >
-              <option value="">Selecionar categoria...</option>
-              {CATEGORIAS.map((c) => (
-                <option key={c}>{c}</option>
+              <option value="">Selecionar categoria</option>
+              {Object.entries(CATEGORIAS_DICA).map(([valor, label]) => (
+                <option key={valor} value={valor}>
+                  {label}
+                </option>
               ))}
             </select>
           </div>
           <div>
-            <label className="text-muted-foreground font-heading mb-1.5 block text-xs font-bold tracking-wide uppercase">
-              Formato do conteúdo
-            </label>
+            <span className={classeLabel}>Formato do conteúdo</span>
             <div className="flex gap-2">
               {FORMATOS.map(({ valor, label, Icon }) => (
                 <button
                   key={valor}
                   type="button"
+                  aria-pressed={formato === valor}
                   onClick={() => setFormato(valor)}
                   className={cn(
                     "flex flex-1 flex-col items-center gap-1.5 rounded-xl border-[1.5px] px-2 py-3",
@@ -129,49 +127,56 @@ export function DicaForm({ dica }: DicaFormProps) {
               ))}
             </div>
           </div>
+          {!formatoEditavel && (
+            <Alert
+              type="info"
+              message="Este conteúdo usa blocos que o editor não monta (ex.: protocolo de tratamento). O corpo fica como está; escolha um formato acima só se quiser substituí-lo."
+            />
+          )}
+          {(formato === "imagem" || formato === "video") && (
+            <div>
+              <label htmlFor="dica-midia" className={classeLabel}>
+                Endereço {formato === "imagem" ? "da imagem" : "do vídeo"}
+              </label>
+              <input
+                id="dica-midia"
+                type="url"
+                value={midiaUrl}
+                onChange={(e) => setMidiaUrl(e.target.value)}
+                placeholder="https://"
+                className={classeCampo}
+              />
+            </div>
+          )}
           <div>
-            <label className="text-muted-foreground font-heading mb-1.5 block text-xs font-bold tracking-wide uppercase">
-              {formato === "texto" ? "Conteúdo" : "Descrição / legenda"}
+            <label htmlFor="dica-corpo" className={classeLabel}>
+              {formato === "texto" || formato === "outro" ? "Conteúdo" : "Legenda"}
             </label>
             <textarea
+              id="dica-corpo"
               value={corpo}
+              disabled={!formatoEditavel}
               onChange={(e) => setCorpo(e.target.value)}
               rows={formato === "texto" ? 6 : 3}
               placeholder={
-                formato === "texto"
-                  ? "Escreva o conteúdo da dica aqui..."
-                  : "Descreva a imagem ou vídeo..."
+                formato === "texto" ? "Escreva o conteúdo da dica" : "Descreva a imagem ou o vídeo"
               }
-              className="border-border w-full resize-none rounded-xl border-[1.5px] px-3.5 py-3 text-sm outline-none"
+              className={cn(classeCampo, "resize-none disabled:opacity-60")}
             />
           </div>
-          <div>
-            <label className="text-muted-foreground font-heading mb-1.5 block text-xs font-bold tracking-wide uppercase">
-              Aparece nas orientações de
-            </label>
-            <div className="flex gap-2">
-              {NIVEIS.map((n) => {
-                const cor = nivelColor(n);
-                const ativo = niveis.includes(n);
-                return (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => toggleNivel(n)}
-                    className="font-heading flex-1 rounded-full border-[1.5px] px-2 py-2 text-center text-xs font-bold"
-                    style={{
-                      borderColor: ativo ? cor : "var(--border)",
-                      background: ativo ? `${cor}18` : "#fff",
-                      color: ativo ? cor : "var(--gray-text)",
-                    }}
-                  >
-                    {nivelLabel(n)}
-                  </button>
-                );
-              })}
-            </div>
+          {/* TODO(backend): não há rota que liste as classificações (id ↔ nível), então
+              não dá para escolher aqui em quais níveis a dica aparece. A edição preserva
+              os `classificacao_ids` que o conteúdo já tem. */}
+          <div className="bg-background rounded-xl px-3.5 py-3 text-xs">
+            <span className="font-heading font-bold">Orientações por nível: </span>
+            {dica && dica.classificacaoIds.length > 0
+              ? `vinculada a ${dica.classificacaoIds.length} classificação(ões).`
+              : "sem vínculo."}{" "}
+            <span className="text-muted-foreground">
+              A escolha dos níveis ainda não está disponível.
+            </span>
           </div>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <div>
               <div className="font-heading text-sm font-bold">Aparecer na home</div>
               <div className="text-muted-foreground text-xs">
@@ -180,6 +185,9 @@ export function DicaForm({ dica }: DicaFormProps) {
             </div>
             <button
               type="button"
+              role="switch"
+              aria-checked={mostrarNaHome}
+              aria-label="Aparecer na home"
               onClick={() => setMostrarNaHome((v) => !v)}
               className={cn(
                 "flex h-5.5 w-9.5 shrink-0 items-center rounded-full p-0.5 transition-colors",
@@ -190,15 +198,16 @@ export function DicaForm({ dica }: DicaFormProps) {
             </button>
           </div>
           <div>
-            <label className="text-muted-foreground font-heading mb-1.5 block text-xs font-bold tracking-wide uppercase">
+            <label htmlFor="dica-ordem" className={classeLabel}>
               Ordem de exibição
             </label>
             <input
+              id="dica-ordem"
               type="number"
-              min={1}
+              min={0}
               value={ordem}
-              onChange={(e) => setOrdem(Number(e.target.value) || 1)}
-              className="border-border w-full rounded-xl border-[1.5px] px-3.5 py-3 text-sm outline-none"
+              onChange={(e) => setOrdem(Math.max(0, Number(e.target.value) || 0))}
+              className={classeCampo}
             />
             <span className="text-muted-foreground text-xs">
               Números menores aparecem primeiro na home e nas orientações.
@@ -207,7 +216,7 @@ export function DicaForm({ dica }: DicaFormProps) {
         </div>
       </Card>
 
-      {salvo && <Alert type="success" message="Dica salva com sucesso!" />}
+      {erro && <Alert type="error" message={erro} />}
 
       <div className="flex gap-2.5">
         <Button
