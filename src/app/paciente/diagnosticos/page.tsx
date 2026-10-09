@@ -5,9 +5,9 @@ import Link from "next/link";
 import { ScanLine, ChevronRight, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/status-badge";
+import { ScrollInfinito } from "@/components/scroll-infinito";
 import { EmptyState } from "@/components/empty-state";
 import { CustomPeriodDialog } from "@/components/custom-period-dialog";
-import { Button } from "@/components/ui/button";
 import { useDiagnosticos, useDiagnosticosPaginados } from "@/hooks/use-diagnosticos";
 import { nivelColor, nivelLabel, nivelBadgeStatus, nivelIcon } from "@/lib/level-format";
 import {
@@ -137,17 +137,13 @@ export default function DiagnosticosPage() {
         })}
       </div>
 
-      {lista.hasNextPage && (
-        <div className="flex justify-center px-4 pb-4">
-          <Button
-            variant="secondary"
-            onClick={() => lista.fetchNextPage()}
-            disabled={lista.isFetchingNextPage}
-          >
-            {lista.isFetchingNextPage ? "Carregando…" : "Carregar mais"}
-          </Button>
-        </div>
-      )}
+      <ScrollInfinito
+        temMais={!!lista.hasNextPage}
+        carregando={lista.isFetchingNextPage}
+        erro={lista.isFetchNextPageError}
+        onCarregarMais={() => lista.fetchNextPage()}
+        className="px-4 pb-4"
+      />
     </div>
   );
 }

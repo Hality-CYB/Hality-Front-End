@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
@@ -54,6 +54,34 @@ function mockListagem(limitePorPagina = 2) {
   return consultas;
 }
 
+// jsdom não tem IntersectionObserver: o teste decide quando o fim da lista aparece.
+type Observer = { callback: (e: Array<{ isIntersecting: boolean }>) => void; ativo: boolean };
+let observers: Observer[] = [];
+beforeEach(() => {
+  observers = [];
+  vi.stubGlobal(
+    "IntersectionObserver",
+    class {
+      registro: Observer;
+      constructor(callback: Observer["callback"]) {
+        this.registro = { callback, ativo: true };
+        observers.push(this.registro);
+      }
+      observe() {}
+      disconnect() {
+        this.registro.ativo = false;
+      }
+    },
+  );
+});
+afterEach(() => vi.unstubAllGlobals());
+
+function rolarAteOFim() {
+  act(() => {
+    observers.filter((o) => o.ativo).forEach((o) => o.callback([{ isIntersecting: true }]));
+  });
+}
+
 function renderPagina() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -72,24 +100,22 @@ describe("Meus diagnósticos", () => {
     expect(screen.getByText("Hálito Normal")).toBeInTheDocument();
     expect(screen.getByText("Aguardando análise")).toBeInTheDocument();
     expect(screen.getByText("Falha na análise")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Carregar mais" })).not.toBeInTheDocument();
+    expect(observers).toHaveLength(0);
   });
 
-  it("carrega a próxima página sob demanda e esconde o botão na última", async () => {
+  it("carrega a próxima página ao rolar até o fim e para na última", async () => {
     const consultas = mockListagem(2);
     renderPagina();
 
     await screen.findByText("Hálito Normal");
     expect(screen.queryByText("Falha na análise")).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Carregar mais" }));
+    rolarAteOFim();
 
     expect(await screen.findByText("Falha na análise")).toBeInTheDocument();
     expect(screen.getAllByRole("link")).toHaveLength(3);
     expect(consultas.some((q) => q.get("pagina") === "2")).toBe(true);
-    await waitFor(() =>
-      expect(screen.queryByRole("button", { name: "Carregar mais" })).not.toBeInTheDocument(),
-    );
+    await waitFor(() => expect(observers.filter((o) => o.ativo)).toHaveLength(0));
   });
 
   it("filtra o período no servidor e mantém o total geral no cabeçalho", async () => {
