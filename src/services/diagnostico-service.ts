@@ -19,6 +19,15 @@ import {
   type PaginaDiagnosticos,
   type StatusDiagnostico,
 } from "@/types/diagnostico";
+import {
+  adaptBackendAdminDiagnosticoDetalhe,
+  adaptBackendAdminDiagnosticoList,
+  backendAdminDiagnosticoDetalheSchema,
+  backendAdminDiagnosticoListSchema,
+  type DiagnosticoAdminDetalhe,
+  type DiagnosticoAdminResumo,
+  type Pagina,
+} from "@/types/admin";
 
 export type FiltroDiagnosticos = {
   status?: StatusDiagnostico;
@@ -30,6 +39,11 @@ export type FiltroDiagnosticos = {
 };
 
 export type FiltroDiagnosticosProfissional = FiltroDiagnosticos & { pacienteId?: string };
+
+/** O admin também filtra pelo código da classificação (da IA) no servidor. */
+export type FiltroDiagnosticosAdmin = FiltroDiagnosticosProfissional & {
+  classificacao?: DiagnosticoNivel;
+};
 
 function queryDoFiltro(filtro: FiltroDiagnosticosProfissional): string {
   const params = new URLSearchParams();
@@ -44,6 +58,22 @@ function queryDoFiltro(filtro: FiltroDiagnosticosProfissional): string {
 }
 
 export const diagnosticoService = {
+  /** Todos os diagnósticos, para o admin (`/admin/diagnosticos`, #96 do back). */
+  async listarAdmin(filtro: FiltroDiagnosticosAdmin = {}): Promise<Pagina<DiagnosticoAdminResumo>> {
+    const { classificacao, ...resto } = filtro;
+    let query = queryDoFiltro(resto);
+    if (classificacao) {
+      query += `${query ? "&" : "?"}classificacao=${CODIGO_POR_NIVEL[classificacao]}`;
+    }
+    const data = await apiClient.get<unknown>(`/api/v1/admin/diagnosticos${query}`);
+    return adaptBackendAdminDiagnosticoList(backendAdminDiagnosticoListSchema.parse(data));
+  },
+
+  async buscarAdmin(id: string): Promise<DiagnosticoAdminDetalhe> {
+    const data = await apiClient.get<unknown>(`/api/v1/admin/diagnosticos/${id}`);
+    return adaptBackendAdminDiagnosticoDetalhe(backendAdminDiagnosticoDetalheSchema.parse(data));
+  },
+
   /** Diagnósticos do próprio paciente logado. */
   async listar(filtro: FiltroDiagnosticos = {}): Promise<PaginaDiagnosticos> {
     const data = await apiClient.get<unknown>(`/api/v1/diagnosticos${queryDoFiltro(filtro)}`);

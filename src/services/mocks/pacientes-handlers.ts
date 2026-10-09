@@ -2,21 +2,22 @@ import { http, HttpResponse } from "msw";
 import { z } from "zod";
 import { config } from "@/lib/config";
 import { usuarioDoRequest } from "@/services/mocks/auth-handlers";
-import { seedUsuarios } from "@/services/mocks/seed-data";
 import {
+  criarVinculoMock,
   diagnosticosMock,
   maisRecentesPrimeiro,
   nomeDoUsuario,
   pacientesMock,
   paginar,
   paraBackendListItem,
-  vinculadoEmMock,
+  temVinculo,
+  usuariosMock,
+  vinculosMock,
 } from "@/services/mocks/mock-db";
 import type { Paciente } from "@/types/paciente";
 import type { Usuario } from "@/types/usuario";
 
 const url = (path: string) => `${config.apiBaseUrl}${path}`;
-let proximoVinculoId = 500;
 
 /** Espelha `PacienteCreate` do back (#101): campos extras são recusados. */
 const criarPacienteSchema = z
@@ -31,7 +32,7 @@ const criarPacienteSchema = z
 /** Espelha `paciente_service.listar_pacientes` da PR #97: profissional vê só os vinculados, admin vê todos. */
 function visiveisPara(usuario: Usuario): Paciente[] {
   if (usuario.role === "admin") return pacientesMock;
-  return pacientesMock.filter((p) => p.profissionalVinculadoId === usuario.id);
+  return pacientesMock.filter((p) => temVinculo(p.id, usuario.id));
 }
 
 function paraBackendListItemPaciente(paciente: Paciente) {
@@ -44,7 +45,7 @@ function paraBackendListItemPaciente(paciente: Paciente) {
     nome: paciente.nome,
     email: paciente.email,
     telefone: paciente.telefone || null,
-    ativo: true,
+    ativo: paciente.ativo ?? true,
     total_diagnosticos: diags.length,
     ultimo_diagnostico_em: ultimo?.criadoEm ?? null,
     ultimo_nivel: ultimo?.nivel ?? null,
@@ -100,23 +101,19 @@ export const pacientesHandlers = [
       .filter((d) => d.pacienteId === paciente.id)
       .sort(maisRecentesPrimeiro)
       .map((d) => paraBackendListItem(d));
-    const vinculadoEm = vinculadoEmMock.get(paciente.id);
 
     return HttpResponse.json({
       ...paraBackendListItemPaciente(paciente),
-      vinculos:
-        paciente.profissionalVinculadoId && vinculadoEm
-          ? [
-              {
-                id: 1,
-                profissional_id: paciente.profissionalVinculadoId,
-                profissional_nome: nomeDoUsuario(paciente.profissionalVinculadoId) ?? "",
-                data_vinculo: vinculadoEm,
-                ativo: true,
-                encerrado_em: null,
-              },
-            ]
-          : [],
+      vinculos: vinculosMock
+        .filter((v) => v.pacienteId === paciente.id)
+        .map((v) => ({
+          id: v.id,
+          profissional_id: v.profissionalId,
+          profissional_nome: nomeDoUsuario(v.profissionalId) ?? "",
+          data_vinculo: v.vinculadoEm,
+          ativo: v.ativo,
+          encerrado_em: v.encerradoEm,
+        })),
       diagnosticos: paginar(diagnosticos, pagina, limite),
     });
   }),
@@ -134,9 +131,7 @@ export const pacientesHandlers = [
       return HttpResponse.json({ detail: "dados inválidos" }, { status: 422 });
     }
     const email = body.data.email.toLowerCase();
-    const emailEmUso =
-      pacientesMock.some((p) => p.email.toLowerCase() === email) ||
-      seedUsuarios.some((u) => u.email.toLowerCase() === email);
+    const emailEmUso = usuariosMock.some((u) => u.email.toLowerCase() === email);
     if (emailEmUso) {
       return HttpResponse.json({ detail: "e-mail já cadastrado" }, { status: 409 });
     }
@@ -149,15 +144,15 @@ export const pacientesHandlers = [
       role: "paciente",
       criadoEm: agora,
       telefone: body.data.telefone ?? "",
-      profissionalVinculadoId: usuario.id,
       consentimentoDadosSaude: { aceito: false },
       consentimentoTreinamentoIA: { aceito: false },
     };
     pacientesMock.push(novo);
-    vinculadoEmMock.set(novo.id, agora);
+    usuariosMock.push(novo);
+    const vinculo = criarVinculoMock(novo.id, usuario.id);
     return HttpResponse.json(
       {
-        id: proximoVinculoId++,
+        id: vinculo.id,
         paciente_id: novo.id,
         paciente_nome: novo.nome,
         paciente_email: novo.email,

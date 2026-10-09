@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Camera, ScanLine } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
+import { ScrollInfinito } from "@/components/scroll-infinito";
 import { EmptyState } from "@/components/empty-state";
 import { LevelChip } from "@/components/level-chip";
 import { AvatarWithRole } from "@/components/avatar-with-role";
@@ -125,17 +126,13 @@ export default function PacienteDetailPage({ params }: { params: Promise<{ id: s
               </Link>
             ))}
           </div>
-          {historico.hasNextPage && (
-            <div className="mt-3 flex justify-center">
-              <Button
-                variant="secondary"
-                onClick={() => historico.fetchNextPage()}
-                disabled={historico.isFetchingNextPage}
-              >
-                {historico.isFetchingNextPage ? "Carregando…" : "Carregar mais"}
-              </Button>
-            </div>
-          )}
+          <ScrollInfinito
+            temMais={!!historico.hasNextPage}
+            carregando={historico.isFetchingNextPage}
+            erro={historico.isFetchNextPageError}
+            onCarregarMais={() => historico.fetchNextPage()}
+            className="mt-3"
+          />
         </div>
       </div>
     </div>

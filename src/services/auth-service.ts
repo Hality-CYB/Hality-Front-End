@@ -8,8 +8,7 @@ import {
 import { ApiError } from "@/lib/api-client";
 import { config } from "@/lib/config";
 import { setStoredToken, clearStoredToken } from "@/lib/session";
-import { seedUsuarios } from "@/services/mocks/seed-data";
-import { adicionarUsuarioMock, senhaMockDe } from "@/services/mocks/auth-handlers";
+import { adicionarUsuarioMock, usuarioMockParaLogin } from "@/services/mocks/auth-handlers";
 
 /**
  * Fala direto com o FastAPI (fastapi-users): sem BFF do Next no meio.
@@ -45,9 +44,7 @@ export type RegisterInput = {
 };
 
 async function loginMock(email: string, senha: string): Promise<Usuario | null> {
-  const usuario = seedUsuarios.find((u) => u.email === email);
-  if (!usuario || senha !== senhaMockDe(usuario.id)) return null;
-  return usuario;
+  return usuarioMockParaLogin(email, senha);
 }
 
 async function registrarMock(input: RegisterInput): Promise<Usuario> {
