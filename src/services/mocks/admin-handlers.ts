@@ -2,6 +2,7 @@ import { http, HttpResponse } from "msw";
 import { z } from "zod";
 import { config } from "@/lib/config";
 import { usuarioDoRequest } from "@/services/mocks/auth-handlers";
+import { historicoRevisoesMock } from "@/services/mocks/diagnosticos-handlers";
 import {
   CLASSIFICACAO_ID_POR_NIVEL,
   atualizarUsuarioMock,
@@ -130,15 +131,54 @@ function paraAdminVinculo(v: VinculoMock) {
 
 // --- Diagnósticos ---
 
-/** Como o back do admin: a classificação é a da IA, não a revisada. */
+const STATUS_COM_RESULTADO = new Set(["aguardando_revisao", "concluido"]);
+
+/** `automatica` só tem valores quando a IA já terminou (como no back). */
+function automaticaDe(d: Diagnostico) {
+  const comResultado = STATUS_COM_RESULTADO.has(d.status);
+  return {
+    classificacao: comResultado ? classificacaoResumo(d.nivel) : null,
+    escala_saburra: null,
+    confianca_ia: comResultado && d.confiancaIA !== undefined ? d.confiancaIA / 100 : null,
+  };
+}
+
+/** Revisão vigente = a última do histórico; sem histórico, os campos legados do diagnóstico. */
+function revisaoDe(d: Diagnostico) {
+  const ultima = historicoRevisoesMock(d.id).at(-1);
+  if (ultima) {
+    return {
+      status: "concluida" as const,
+      profissional_revisor_id: ultima.profissionalId,
+      profissional_revisor_nome: nomeDoUsuario(ultima.profissionalId),
+      data_revisao: ultima.criadoEm,
+      classificacao: classificacaoResumo(ultima.nivel),
+      observacoes: ultima.observacao,
+    };
+  }
+  const legada = !!d.revisadoPor && !!d.revisadoEm;
+  return {
+    status: legada ? ("concluida" as const) : ("pendente" as const),
+    profissional_revisor_id: d.revisadoPor ?? null,
+    profissional_revisor_nome: null,
+    data_revisao: d.revisadoEm ?? null,
+    classificacao: null,
+    observacoes: null,
+  };
+}
+
+/** Espelha `AdminDiagnosticoItem` da #159 do back. */
 function paraAdminDiagnosticoItem(d: Diagnostico) {
+  const pacienteId = d.pacienteId ?? "";
   return {
     id: idNumerico(d.id),
-    paciente_id: d.pacienteId ?? "",
-    data_diagnostico: d.criadoEm,
+    paciente_id: pacienteId,
+    paciente: { id: pacienteId, nome: nomeDoUsuario(pacienteId) ?? "" },
+    data: d.criadoEm,
     status: d.status,
-    classificacao: classificacaoResumo(d.nivel),
-    tem_revisao: !!d.revisadoPor,
+    automatica: automaticaDe(d),
+    revisao: revisaoDe(d),
+    qtd_imagens: 1,
   };
 }
 
@@ -382,29 +422,92 @@ export const adminHandlers = [
     return HttpResponse.json({
       ...paraAdminDiagnosticoItem(d),
       erro: d.status === "falha" ? "falha simulada no mock" : null,
-      automatica: {
-        classificacao: classificacaoResumo(d.nivel),
-        escala_saburra: null,
-        confianca_ia: d.confiancaIA === undefined ? null : d.confiancaIA / 100,
-      },
-      revisao:
-        d.revisadoPor && d.revisadoEm
-          ? {
-              profissional_revisor_id: d.revisadoPor,
-              data_revisao: d.revisadoEm,
-              observacoes: null,
-            }
-          : null,
-      dataset: { disponivel: false, motivo: "indisponível até a definição do dataset" },
-      anamnese_id: idNumerico(d.anamneseId ?? "0"),
-      qtd_imagens: 1,
+      historico_revisoes: historicoRevisoesMock(d.id).map((r) => ({
+        profissional_revisor_id: r.profissionalId,
+        profissional_revisor_nome: nomeDoUsuario(r.profissionalId),
+        data_revisao: r.criadoEm,
+        classificacao: classificacaoResumo(r.nivel),
+        observacoes: r.observacao,
+      })),
+      dataset: { disponivel: false, motivo: "exportacao_fora_do_escopo" },
+      imagem: { disponivel: false, motivo: "politica_de_acesso_pendente" },
+      anamnese_id: d.anamneseId ? idNumerico(d.anamneseId) : null,
     });
   }),
 
+  // Paginada e filtrada como na #144 do back (parâmetros em inglês).
   http.get(url("/api/v1/admin/conteudos"), ({ request }) => {
     const admin = exigirAdmin(request);
     if (admin instanceof Response) return admin;
-    return HttpResponse.json([...conteudosMock].sort((a, b) => a.ordem - b.ordem));
+    const params = new URL(request.url).searchParams;
+    const page = Number(params.get("page") ?? 1);
+    const limit = Number(params.get("limit") ?? 20);
+    const q = params.get("q")?.trim().toLowerCase();
+    const status = params.get("status");
+    const categoria = params.get("categoria");
+    const naHome = params.get("aparece_na_home");
+    const classificacaoId = params.get("classificacao_id");
+    const order = params.get("order") ?? "ordem_asc";
+    const comparar: Record<string, (a: BackendConteudoAdmin, b: BackendConteudoAdmin) => number> = {
+      ordem_asc: (a, b) => a.ordem - b.ordem || a.id - b.id,
+      ordem_desc: (a, b) => b.ordem - a.ordem || b.id - a.id,
+      created_at_asc: (a, b) => a.created_at.localeCompare(b.created_at),
+      created_at_desc: (a, b) => b.created_at.localeCompare(a.created_at),
+    };
+    const filtrados = conteudosMock
+      .filter((c) => !q || c.titulo.toLowerCase().includes(q))
+      .filter((c) => !status || c.status === status)
+      .filter((c) => !categoria || c.categoria === categoria)
+      .filter((c) => naHome === null || String(c.aparece_na_home) === naHome)
+      .filter((c) => !classificacaoId || c.classificacao_ids.includes(Number(classificacaoId)))
+      .sort(comparar[order] ?? comparar.ordem_asc);
+    return HttpResponse.json({
+      items: filtrados.slice((page - 1) * limit, page * limit),
+      total: filtrados.length,
+      page,
+      limit,
+      has_next: page * limit < filtrados.length,
+    });
+  }),
+
+  // Resumo do painel (#158): período padrão de 30 dias, como no back.
+  http.get(url("/api/v1/admin/resumo"), ({ request }) => {
+    const admin = exigirAdmin(request);
+    if (admin instanceof Response) return admin;
+    const params = new URL(request.url).searchParams;
+    const fim = params.get("fim") ? new Date(params.get("fim")!) : new Date();
+    const inicio = params.get("inicio")
+      ? new Date(params.get("inicio")!)
+      : new Date(fim.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const doPeriodo = diagnosticosMock.filter((d) => {
+      const data = new Date(d.criadoEm);
+      return data >= inicio && data <= fim;
+    });
+    const porStatus: Record<string, number> = {};
+    const porClassificacao: Record<string, number> = {};
+    for (const d of doPeriodo) {
+      porStatus[d.status] = (porStatus[d.status] ?? 0) + 1;
+      const chave =
+        d.nivel === null ? "sem_classificacao" : String(CLASSIFICACAO_ID_POR_NIVEL[d.nivel]);
+      porClassificacao[chave] = (porClassificacao[chave] ?? 0) + 1;
+    }
+    return HttpResponse.json({
+      periodo: {
+        inicio: inicio.toISOString(),
+        fim: fim.toISOString(),
+        timezone: params.get("timezone") ?? "UTC",
+      },
+      diagnosticos: {
+        total: doPeriodo.length,
+        por_classificacao: porClassificacao,
+        por_status: porStatus,
+      },
+      revisao: {
+        pendentes: porStatus.aguardando_revisao ?? 0,
+        revisados: doPeriodo.filter((d) => revisaoDe(d).status === "concluida").length,
+      },
+      halitose: null,
+    });
   }),
 
   http.get(url("/api/v1/admin/conteudos/:id"), ({ params, request }) => {

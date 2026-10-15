@@ -49,6 +49,7 @@ import {
   useEncerrarVinculo,
   useVinculos,
 } from "@/hooks/use-vinculos";
+import { useSessaoAtual } from "@/lib/auth/session-context";
 import { roleLabel, roleBadgeStatus } from "@/lib/role-format";
 import { cn } from "@/lib/utils";
 import type { Vinculo } from "@/types/admin";
@@ -67,6 +68,7 @@ export default function UsuarioDetailPage({ params }: { params: Promise<{ id: st
   const [buscaProfissional, setBuscaProfissional] = useState("");
   const buscaProfissionalAdiada = useDeferredValue(buscaProfissional);
 
+  const sessao = useSessaoAtual();
   const { data: usuario, isError } = useUsuario(id);
   const isPaciente = usuario?.role === "paciente";
   const vinculos = useVinculos(
@@ -92,12 +94,15 @@ export default function UsuarioDetailPage({ params }: { params: Promise<{ id: st
   if (!usuario) return null;
 
   const bloqueado = usuario.ativo === false;
+  // O admin não se bloqueia por aqui: perderia o acesso no meio da sessão.
+  const ehVoceMesmo = usuario.id === sessao.id;
   const vinculosAtivos = isPaciente ? (vinculos.data?.itens ?? []) : [];
   const hrefAtual = `/admin/usuarios/${id}?voltar=${encodeURIComponent(voltarHref)}`;
   const perfil = usuario.perfilProfissional;
 
   function fecharDialog() {
     setDialogAberto(null);
+    setBuscaProfissional("");
   }
 
   return (
@@ -276,25 +281,31 @@ export default function UsuarioDetailPage({ params }: { params: Promise<{ id: st
           {atualizar.isError && dialogAberto === null && (
             <Alert type="error" message={mensagemErroAtualizarUsuario(atualizar.error)} />
           )}
-          <Button
-            variant={bloqueado ? "success" : "danger"}
-            className="w-full"
-            onClick={() => setDialogAberto("bloquear")}
-          >
-            {bloqueado ? (
-              <>
-                <CircleCheck className="h-4.5 w-4.5" /> Desbloquear usuário
-              </>
-            ) : (
-              <>
-                <Ban className="h-4.5 w-4.5" /> Bloquear usuário
-              </>
-            )}
-          </Button>
+          {encerrar.isError && (
+            <Alert type="error" message="Não foi possível encerrar o vínculo. Tente novamente." />
+          )}
+          {!ehVoceMesmo && (
+            <Button
+              variant={bloqueado ? "success" : "danger"}
+              className="w-full"
+              onClick={() => setDialogAberto("bloquear")}
+            >
+              {bloqueado ? (
+                <>
+                  <CircleCheck className="h-4.5 w-4.5" /> Desbloquear usuário
+                </>
+              ) : (
+                <>
+                  <Ban className="h-4.5 w-4.5" /> Bloquear usuário
+                </>
+              )}
+            </Button>
+          )}
         </div>
       </div>
 
       <EditUsuarioDialog
+        key={`editar-${dialogAberto === "editar"}`}
         open={dialogAberto === "editar"}
         onOpenChange={(open) => {
           if (!open) atualizar.reset();
@@ -307,6 +318,7 @@ export default function UsuarioDetailPage({ params }: { params: Promise<{ id: st
       />
       {usuario.role === "profissional" && (
         <EditDadosProfissionaisDialog
+          key={`profissional-${dialogAberto === "profissional"}`}
           open={dialogAberto === "profissional"}
           onOpenChange={(open) => {
             if (!open) atualizarProfissional.reset();
@@ -324,6 +336,7 @@ export default function UsuarioDetailPage({ params }: { params: Promise<{ id: st
       )}
       {isPaciente && (
         <VincularProfissionalDialog
+          key={`vincular-${dialogAberto === "vincular"}`}
           open={dialogAberto === "vincular"}
           onOpenChange={(open) => {
             if (!open) vincular.reset();

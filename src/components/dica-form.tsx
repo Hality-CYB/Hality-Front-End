@@ -43,6 +43,7 @@ export function DicaForm({ dica, onSalvar, salvando = false, erro }: DicaFormPro
   const [ordem, setOrdem] = useState(dica?.ordem ?? 0);
 
   const formatoEditavel = formato !== "outro";
+  const jaPublicado = dica?.publicado ?? false;
   const podeSalvar =
     titulo.trim().length > 0 &&
     categoria !== "" &&
@@ -218,6 +219,7 @@ export function DicaForm({ dica, onSalvar, salvando = false, erro }: DicaFormPro
 
       {erro && <Alert type="error" message={erro} />}
 
+      {/* Num conteúdo já publicado, salvar mantém no ar; tirar do ar é uma ação à parte. */}
       <div className="flex gap-2.5">
         <Button
           variant="secondary"
@@ -225,7 +227,7 @@ export function DicaForm({ dica, onSalvar, salvando = false, erro }: DicaFormPro
           onClick={() => salvar(false)}
           className="flex-1"
         >
-          Salvar rascunho
+          {jaPublicado ? "Tirar do ar" : "Salvar rascunho"}
         </Button>
         <Button
           variant="success"
@@ -233,7 +235,7 @@ export function DicaForm({ dica, onSalvar, salvando = false, erro }: DicaFormPro
           onClick={() => salvar(true)}
           className="flex-1"
         >
-          <Check className="h-4 w-4" /> Publicar
+          <Check className="h-4 w-4" /> {jaPublicado ? "Salvar" : "Publicar"}
         </Button>
       </div>
     </div>

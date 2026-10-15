@@ -124,7 +124,9 @@ export default function UsuariosPage() {
         />
       </div>
 
+      {/* Remonta a cada abertura: não reaproveita nome, e-mail e senha do cadastro anterior. */}
       <CriarUsuarioDialog
+        key={`criar-${criarAberto}`}
         open={criarAberto}
         onOpenChange={setCriarAberto}
         salvando={criar.isPending}

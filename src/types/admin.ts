@@ -124,117 +124,221 @@ export function adaptBackendAdminVinculoList(
   return adaptPagina(data, adaptBackendAdminVinculo);
 }
 
-// --- Diagnósticos (`/admin/diagnosticos`) ---
+// --- Diagnósticos (`/admin/diagnosticos`, contrato da #159 do back) ---
 
 const classificacaoResumoSchema = z
   .object({ codigo: z.string(), nome_exibicao: z.string(), ordem: z.number() })
   .nullable();
 
+const automaticaSchema = z.object({
+  classificacao: classificacaoResumoSchema,
+  escala_saburra: z.number().nullable(),
+  confianca_ia: z.number().nullable(),
+});
+
+/** Revisão vigente: a última do histórico (ou os campos legados do diagnóstico). */
+const revisaoAdminSchema = z.object({
+  status: z.enum(["pendente", "concluida"]),
+  profissional_revisor_id: z.string().nullable(),
+  profissional_revisor_nome: z.string().nullable(),
+  data_revisao: z.string().nullable(),
+  classificacao: classificacaoResumoSchema,
+  observacoes: z.string().nullable(),
+});
+
+const pacienteAdminSchema = z.object({ id: z.string(), nome: z.string() });
+
 export const backendAdminDiagnosticoItemSchema = z.object({
   id: z.number(),
   paciente_id: z.string(),
-  data_diagnostico: z.string(),
+  paciente: pacienteAdminSchema,
+  data: z.string(),
   status: statusDiagnosticoSchema,
-  classificacao: classificacaoResumoSchema,
-  tem_revisao: z.boolean(),
+  automatica: automaticaSchema,
+  revisao: revisaoAdminSchema,
+  qtd_imagens: z.number(),
 });
 export const backendAdminDiagnosticoListSchema = paginaSchema(backendAdminDiagnosticoItemSchema);
 
+export type RevisaoAdmin = {
+  revisado: boolean;
+  revisorId: string | null;
+  revisorNome: string | null;
+  revisadoEm: string | null;
+  /** Nível dado pelo profissional; nulo em revisão legada (sem classificação gravada). */
+  nivel: DiagnosticoNivel | null;
+  observacoes: string | null;
+};
+
 /**
- * Item da listagem do admin.
- * TODO(backend): `nivelIA` é a classificação automática — o back do admin não
- * devolve o nível revisado, então aqui a regra "revisado > IA" não vale ainda.
- * TODO(backend): o item não traz o nome do paciente, só o id.
+ * Item da listagem do admin. `nivel` é o que vale (revisado > IA); `nivelIA`
+ * fica para mostrar quando a revisão mudou o resultado.
  */
 export type DiagnosticoAdminResumo = {
   id: string;
   pacienteId: string;
+  pacienteNome: string;
   criadoEm: string;
   status: StatusDiagnostico;
+  nivel: DiagnosticoNivel | null;
   nivelIA: DiagnosticoNivel | null;
-  revisado: boolean;
+  /** A revisão mudou o nível dado pela IA. */
+  nivelCorrigido: boolean;
+  revisao: RevisaoAdmin;
+  qtdImagens: number;
 };
+
+function adaptRevisaoAdmin(data: z.infer<typeof revisaoAdminSchema>): RevisaoAdmin {
+  return {
+    revisado: data.status === "concluida",
+    revisorId: data.profissional_revisor_id,
+    revisorNome: data.profissional_revisor_nome,
+    revisadoEm: data.data_revisao,
+    nivel: nivelDaOrdem(data.classificacao?.ordem),
+    observacoes: data.observacoes,
+  };
+}
+
+/** Revisado prevalece sobre a IA, igual ao detalhe do paciente e do profissional. */
+function niveisDoDiagnostico(
+  automatica: z.infer<typeof automaticaSchema>,
+  revisao: RevisaoAdmin,
+): Pick<DiagnosticoAdminResumo, "nivel" | "nivelIA" | "nivelCorrigido"> {
+  const nivelIA = nivelDaOrdem(automatica.classificacao?.ordem);
+  const nivel = revisao.nivel ?? nivelIA;
+  return { nivel, nivelIA, nivelCorrigido: revisao.nivel !== null && revisao.nivel !== nivelIA };
+}
+
+function adaptItemAdmin(item: z.infer<typeof backendAdminDiagnosticoItemSchema>) {
+  const revisao = adaptRevisaoAdmin(item.revisao);
+  return {
+    id: String(item.id),
+    pacienteId: item.paciente_id,
+    pacienteNome: item.paciente.nome,
+    criadoEm: item.data,
+    status: item.status,
+    ...niveisDoDiagnostico(item.automatica, revisao),
+    revisao,
+    qtdImagens: item.qtd_imagens,
+  };
+}
 
 export function adaptBackendAdminDiagnosticoList(
   data: z.infer<typeof backendAdminDiagnosticoListSchema>,
 ): Pagina<DiagnosticoAdminResumo> {
-  return adaptPagina(data, (item) => ({
-    id: String(item.id),
-    pacienteId: item.paciente_id,
-    criadoEm: item.data_diagnostico,
-    status: item.status,
-    nivelIA: nivelDaOrdem(item.classificacao?.ordem),
-    revisado: item.tem_revisao,
-  }));
+  return adaptPagina(data, adaptItemAdmin);
 }
+
+const indisponivelSchema = z.object({ disponivel: z.boolean(), motivo: z.string() });
 
 export const backendAdminDiagnosticoDetalheSchema = z.object({
   id: z.number(),
   paciente_id: z.string(),
-  data_diagnostico: z.string(),
+  paciente: pacienteAdminSchema,
+  data: z.string(),
   status: statusDiagnosticoSchema,
   erro: z.string().nullable(),
-  automatica: z.object({
-    classificacao: classificacaoResumoSchema,
-    escala_saburra: z.number().nullable(),
-    confianca_ia: z.number().nullable(),
-  }),
-  revisao: z
-    .object({
+  automatica: automaticaSchema,
+  revisao: revisaoAdminSchema,
+  historico_revisoes: z.array(
+    z.object({
       profissional_revisor_id: z.string(),
+      profissional_revisor_nome: z.string().nullable(),
       data_revisao: z.string(),
+      classificacao: classificacaoResumoSchema,
       observacoes: z.string().nullable(),
-    })
-    .nullable(),
-  dataset: z.object({ disponivel: z.boolean(), motivo: z.string() }),
-  anamnese_id: z.number(),
+    }),
+  ),
+  dataset: indisponivelSchema,
+  imagem: indisponivelSchema,
+  anamnese_id: z.number().nullable(),
   qtd_imagens: z.number(),
 });
 
 /**
  * Detalhe do admin. O back não expõe de propósito as respostas da anamnese
- * nem as URLs das imagens (só a referência e a contagem).
- * TODO(backend): a revisão traz só o id do revisor (sem nome) e não traz o
- * nível revisado.
+ * nem as imagens (`imagem.disponivel` é sempre false por enquanto).
  */
-export type DiagnosticoAdminDetalhe = {
-  id: string;
-  pacienteId: string;
-  criadoEm: string;
-  status: StatusDiagnostico;
+export type DiagnosticoAdminDetalhe = Omit<DiagnosticoAdminResumo, "qtdImagens"> & {
   erro: string | null;
-  nivelIA: DiagnosticoNivel | null;
   escalaSaburra: number | null;
   confiancaIA: number | null;
-  revisao: { revisorId: string; revisadoEm: string; observacoes: string | null } | null;
+  historico: Omit<RevisaoAdmin, "revisado">[];
+  imagem: { disponivel: boolean; motivo: string };
   dataset: { disponivel: boolean; motivo: string };
-  anamneseId: string;
+  anamneseId: string | null;
   qtdImagens: number;
 };
 
 export function adaptBackendAdminDiagnosticoDetalhe(
   data: z.infer<typeof backendAdminDiagnosticoDetalheSchema>,
 ): DiagnosticoAdminDetalhe {
+  const revisao = adaptRevisaoAdmin(data.revisao);
   return {
     id: String(data.id),
     pacienteId: data.paciente_id,
-    criadoEm: data.data_diagnostico,
+    pacienteNome: data.paciente.nome,
+    criadoEm: data.data,
     status: data.status,
     erro: data.erro,
-    nivelIA: nivelDaOrdem(data.automatica.classificacao?.ordem),
+    ...niveisDoDiagnostico(data.automatica, revisao),
     escalaSaburra: data.automatica.escala_saburra,
     // O back manda fração (0-1); a tela mostra porcentagem.
     confiancaIA:
       data.automatica.confianca_ia === null ? null : Math.round(data.automatica.confianca_ia * 100),
-    revisao: data.revisao
-      ? {
-          revisorId: data.revisao.profissional_revisor_id,
-          revisadoEm: data.revisao.data_revisao,
-          observacoes: data.revisao.observacoes,
-        }
-      : null,
+    revisao,
+    historico: data.historico_revisoes.map((r) => ({
+      revisorId: r.profissional_revisor_id,
+      revisorNome: r.profissional_revisor_nome,
+      revisadoEm: r.data_revisao,
+      nivel: nivelDaOrdem(r.classificacao?.ordem),
+      observacoes: r.observacoes,
+    })),
+    imagem: data.imagem,
     dataset: data.dataset,
-    anamneseId: String(data.anamnese_id),
+    anamneseId: data.anamnese_id === null ? null : String(data.anamnese_id),
     qtdImagens: data.qtd_imagens,
+  };
+}
+
+// --- Resumo (`GET /admin/resumo`, #158 do back) ---
+
+export const backendAdminResumoSchema = z.object({
+  periodo: z.object({ inicio: z.string(), fim: z.string(), timezone: z.string() }),
+  diagnosticos: z.object({
+    total: z.number(),
+    /** Chave = id da classificação no banco (não o nível 1-3) ou "sem_classificacao". */
+    por_classificacao: z.record(z.string(), z.number()),
+    por_status: z.record(z.string(), z.number()),
+  }),
+  revisao: z.object({ pendentes: z.number(), revisados: z.number() }),
+  /** Nulo até a regra clínica de com/sem halitose ser decidida. */
+  halitose: z.record(z.string(), z.number()).nullable(),
+});
+
+/**
+ * Números do painel do admin no período (padrão do back: últimos 30 dias, DEC-05).
+ * TODO(backend): a contagem por classificação vem pelo id da tabela, sem
+ * dizer qual id é qual nível, então ainda não é usada.
+ */
+export type ResumoAdmin = {
+  inicio: string;
+  fim: string;
+  totalDiagnosticos: number;
+  porStatus: Partial<Record<StatusDiagnostico, number>>;
+  pendentes: number;
+  revisados: number;
+};
+
+export function adaptBackendAdminResumo(
+  data: z.infer<typeof backendAdminResumoSchema>,
+): ResumoAdmin {
+  return {
+    inicio: data.periodo.inicio,
+    fim: data.periodo.fim,
+    totalDiagnosticos: data.diagnosticos.total,
+    porStatus: data.diagnosticos.por_status,
+    pendentes: data.revisao.pendentes,
+    revisados: data.revisao.revisados,
   };
 }

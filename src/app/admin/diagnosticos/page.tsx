@@ -40,9 +40,9 @@ function useTotal(filtro: Parameters<typeof useDiagnosticosAdmin>[0]) {
 
 /*
  * TODO(backend): a busca por nome de paciente/profissional que existia aqui
- * saiu — `/admin/diagnosticos` não filtra por nome e o item não traz o nome do
- * paciente. A seleção para "Exportar dataset" também saiu: o back marca o
- * dataset como indisponível (DEC-04/DEC-07) e não há rota de exportação.
+ * saiu — `/admin/diagnosticos` não filtra por nome. A seleção para "Exportar
+ * dataset" também saiu: o back marca o dataset como indisponível
+ * (DEC-04/DEC-07) e não há rota de exportação.
  */
 export default function DiagnosticosAdminPage() {
   const [filtroStatus, setFiltroStatus] = useState<StatusDiagnostico | "todos">("todos");
@@ -171,7 +171,6 @@ export default function DiagnosticosAdminPage() {
             <DiagnosticoAdminCard
               key={d.id}
               diagnostico={d}
-              titulo={`Diagnóstico #${d.id}`}
               href={`/admin/diagnosticos/${d.id}?voltar=/admin/diagnosticos`}
             />
           ))}

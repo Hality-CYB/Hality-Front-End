@@ -8,6 +8,7 @@ import { usuarioService } from "@/services/usuario-service";
 import { vinculoService } from "@/services/vinculo-service";
 import { diagnosticoService } from "@/services/diagnostico-service";
 import { dicaService } from "@/services/dica-service";
+import { adminService } from "@/services/admin-service";
 import { adaptBackendConteudoAdmin, type BackendConteudoAdmin } from "@/types/dica";
 
 /**
@@ -191,53 +192,145 @@ describe("vinculoService", () => {
 });
 
 describe("diagnosticoService (admin)", () => {
-  it("filtra a classificação pelo código e converte a confiança para porcentagem", async () => {
+  const classificacao = (ordem: 1 | 2 | 3) => ({
+    codigo: ["halito_normal", "halitose_intima", "mau_halito_social"][ordem - 1],
+    nome_exibicao: "x",
+    ordem,
+  });
+  const revisaoConcluida = {
+    status: "concluida",
+    profissional_revisor_id: "prof-1",
+    profissional_revisor_nome: "Dra. Ana",
+    data_revisao: "2026-10-02T10:00:00Z",
+    classificacao: classificacao(3),
+    observacoes: "ok",
+  };
+  const item = {
+    id: 7,
+    paciente_id: "p-1",
+    paciente: { id: "p-1", nome: "Carla" },
+    data: "2026-10-01T10:00:00Z",
+    status: "concluido",
+    automatica: { classificacao: classificacao(2), escala_saburra: 40, confianca_ia: 0.87 },
+    revisao: revisaoConcluida,
+    qtd_imagens: 1,
+  };
+
+  it("filtra a classificação pelo código e mostra o nível revisado no lugar do da IA", async () => {
     let query: URLSearchParams | undefined;
     server.use(
       http.get(url("/api/v1/admin/diagnosticos"), ({ request }) => {
         query = new URL(request.url).searchParams;
-        return HttpResponse.json({ itens: [], pagina: 1, limite: 20, total: 0, total_paginas: 0 });
+        return HttpResponse.json({
+          itens: [
+            item,
+            {
+              ...item,
+              id: 8,
+              status: "aguardando_revisao",
+              revisao: {
+                status: "pendente",
+                profissional_revisor_id: null,
+                profissional_revisor_nome: null,
+                data_revisao: null,
+                classificacao: null,
+                observacoes: null,
+              },
+            },
+          ],
+          pagina: 1,
+          limite: 20,
+          total: 2,
+          total_paginas: 1,
+        });
       }),
+    );
+
+    const pagina = await diagnosticoService.listarAdmin({ classificacao: 3, status: "concluido" });
+
+    expect(query?.get("classificacao")).toBe("mau_halito_social");
+    expect(query?.get("status")).toBe("concluido");
+    expect(pagina.itens[0]).toMatchObject({
+      pacienteNome: "Carla",
+      nivel: 3,
+      nivelIA: 2,
+      nivelCorrigido: true,
+      revisao: { revisado: true, revisorNome: "Dra. Ana", nivel: 3 },
+    });
+    expect(pagina.itens[1]).toMatchObject({
+      nivel: 2,
+      nivelIA: 2,
+      nivelCorrigido: false,
+      revisao: { revisado: false, nivel: null },
+    });
+  });
+
+  it("no detalhe, converte a confiança e traz o histórico com o nome do revisor", async () => {
+    server.use(
       http.get(url("/api/v1/admin/diagnosticos/7"), () =>
         HttpResponse.json({
-          id: 7,
-          paciente_id: "p-1",
-          data_diagnostico: "2026-10-01T10:00:00Z",
-          status: "concluido",
+          ...item,
           erro: null,
-          automatica: {
-            classificacao: {
-              codigo: "halitose_intima",
-              nome_exibicao: "Halitose Íntima",
-              ordem: 2,
+          historico_revisoes: [
+            {
+              profissional_revisor_id: "prof-1",
+              profissional_revisor_nome: "Dra. Ana",
+              data_revisao: "2026-10-02T10:00:00Z",
+              classificacao: classificacao(3),
+              observacoes: "ok",
             },
-            escala_saburra: 40,
-            confianca_ia: 0.87,
-          },
-          revisao: {
-            profissional_revisor_id: "prof-1",
-            data_revisao: "2026-10-02T10:00:00Z",
-            observacoes: "ok",
-          },
-          dataset: { disponivel: false, motivo: "indisponível" },
-          anamnese_id: 3,
-          qtd_imagens: 1,
+          ],
+          dataset: { disponivel: false, motivo: "exportacao_fora_do_escopo" },
+          imagem: { disponivel: false, motivo: "politica_de_acesso_pendente" },
+          anamnese_id: null,
         }),
       ),
     );
 
-    await diagnosticoService.listarAdmin({ classificacao: 3, status: "concluido" });
     const detalhe = await diagnosticoService.buscarAdmin("7");
 
-    expect(query?.get("classificacao")).toBe("mau_halito_social");
-    expect(query?.get("status")).toBe("concluido");
     expect(detalhe).toMatchObject({
+      pacienteNome: "Carla",
+      nivel: 3,
       nivelIA: 2,
       confiancaIA: 87,
       escalaSaburra: 40,
-      revisao: { revisorId: "prof-1", observacoes: "ok" },
-      anamneseId: "3",
+      anamneseId: null,
+      historico: [{ revisorNome: "Dra. Ana", nivel: 3 }],
     });
+  });
+
+  it("no mock, a revisão do profissional vira o nível do admin", async () => {
+    const pagina = await diagnosticoService.listarAdmin({ limite: 50 });
+    const revisado = pagina.itens.find((d) => d.revisao.revisado);
+    expect(revisado?.pacienteNome).not.toBe("");
+    expect(revisado?.nivel).toBe(revisado?.revisao.nivel ?? revisado?.nivelIA);
+  });
+});
+
+describe("adminService.resumo", () => {
+  it("manda o fuso e adapta os números do período", async () => {
+    let query: URLSearchParams | undefined;
+    server.use(
+      http.get(url("/api/v1/admin/resumo"), ({ request }) => {
+        query = new URL(request.url).searchParams;
+        return HttpResponse.json({
+          periodo: { inicio: "2026-09-15T00:00:00Z", fim: "2026-10-15T00:00:00Z", timezone: "UTC" },
+          diagnosticos: {
+            total: 9,
+            por_classificacao: { "11": 4, sem_classificacao: 5 },
+            por_status: { concluido: 3, aguardando_revisao: 6 },
+          },
+          revisao: { pendentes: 6, revisados: 3 },
+          halitose: null,
+        });
+      }),
+    );
+
+    const resumo = await adminService.resumo();
+
+    expect(query?.get("timezone")).toBeTruthy();
+    expect(resumo).toMatchObject({ totalDiagnosticos: 9, pendentes: 6, revisados: 3 });
   });
 });
 
@@ -273,6 +366,36 @@ describe("dicaService e adaptBackendConteudoAdmin", () => {
         conteudo: { itens: [{ tipo: "protocolo_tratamento", descricao: "Mensal" }] },
       }),
     ).toMatchObject({ formato: "outro", corpo: "Mensal", classificacaoIds: [13] });
+  });
+
+  it("lista paginada: manda filtros em inglês e adapta a página", async () => {
+    let query: URLSearchParams | undefined;
+    server.use(
+      http.get(url("/api/v1/admin/conteudos"), ({ request }) => {
+        query = new URL(request.url).searchParams;
+        return HttpResponse.json({ items: [base], total: 21, page: 2, limit: 20, has_next: false });
+      }),
+    );
+
+    const pagina = await dicaService.listar({
+      pagina: 2,
+      limite: 20,
+      busca: " lingua ",
+      publicado: false,
+      mostrarNaHome: true,
+      ordem: "ordem_asc",
+    });
+
+    expect(Object.fromEntries(query!)).toEqual({
+      page: "2",
+      limit: "20",
+      q: "lingua",
+      status: "rascunho",
+      aparece_na_home: "true",
+      order: "ordem_asc",
+    });
+    expect(pagina).toMatchObject({ pagina: 2, total: 21, totalPaginas: 2 });
+    expect(pagina.itens[0]).toMatchObject({ id: "1", formato: "texto" });
   });
 
   it("na edição sem formato, não reescreve o corpo; publicar vira status", async () => {

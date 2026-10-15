@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Shield, Users, Beaker, CircleCheck, Lightbulb, Plus } from "lucide-react";
+import { Shield, Users, Beaker, CircleCheck, Clock, Lightbulb, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/status-badge";
 import { DiagnosticoAdminCard } from "@/components/diagnostico-admin-card";
 import { useUsuarios } from "@/hooks/use-usuarios";
 import { useDiagnosticosAdmin } from "@/hooks/use-diagnosticos";
+import { useResumoAdmin } from "@/hooks/use-admin";
 import { useDicas } from "@/hooks/use-dicas";
 import { useSessaoAtual } from "@/lib/auth/session-context";
 import { roleLabel, roleBadgeStatus } from "@/lib/role-format";
@@ -47,23 +48,23 @@ const ACOES_RAPIDAS = [
 
 export default function AdminHomePage() {
   const { nome } = useSessaoAtual();
-  // Os números vêm do `total` das listas paginadas (`limite: 1`): o back não tem rota de resumo do admin.
-  const totalUsuarios = useUsuarios({ limite: 1 }).data?.total;
+  // Usuários e dicas: `total` das listas paginadas (`limite: 1`). Diagnósticos: `GET /admin/resumo`.
   const porPapel = {
     paciente: useUsuarios({ role: "paciente", limite: 1 }).data?.total,
     profissional: useUsuarios({ role: "profissional", limite: 1 }).data?.total,
     admin: useUsuarios({ role: "admin", limite: 1 }).data?.total,
   };
-  const totalDiagnosticos = useDiagnosticosAdmin({ limite: 1 }).data?.total;
-  const totalRevisados = useDiagnosticosAdmin({ status: "concluido", limite: 1 }).data?.total;
+  const { data: resumo } = useResumoAdmin();
   const recentes = useDiagnosticosAdmin({ limite: 3 }).data?.itens ?? [];
-  const { data: dicas } = useDicas();
+  // A fila de revisão é a inteira: o resumo só conta pendentes criados nos 30 dias.
+  const pendentes = useDiagnosticosAdmin({ status: "aguardando_revisao", limite: 1 }).data?.total;
+  const dicasPublicadas = useDicas({ publicado: true, limite: 1 }).data?.total;
 
   const stats = [
-    { valor: totalUsuarios, label: "usuários", Icon: Users },
-    { valor: totalDiagnosticos, label: "diagnósticos", Icon: Beaker },
-    { valor: totalRevisados, label: "revisados", Icon: CircleCheck },
-    { valor: dicas?.filter((d) => d.publicado).length, label: "dicas publicadas", Icon: Lightbulb },
+    { valor: resumo?.totalDiagnosticos, label: "diagnósticos em 30 dias", Icon: Beaker },
+    { valor: pendentes, label: "aguardando revisão", Icon: Clock },
+    { valor: resumo?.revisados, label: "revisados em 30 dias", Icon: CircleCheck },
+    { valor: dicasPublicadas, label: "dicas publicadas", Icon: Lightbulb },
   ];
 
   return (
@@ -155,7 +156,6 @@ export default function AdminHomePage() {
               <DiagnosticoAdminCard
                 key={d.id}
                 diagnostico={d}
-                titulo={`Diagnóstico #${d.id}`}
                 href={`/admin/diagnosticos/${d.id}?voltar=/admin`}
               />
             ))}
