@@ -42,6 +42,11 @@ type RevisaoMock = {
 };
 let proximaRevisaoId = 1;
 const revisoes = new Map<string, RevisaoMock[]>();
+
+/** Histórico de revisões (mais antiga primeiro), para o espelho de `/admin/diagnosticos`. */
+export function historicoRevisoesMock(diagnosticoId: string): readonly RevisaoMock[] {
+  return revisoes.get(diagnosticoId) ?? [];
+}
 for (const d of diagnosticos) {
   if (d.revisadoPor && d.nivel !== null) {
     revisoes.set(d.id, [

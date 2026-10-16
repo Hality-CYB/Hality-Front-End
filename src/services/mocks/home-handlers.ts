@@ -1,6 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { config } from "@/lib/config";
-import { seedUsuarios, seedDicas } from "@/services/mocks/seed-data";
+
+import { conteudosMock, usuariosMock } from "@/services/mocks/mock-db";
 import { diagnosticosMock, PACIENTE_MOCK_ID } from "@/services/mocks/mock-db";
 import { mapFrontendRoleToBackend } from "@/types/usuario";
 import { nivelLabel } from "@/lib/level-format";
@@ -11,7 +12,7 @@ export const homeHandlers = [
   http.get(url("/api/v1/home"), ({ request }) => {
     const auth = request.headers.get("authorization") ?? "";
     const usuarioId = auth.replace(/^Bearer mock-token:/, "");
-    const usuario = seedUsuarios.find((u) => u.id === usuarioId);
+    const usuario = usuariosMock.find((u) => u.id === usuarioId);
     if (!usuario) return new HttpResponse(null, { status: 401 });
 
     // Mesma simplificação de diagnosticos-handlers.ts: mock não segmenta
@@ -38,14 +39,15 @@ export const homeHandlers = [
             escala_saburra: null,
           }
         : null,
-      dicas: seedDicas
-        .filter((d) => d.publicado && d.mostrarNaHome)
+      // Mesmos conteúdos que o admin edita em /admin/conteudos.
+      dicas: conteudosMock
+        .filter((c) => c.status === "publicado" && c.aparece_na_home)
         .sort((a, b) => a.ordem - b.ordem)
-        .map((d, index) => ({
-          id: index + 1,
-          titulo: d.titulo,
-          categoria: d.categoria,
-          conteudo: { itens: [{ tipo: "texto", texto: d.corpo }] },
+        .map((c) => ({
+          id: c.id,
+          titulo: c.titulo,
+          categoria: c.categoria,
+          conteudo: c.conteudo,
         })),
     });
   }),

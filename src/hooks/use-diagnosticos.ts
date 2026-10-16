@@ -4,6 +4,7 @@ import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tansta
 import {
   diagnosticoService,
   type FiltroDiagnosticos,
+  type FiltroDiagnosticosAdmin,
   type FiltroDiagnosticosProfissional,
 } from "@/services/diagnostico-service";
 import type { DiagnosticoNivel, DiagnosticoProfissional } from "@/types/diagnostico";
@@ -97,5 +98,32 @@ export function useRevisarDiagnostico() {
       queryClient.invalidateQueries({ queryKey: ["pacientes"] });
       queryClient.invalidateQueries({ queryKey: ["profissional", "resumo"] });
     },
+  });
+}
+
+export function useDiagnosticosAdmin(filtro: FiltroDiagnosticosAdmin = {}) {
+  return useQuery({
+    queryKey: ["diagnosticos", "admin", "lista", filtro],
+    queryFn: () => diagnosticoService.listarAdmin(filtro),
+  });
+}
+
+export function useDiagnosticosAdminPaginados(
+  filtro: Omit<FiltroDiagnosticosAdmin, "pagina"> = {},
+) {
+  return useInfiniteQuery({
+    queryKey: ["diagnosticos", "admin", "paginado", filtro],
+    queryFn: ({ pageParam }) => diagnosticoService.listarAdmin({ ...filtro, pagina: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (ultima) =>
+      ultima.pagina < ultima.totalPaginas ? ultima.pagina + 1 : undefined,
+  });
+}
+
+export function useDiagnosticoAdmin(id: string) {
+  return useQuery({
+    queryKey: ["diagnosticos", "admin", id],
+    queryFn: () => diagnosticoService.buscarAdmin(id),
+    enabled: !!id,
   });
 }

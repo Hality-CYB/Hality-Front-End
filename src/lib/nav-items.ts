@@ -41,7 +41,7 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
   admin: [
     { href: "/admin", icon: ChartColumn, label: "Início" },
     { href: "/admin/usuarios", icon: Users, label: "Usuários" },
-    { href: "/admin/validacao", icon: Beaker, label: "Diagnósticos" },
+    { href: "/admin/diagnosticos", icon: Beaker, label: "Diagnósticos" },
     { href: "/admin/dicas", icon: Lightbulb, label: "Conteúdo" },
   ],
 };

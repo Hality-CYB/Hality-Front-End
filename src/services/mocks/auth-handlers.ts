@@ -1,10 +1,12 @@
 import { http, HttpResponse } from "msw";
 import { z } from "zod";
 import { config } from "@/lib/config";
-import { seedProfissionais, seedUsuarios } from "@/services/mocks/seed-data";
+import {
+  atualizarUsuarioMock,
+  perfisProfissionaisMock,
+  usuariosMock,
+} from "@/services/mocks/mock-db";
 import { mapFrontendRoleToBackend, type Usuario, type BackendUser } from "@/types/usuario";
-
-const usuarios = [...seedUsuarios];
 
 /** Senha de todo usuário mockado até ele trocar pela tela "Alterar senha". */
 export const SENHA_MOCK = "123456";
@@ -20,14 +22,6 @@ const alterarSenhaSchema = z
   .object({ senha_atual: z.string().min(1), nova_senha: z.string().min(SENHA_TAMANHO_MINIMO) })
   .strict();
 const url = (path: string) => `${config.apiBaseUrl}${path}`;
-
-type PerfilProfissionalMock = { registro: string | null; especialidade: string | null };
-const perfisProfissionais = new Map<string, PerfilProfissionalMock>(
-  seedProfissionais.map((p) => [
-    p.id,
-    { registro: p.registroProfissional, especialidade: p.especialidade ?? null },
-  ]),
-);
 
 /** Espelha `UserUpdate` do back (#93): campos fora da lista são recusados com 422. */
 const atualizarPerfilSchema = z
@@ -51,7 +45,14 @@ const atualizarPerfilSchema = z
  * seedUsuarios, só na resposta do registro).
  */
 export function adicionarUsuarioMock(usuario: Usuario): void {
-  usuarios.push(usuario);
+  usuariosMock.push(usuario);
+}
+
+/** Login mockado: como o back, usuário desativado pelo admin não entra. */
+export function usuarioMockParaLogin(email: string, senha: string): Usuario | null {
+  const usuario = usuariosMock.find((u) => u.email.toLowerCase() === email.toLowerCase());
+  if (!usuario || usuario.ativo === false || senha !== senhaMockDe(usuario.id)) return null;
+  return usuario;
 }
 
 /**
@@ -62,23 +63,24 @@ export function adicionarUsuarioMock(usuario: Usuario): void {
 export function usuarioDoRequest(request: Request): Usuario | undefined {
   const auth = request.headers.get("authorization") ?? "";
   const usuarioId = auth.replace(/^Bearer mock-token:/, "");
-  return usuarios.find((u) => u.id === usuarioId);
+  return usuariosMock.find((u) => u.id === usuarioId);
 }
 
 function paraBackendUser(usuario: Usuario): BackendUser {
-  const perfil = usuario.role === "profissional" ? perfisProfissionais.get(usuario.id) : undefined;
+  const perfil =
+    usuario.role === "profissional" ? perfisProfissionaisMock.get(usuario.id) : undefined;
   return {
     id: usuario.id,
     email: usuario.email,
     name: usuario.nome,
     phone: usuario.telefone ?? null,
     role: mapFrontendRoleToBackend(usuario.role),
-    is_active: true,
+    is_active: usuario.ativo ?? true,
     profissional: perfil
       ? {
           registro_profissional: perfil.registro,
           especialidade: perfil.especialidade,
-          vinculado_hality: false,
+          vinculado_hality: perfil.vinculadoHality,
         }
       : null,
   };
@@ -107,16 +109,19 @@ export const authHandlers = [
       );
     }
 
-    const index = usuarios.findIndex((u) => u.id === usuario.id);
-    const atualizado: Usuario = {
-      ...usuario,
-      ...(body.data.name !== undefined ? { nome: body.data.name } : {}),
-      ...(body.data.phone !== undefined ? { telefone: body.data.phone } : {}),
-    };
-    usuarios[index] = atualizado;
+    const atualizado =
+      atualizarUsuarioMock(usuario.id, {
+        ...(body.data.name !== undefined ? { nome: body.data.name } : {}),
+        ...(body.data.phone !== undefined ? { telefone: body.data.phone } : {}),
+      }) ?? usuario;
     if (body.data.profissional) {
-      const atual = perfisProfissionais.get(usuario.id) ?? { registro: null, especialidade: null };
-      perfisProfissionais.set(usuario.id, {
+      const atual = perfisProfissionaisMock.get(usuario.id) ?? {
+        registro: null,
+        especialidade: null,
+        vinculadoHality: false,
+      };
+      perfisProfissionaisMock.set(usuario.id, {
+        vinculadoHality: atual.vinculadoHality,
         registro:
           body.data.profissional.registro_profissional !== undefined
             ? body.data.profissional.registro_profissional
