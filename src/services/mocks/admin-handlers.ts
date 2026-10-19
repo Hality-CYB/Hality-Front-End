@@ -394,6 +394,8 @@ export const adminHandlers = [
     const { params, pagina, limite } = paginacao(request);
     const pacienteId = params.get("paciente_id");
     const classificacao = params.get("classificacao");
+    // filtro dos que a IA ainda não classificou
+    const semClassificacao = params.get("sem_classificacao") === "true";
     const status = params.get("status");
     const inicio = params.get("data_inicio");
     const fim = params.get("data_fim");
@@ -403,6 +405,7 @@ export const adminHandlers = [
       .filter(
         (d) => !classificacao || (d.nivel !== null && CODIGO_POR_NIVEL[d.nivel] === classificacao),
       )
+      .filter((d) => !semClassificacao || d.nivel === null)
       .filter((d) => !status || d.status === status)
       .filter((d) => !inicio || d.criadoEm.slice(0, 10) >= inicio)
       .filter((d) => !fim || d.criadoEm.slice(0, 10) <= fim)
