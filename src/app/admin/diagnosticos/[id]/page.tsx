@@ -50,8 +50,10 @@ export default function DiagnosticoDetailAdminPage({
 
   const { data: diagnostico, isError, error, refetch } = useDiagnosticoAdmin(id);
 
+  // se deu erro, mostra o aviso de cada caso
   if (isError) {
     const status = error instanceof ApiError ? error.status : null;
+    // no 403 e no 404 não adianta tentar de novo
     const mensagem =
       status === 404
         ? "Diagnóstico não encontrado."
@@ -74,6 +76,7 @@ export default function DiagnosticoDetailAdminPage({
       </div>
     );
   }
+  // enquanto não chega, mostra o carregando
   if (!diagnostico) {
     return (
       <p role="status" className="text-muted-foreground p-4 text-sm">
