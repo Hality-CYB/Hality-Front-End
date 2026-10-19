@@ -36,6 +36,7 @@ const NIVEIS: { nivel: DiagnosticoNivel; label: string }[] = [
   { nivel: 3, label: "Social" },
 ];
 
+// 403 é quando o usuário não tem permissão
 function semPermissao(erro: unknown) {
   return erro instanceof ApiError && erro.status === 403;
 }
@@ -72,6 +73,7 @@ export default function DiagnosticosAdminPage() {
   });
   const diagnosticos = lista.data?.pages.flatMap((p) => p.itens) ?? [];
 
+  // cor do quadrado de sem classificação
   const corSem = nivelColor(null);
 
   const contagem = {
@@ -80,6 +82,7 @@ export default function DiagnosticosAdminPage() {
     1: useTotal({ ...filtroPeriodo, classificacao: 1 }),
     2: useTotal({ ...filtroPeriodo, classificacao: 2 }),
     3: useTotal({ ...filtroPeriodo, classificacao: 3 }),
+    // total dos que a IA ainda não classificou
     sem: useTotal({ ...filtroPeriodo, semClassificacao: true }),
   };
 
