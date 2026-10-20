@@ -44,6 +44,15 @@ export const backendConteudoAdminSchema = z.object({
 });
 export type BackendConteudoAdmin = z.infer<typeof backendConteudoAdminSchema>;
 
+/** `GET /admin/conteudos` paginado (#144 do back; nomes em inglês lá). */
+export const backendConteudoListSchema = z.object({
+  items: z.array(backendConteudoAdminSchema),
+  total: z.number(),
+  page: z.number(),
+  limit: z.number(),
+  has_next: z.boolean(),
+});
+
 /**
  * Blocos que o formulário sabe montar. O back aceita qualquer `tipo` de bloco;
  * `imagem` e `video` com `url` + `legenda` são convenção do front. Conteúdo

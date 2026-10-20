@@ -18,6 +18,8 @@ import {
   Unlink,
   CircleCheck,
 } from "lucide-react";
+import { CarregandoPagina, ErroPagina } from "@/components/estado-pagina";
+import { ehNaoEncontrado } from "@/lib/erros";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
@@ -69,7 +71,7 @@ export default function UsuarioDetailPage({ params }: { params: Promise<{ id: st
   const buscaProfissionalAdiada = useDeferredValue(buscaProfissional);
 
   const sessao = useSessaoAtual();
-  const { data: usuario, isError } = useUsuario(id);
+  const { data: usuario, isError, error: erro, refetch } = useUsuario(id);
   const isPaciente = usuario?.role === "paciente";
   const vinculos = useVinculos(
     { pacienteId: id, ativo: true, limite: 50 },
@@ -86,12 +88,19 @@ export default function UsuarioDetailPage({ params }: { params: Promise<{ id: st
 
   if (isError) {
     return (
-      <div className="p-4">
-        <Alert type="error" message="Usuário não encontrado." />
-      </div>
+      <ErroPagina
+        titulo={ehNaoEncontrado(erro) ? "Usuário não encontrado" : "Não foi possível carregar"}
+        descricao={
+          ehNaoEncontrado(erro)
+            ? "Ele pode ter sido removido."
+            : "Confira sua conexão e tente de novo."
+        }
+        onTentarDeNovo={ehNaoEncontrado(erro) ? undefined : () => refetch()}
+        voltar={{ href: voltarHref, label: "Voltar" }}
+      />
     );
   }
-  if (!usuario) return null;
+  if (!usuario) return <CarregandoPagina />;
 
   const bloqueado = usuario.ativo === false;
   // O admin não se bloqueia por aqui: perderia o acesso no meio da sessão.

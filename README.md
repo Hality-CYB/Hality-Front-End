@@ -25,14 +25,38 @@ cd hality-front-end
 # 2. instalar as dependências
 npm install
 
-# 3. copiar o arquivo de variáveis de ambiente
-cp .env.example .env
+# 3. copiar o arquivo de variáveis de ambiente (ver "Variáveis de ambiente")
+cp .env.example .env.local
 
 # 4. subir o servidor em modo desenvolvimento (reload automático)
 npm run dev
 ```
 
-A aplicação sobe em http://localhost:3000. O backend (`Hality-Back-End`) precisa estar rodando em paralelo (por padrão em http://localhost:8000) — veja `NEXT_PUBLIC_API_URL` em `.env`.
+A aplicação sobe em http://localhost:3000. O backend (`Hality-Back-End`) precisa estar rodando em paralelo (por padrão em http://localhost:8000) — veja `NEXT_PUBLIC_API_URL` em `.env.local`. Sem back rodando, ligue o mock (abaixo).
+
+### Variáveis de ambiente
+
+Todas estão em `.env.example`, só com valores de exemplo. Nunca versione credenciais reais.
+
+| Variável                  | Para quê                                        | Valores                                                                     |
+| ------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_API_URL`     | URL do back                                     | Local: `http://localhost:8000`                                              |
+| `NEXT_PUBLIC_API_MOCKING` | Mock da API com MSW (dados falsos no navegador) | `enabled` liga o mock. `disabled` **ou ausente** fala com o back de verdade |
+| `SMOKE_*`                 | Credenciais do `npm run smoke` (abaixo)         | Usuários do seed do back                                                    |
+
+- **Mock só com `enabled` explícito.** Sem a variável, o app não cai em dados falsos: CI, homologação e produção rodam sempre sem mock (o build da CI define `disabled`). Use `enabled` só em desenvolvimento local sem back. No mock, as senhas são `123456` e os e-mails estão em `src/services/mocks/seed-data.ts`.
+- **Login com Google (OAuth)** ainda não está integrado e não usa nenhuma variável. Quando for, o client id público entra como `NEXT_PUBLIC_GOOGLE_CLIENT_ID` e o segredo fica só no back.
+
+### Smoke contra o back real
+
+`npm run smoke` entra no back com um usuário de cada papel (paciente, profissional e admin) e valida as respostas das rotas principais com os mesmos schemas que o app usa. Se o back mudar um contrato, ele aponta a rota e o campo. Não roda no `npm test` porque precisa do back no ar.
+
+```bash
+# back rodando (docker compose up -d no Hality-Back-End, com o seed aplicado)
+SMOKE_SENHA=<SEED_PASSWORD do back> npm run smoke
+```
+
+URL e e-mails têm padrão para o seed local; troque com `SMOKE_API_URL` e `SMOKE_EMAIL_ADMIN`/`_PROFISSIONAL`/`_PACIENTE` para rodar em homologação.
 
 ### Outros comandos úteis
 
@@ -60,11 +84,14 @@ npm run test:watch
 
 # rodar os testes com relatório de cobertura
 npm run test:coverage
+
+# validar os contratos contra o back real, sem mock (ver "Smoke contra o back real")
+npm run smoke
 ```
 
 > No VS Code, instale as extensões recomendadas em `.vscode/extensions.json` (Prettier + ESLint) — o `.vscode/settings.json` já está configurado para formatar automaticamente ao salvar.
 
-Todo Pull Request pra `develop`/`main` roda lint, testes e build automaticamente via GitHub Actions (`.github/workflows/ci-pipeline.yml`) — rode os mesmos comandos localmente antes de abrir o PR pra não ser pego de surpresa.
+Todo Pull Request pra `develop`/`main` roda lint, testes e build automaticamente via GitHub Actions (`.github/workflows/ci-pipeline.yml`) — rode os mesmos comandos localmente antes de abrir o PR pra não ser pego de surpresa. Os testes incluem `src/rotas-legadas.test.ts`, que falha se alguma rota que não existe no back (`/api/v1/usuarios`, `/api/v1/dicas`, `vincular-profissional`, `/api/v1/profissionais`) voltar ao código.
 
 ## Arquitetura
 
@@ -127,7 +154,7 @@ vitest.setup.ts
 
 - **`src/hooks/`** — hooks React customizados, ligando `services/` ao ciclo de vida de um componente (estado, efeitos). Contém `use-health.ts` como exemplo de padrão, com seu teste em `use-health.test.ts`.
 
-- **`src/lib/config.ts`** — configuração da aplicação lida via variáveis de ambiente (`.env`).
+- **`src/lib/config.ts`** — configuração da aplicação lida via variáveis de ambiente (`.env.local`).
 
 - **`src/lib/api-client.ts`** — cliente HTTP fino sobre `fetch`; único ponto do frontend que conhece a URL base da API. `services/` chamam este cliente — nunca `fetch` diretamente.
 
@@ -137,7 +164,7 @@ vitest.setup.ts
 
 - **`public/`** — assets estáticos (imagens, ícones) servidos diretamente pela raiz do site.
 
-- **`.env.example`** — modelo de variáveis de ambiente; copie para `.env` (que fica fora do git) antes de rodar o projeto.
+- **`.env.example`** — modelo de variáveis de ambiente; copie para `.env.local` (que fica fora do git) antes de rodar o projeto.
 
 - **`.vscode/`** — `settings.json` (format on save com Prettier + fix automático do ESLint) e `extensions.json` (extensões recomendadas).
 

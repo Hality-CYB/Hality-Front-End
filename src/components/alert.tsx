@@ -17,11 +17,15 @@ const CONFIG = {
   },
 } as const;
 
-/** Porta Design/'s Alert (shared/UI.tsx) — usado em formulários pra erro/sucesso/aviso. */
+/**
+ * Porta Design/'s Alert (shared/UI.tsx) — usado em formulários pra erro/sucesso/aviso.
+ * Erro usa `role="alert"` (anunciado na hora); sucesso e aviso, `role="status"`.
+ */
 export function Alert({ message, type = "error", className }: AlertProps) {
   const cfg = CONFIG[type];
   return (
     <div
+      role={type === "error" ? "alert" : "status"}
       className={cn(
         "flex items-start gap-2 rounded-xl border px-3.5 py-2.75 text-[13px]",
         className,
@@ -29,6 +33,7 @@ export function Alert({ message, type = "error", className }: AlertProps) {
       style={{ background: cfg.bg, borderColor: cfg.border, color: cfg.color }}
     >
       <span
+        aria-hidden
         className="mt-0.25 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full text-[10px] font-black text-white"
         style={{ background: cfg.color }}
       >

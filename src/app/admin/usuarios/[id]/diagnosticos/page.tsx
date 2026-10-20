@@ -4,6 +4,8 @@ import { use } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ChevronLeft, Beaker } from "lucide-react";
+import { CarregandoPagina, ErroPagina } from "@/components/estado-pagina";
+import { ehNaoEncontrado } from "@/lib/erros";
 import { EmptyState } from "@/components/empty-state";
 import { ScrollInfinito } from "@/components/scroll-infinito";
 import { AvatarWithRole } from "@/components/avatar-with-role";
@@ -16,12 +18,26 @@ export default function UsuarioDiagnosticosPage({ params }: { params: Promise<{ 
   const searchParams = useSearchParams();
   const voltarHref = searchParams.get("voltar") ?? `/admin/usuarios/${id}`;
 
-  const { data: paciente } = useUsuario(id);
+  const { data: paciente, isError, error: erro, refetch } = useUsuario(id);
   const lista = useDiagnosticosAdminPaginados({ pacienteId: id, limite: 20 });
   const diagnosticos = lista.data?.pages.flatMap((p) => p.itens) ?? [];
   const total = lista.data?.pages[0]?.total ?? 0;
 
-  if (!paciente) return null;
+  if (isError) {
+    return (
+      <ErroPagina
+        titulo={ehNaoEncontrado(erro) ? "Paciente não encontrado" : "Não foi possível carregar"}
+        descricao={
+          ehNaoEncontrado(erro)
+            ? "Ele pode ter sido removido."
+            : "Confira sua conexão e tente de novo."
+        }
+        onTentarDeNovo={ehNaoEncontrado(erro) ? undefined : () => refetch()}
+        voltar={{ href: voltarHref, label: "Voltar" }}
+      />
+    );
+  }
+  if (!paciente) return <CarregandoPagina />;
 
   const hrefAtual = `/admin/usuarios/${id}/diagnosticos?voltar=${encodeURIComponent(voltarHref)}`;
 

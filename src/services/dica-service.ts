@@ -2,13 +2,13 @@ import { apiClient } from "@/lib/api-client";
 import {
   adaptBackendConteudoAdmin,
   backendConteudoAdminSchema,
+  backendConteudoListSchema,
   blocosDaDica,
   type CategoriaDica,
   type Dica,
   type DicaInput,
 } from "@/types/dica";
 import type { Pagina } from "@/types/admin";
-import { z } from "zod";
 
 /** Filtros de `GET /admin/conteudos` (#144 do back); nomes de parâmetro em inglês lá. */
 export type FiltroDicas = {
@@ -21,14 +21,6 @@ export type FiltroDicas = {
   mostrarNaHome?: boolean;
   ordem?: "ordem_asc" | "ordem_desc" | "created_at_asc" | "created_at_desc";
 };
-
-const backendConteudoListSchema = z.object({
-  items: z.array(backendConteudoAdminSchema),
-  total: z.number(),
-  page: z.number(),
-  limit: z.number(),
-  has_next: z.boolean(),
-});
 
 function corpoDoConteudo(input: Partial<DicaInput>): Record<string, unknown> {
   const corpo: Record<string, unknown> = {};

@@ -2,6 +2,8 @@
 
 import { use } from "react";
 import { TriangleAlert, BadgeCheck } from "lucide-react";
+import { CarregandoPagina, ErroPagina } from "@/components/estado-pagina";
+import { ehNaoEncontrado } from "@/lib/erros";
 import { DiagnosticoDetalhe } from "@/components/diagnostico-detalhe";
 import { useDiagnostico } from "@/hooks/use-diagnosticos";
 import { nivelLabel, nivelBadgeStatus } from "@/lib/level-format";
@@ -51,9 +53,23 @@ function AvisoRevisao({ revisao }: { revisao: Diagnostico["revisao"] }) {
 
 export default function DiagnosticoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { data: diagnostico } = useDiagnostico(id);
+  const { data: diagnostico, isError, error: erro, refetch } = useDiagnostico(id);
 
-  if (!diagnostico) return null;
+  if (isError) {
+    return (
+      <ErroPagina
+        titulo={ehNaoEncontrado(erro) ? "Diagnóstico não encontrado" : "Não foi possível carregar"}
+        descricao={
+          ehNaoEncontrado(erro)
+            ? "Ele pode ter sido removido."
+            : "Confira sua conexão e tente de novo."
+        }
+        onTentarDeNovo={ehNaoEncontrado(erro) ? undefined : () => refetch()}
+        voltar={{ href: "/paciente/diagnosticos", label: "Voltar para meus diagnósticos" }}
+      />
+    );
+  }
+  if (!diagnostico) return <CarregandoPagina />;
 
   const nivel = diagnostico.nivel;
   const nivelValido = nivelFinal(diagnostico);

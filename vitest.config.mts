@@ -10,10 +10,9 @@ export default defineConfig({
     globals: true,
     exclude: ["node_modules", ".next", "e2e"],
     // Vitest não carrega o .env do Next (isso é feature do bundler do
-    // Next, não do Vite) — sem isso, `config.apiMocking` sempre cai no
-    // fallback "enabled" dentro dos testes, e auth-service.test.ts (que
-    // mocka fetch pra testar o caminho real) nunca exercita o código que
-    // diz testar.
+    // Next, não do Vite). Os testes usam o servidor MSW de node direto
+    // (services/mocks/server.ts), então o app fica no caminho real:
+    // auth-service.test.ts, por exemplo, mocka fetch para testar esse caminho.
     env: { NEXT_PUBLIC_API_MOCKING: "disabled" },
   },
   resolve: {
