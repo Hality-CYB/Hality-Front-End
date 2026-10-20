@@ -43,6 +43,8 @@ export type FiltroDiagnosticosProfissional = FiltroDiagnosticos & { pacienteId?:
 /** O admin também filtra pelo código da classificação (da IA) no servidor. */
 export type FiltroDiagnosticosAdmin = FiltroDiagnosticosProfissional & {
   classificacao?: DiagnosticoNivel;
+  // só os que a IA ainda não classificou
+  semClassificacao?: boolean;
 };
 
 function queryDoFiltro(filtro: FiltroDiagnosticosProfissional): string {
@@ -60,9 +62,12 @@ function queryDoFiltro(filtro: FiltroDiagnosticosProfissional): string {
 export const diagnosticoService = {
   /** Todos os diagnósticos, para o admin (`/admin/diagnosticos`, #96 do back). */
   async listarAdmin(filtro: FiltroDiagnosticosAdmin = {}): Promise<Pagina<DiagnosticoAdminResumo>> {
-    const { classificacao, ...resto } = filtro;
+    const { classificacao, semClassificacao, ...resto } = filtro;
     let query = queryDoFiltro(resto);
-    if (classificacao) {
+    // sem classificação e classificação não entram juntos, só um deles
+    if (semClassificacao) {
+      query += `${query ? "&" : "?"}sem_classificacao=true`;
+    } else if (classificacao) {
       query += `${query ? "&" : "?"}classificacao=${CODIGO_POR_NIVEL[classificacao]}`;
     }
     const data = await apiClient.get<unknown>(`/api/v1/admin/diagnosticos${query}`);

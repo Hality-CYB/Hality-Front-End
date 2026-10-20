@@ -2,12 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { Beaker, Clock } from "lucide-react";
+import { Alert } from "@/components/alert";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/empty-state";
 import { ScrollInfinito } from "@/components/scroll-infinito";
 import { CustomPeriodDialog } from "@/components/custom-period-dialog";
 import { DiagnosticoAdminCard } from "@/components/diagnostico-admin-card";
 import { useDiagnosticosAdmin, useDiagnosticosAdminPaginados } from "@/hooks/use-diagnosticos";
+import { ApiError } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { nivelColor } from "@/lib/level-format";
 import {
@@ -33,6 +36,11 @@ const NIVEIS: { nivel: DiagnosticoNivel; label: string }[] = [
   { nivel: 3, label: "Social" },
 ];
 
+// 403 é quando o usuário não tem permissão
+function semPermissao(erro: unknown) {
+  return erro instanceof ApiError && erro.status === 403;
+}
+
 /** Só o `total` interessa: `limite: 1` evita trazer itens para os contadores. */
 function useTotal(filtro: Parameters<typeof useDiagnosticosAdmin>[0]) {
   return useDiagnosticosAdmin({ ...filtro, limite: 1 }).data?.total;
@@ -47,6 +55,7 @@ function useTotal(filtro: Parameters<typeof useDiagnosticosAdmin>[0]) {
 export default function DiagnosticosAdminPage() {
   const [filtroStatus, setFiltroStatus] = useState<StatusDiagnostico | "todos">("todos");
   const [filtroNivel, setFiltroNivel] = useState<DiagnosticoNivel | null>(null);
+  const [semClassificacao, setSemClassificacao] = useState(false);
   const [period, setPeriod] = useState<Period>("Todos");
   const [customRange, setCustomRange] = useState<CustomRange | null>(null);
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
@@ -59,9 +68,13 @@ export default function DiagnosticosAdminPage() {
     ...filtroPeriodo,
     status: filtroStatus === "todos" ? undefined : filtroStatus,
     classificacao: filtroNivel ?? undefined,
+    semClassificacao: semClassificacao || undefined,
     limite: 20,
   });
   const diagnosticos = lista.data?.pages.flatMap((p) => p.itens) ?? [];
+
+  // cor do quadrado de sem classificação
+  const corSem = nivelColor(null);
 
   const contagem = {
     total: useTotal(filtroPeriodo),
@@ -69,6 +82,8 @@ export default function DiagnosticosAdminPage() {
     1: useTotal({ ...filtroPeriodo, classificacao: 1 }),
     2: useTotal({ ...filtroPeriodo, classificacao: 2 }),
     3: useTotal({ ...filtroPeriodo, classificacao: 3 }),
+    // total dos que a IA ainda não classificou
+    sem: useTotal({ ...filtroPeriodo, semClassificacao: true }),
   };
 
   return (
@@ -133,7 +148,7 @@ export default function DiagnosticosAdminPage() {
           <p className="text-muted-foreground mb-4 text-[13px]">
             {contagem.total ?? "—"} diagnósticos · {contagem.pendentes ?? "—"} aguardando revisão
           </p>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {NIVEIS.map(({ nivel, label }) => {
               const cor = nivelColor(nivel);
               const ativo = filtroNivel === nivel;
@@ -142,7 +157,10 @@ export default function DiagnosticosAdminPage() {
                   key={nivel}
                   type="button"
                   aria-pressed={ativo}
-                  onClick={() => setFiltroNivel(ativo ? null : nivel)}
+                  onClick={() => {
+                    setFiltroNivel(ativo ? null : nivel);
+                    setSemClassificacao(false);
+                  }}
                   className="rounded-xl border-[1.5px] py-2.5 text-center"
                   style={{ background: `${cor}12`, borderColor: ativo ? cor : `${cor}30` }}
                 >
@@ -153,12 +171,47 @@ export default function DiagnosticosAdminPage() {
                 </button>
               );
             })}
+            <button
+              type="button"
+              aria-pressed={semClassificacao}
+              onClick={() => {
+                setSemClassificacao(!semClassificacao);
+                setFiltroNivel(null);
+              }}
+              className="rounded-xl border-[1.5px] py-2.5 text-center"
+              style={{
+                background: `${corSem}12`,
+                borderColor: semClassificacao ? corSem : `${corSem}30`,
+              }}
+            >
+              <div className="font-heading text-xl font-black" style={{ color: corSem }}>
+                {contagem.sem ?? "—"}
+              </div>
+              <div className="text-muted-foreground mt-1 text-[10px]">Sem classificação</div>
+            </button>
           </div>
           <p className="text-muted-foreground mt-3 text-[11px]">
             Contagem pela classificação da IA. Toque num nível para filtrar a lista.
           </p>
         </Card>
 
+        {lista.isError && !lista.data && (
+          <div className="flex flex-col items-start gap-3">
+            <Alert
+              type="error"
+              message={
+                semPermissao(lista.error)
+                  ? "Você não tem permissão para ver os diagnósticos."
+                  : "Não foi possível carregar os diagnósticos."
+              }
+            />
+            {!semPermissao(lista.error) && (
+              <Button variant="secondary" size="sm" onClick={() => lista.refetch()}>
+                Tentar de novo
+              </Button>
+            )}
+          </div>
+        )}
         {lista.isSuccess && diagnosticos.length === 0 && (
           <EmptyState
             icon={<Beaker className="h-7 w-7" />}

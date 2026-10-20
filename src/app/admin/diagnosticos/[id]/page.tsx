@@ -12,12 +12,14 @@ import {
   History,
   Sparkles,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/status-badge";
 import { LevelChip } from "@/components/level-chip";
 import { Alert } from "@/components/alert";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { useDiagnosticoAdmin } from "@/hooks/use-diagnosticos";
+import { ApiError } from "@/lib/api-client";
 import { nivelColor, nivelIcon, nivelLabel } from "@/lib/level-format";
 import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/status-format";
 
@@ -46,16 +48,42 @@ export default function DiagnosticoDetailAdminPage({
   const searchParams = useSearchParams();
   const voltarHref = searchParams.get("voltar") ?? "/admin/diagnosticos";
 
-  const { data: diagnostico, isError } = useDiagnosticoAdmin(id);
+  const { data: diagnostico, isError, error, refetch } = useDiagnosticoAdmin(id);
 
+  // se deu erro, mostra o aviso de cada caso
   if (isError) {
+    const status = error instanceof ApiError ? error.status : null;
+    // no 403 e no 404 não adianta tentar de novo
+    const mensagem =
+      status === 404
+        ? "Diagnóstico não encontrado."
+        : status === 403
+          ? "Você não tem permissão para ver este diagnóstico."
+          : "Não foi possível carregar o diagnóstico.";
     return (
-      <div className="p-4">
-        <Alert type="error" message="Diagnóstico não encontrado." />
+      <div className="flex flex-col items-start gap-3 p-4">
+        <Alert type="error" message={mensagem} />
+        <div className="flex gap-2">
+          <Button asChild variant="secondary" size="sm">
+            <Link href={voltarHref}>Voltar</Link>
+          </Button>
+          {status !== 403 && status !== 404 && (
+            <Button size="sm" onClick={() => refetch()}>
+              Tentar de novo
+            </Button>
+          )}
+        </div>
       </div>
     );
   }
-  if (!diagnostico) return null;
+  // enquanto não chega, mostra o carregando
+  if (!diagnostico) {
+    return (
+      <p role="status" className="text-muted-foreground p-4 text-sm">
+        Carregando…
+      </p>
+    );
+  }
 
   const d = diagnostico;
   const hrefAtual = `/admin/diagnosticos/${id}?voltar=${encodeURIComponent(voltarHref)}`;
