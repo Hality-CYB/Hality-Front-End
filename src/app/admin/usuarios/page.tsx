@@ -108,7 +108,11 @@ export default function UsuariosPage() {
                   <div className="text-muted-foreground mb-1.5 truncate text-xs">{u.email}</div>
                   <div className="flex flex-wrap gap-1.5">
                     <StatusBadge label={roleLabel(u.role)} status={roleBadgeStatus(u.role)} />
-                    {u.ativo === false && <StatusBadge label="Bloqueado" status="danger" />}
+                    {u.convitePendente ? (
+                      <StatusBadge label="Convite pendente" status="pending" />
+                    ) : (
+                      u.ativo === false && <StatusBadge label="Bloqueado" status="danger" />
+                    )}
                   </div>
                 </div>
                 <ChevronRight className="text-gray-3 h-4 w-4" />

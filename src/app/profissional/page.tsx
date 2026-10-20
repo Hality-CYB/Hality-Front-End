@@ -12,6 +12,7 @@ import { useResumoProfissional } from "@/hooks/use-profissional";
 import { useSessaoAtual } from "@/lib/auth/session-context";
 import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/status-format";
 import type { DiagnosticoResumo } from "@/types/diagnostico";
+import { formatarData } from "@/lib/datas";
 
 function hrefRevisao(d: DiagnosticoResumo) {
   return `/profissional/diagnosticos/${d.id}?voltar=/profissional`;
@@ -34,9 +35,7 @@ export default function ProfissionalHomePage() {
   });
   const { data: recentes } = useDiagnosticosProfissional({ limite: 4 });
 
-  const ultimo = resumo?.ultimoDiagnosticoEm
-    ? new Date(resumo.ultimoDiagnosticoEm).toLocaleDateString("pt-BR")
-    : "—";
+  const ultimo = resumo?.ultimoDiagnosticoEm ? formatarData(resumo.ultimoDiagnosticoEm) : "—";
   const stats = [
     { valor: resumo?.pendentesRevisao ?? 0, label: "para revisar", Icon: Clock },
     { valor: resumo?.diagnosticosTotal ?? 0, label: "diagnósticos", Icon: Beaker },
@@ -112,9 +111,7 @@ export default function ProfissionalHomePage() {
                     <div className="font-heading truncate text-sm font-bold">
                       {d.pacienteNome ?? "Paciente"}
                     </div>
-                    <div className="text-muted-foreground text-xs">
-                      {new Date(d.criadoEm).toLocaleDateString("pt-BR")}
-                    </div>
+                    <div className="text-muted-foreground text-xs">{formatarData(d.criadoEm)}</div>
                   </div>
                   {d.nivel !== null && <LevelChip nivel={d.nivel} size="sm" />}
                   <Button size="sm" asChild>
@@ -154,7 +151,7 @@ export default function ProfissionalHomePage() {
                     {d.pacienteNome ?? "Paciente"}
                   </div>
                   <div className="text-muted-foreground text-[11px]">
-                    {new Date(d.criadoEm).toLocaleDateString("pt-BR")}
+                    {formatarData(d.criadoEm)}
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1">

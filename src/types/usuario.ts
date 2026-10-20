@@ -26,6 +26,8 @@ export const usuarioSchema = z.object({
   telefone: z.string().nullable().optional(),
   criadoEm: z.string().optional(),
   ativo: z.boolean().optional(),
+  /** Inativo porque ainda não aceitou o convite de primeiro acesso (não é bloqueio). */
+  convitePendente: z.boolean().optional(),
   perfilProfissional: z
     .object({
       registro: z.string().nullable(),

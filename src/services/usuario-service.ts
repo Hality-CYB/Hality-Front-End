@@ -107,6 +107,9 @@ export const usuarioService = {
       telefone: input.telefone?.trim() || null,
       role: input.role,
       senha: input.senha,
+      // Desde a #163 o back manda convite por padrão e deixa a conta inativa até o aceite.
+      // Este cadastro define a senha na hora, então pede conta ativa, sem convite.
+      enviar_convite: false,
       ...(input.role === "profissional" && input.profissional
         ? {
             profissional: {

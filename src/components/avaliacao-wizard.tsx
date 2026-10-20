@@ -30,10 +30,18 @@ import { LevelChip } from "@/components/level-chip";
 import { TipCard } from "@/components/tip-card";
 import { EmptyState } from "@/components/empty-state";
 import { nivelColor, nivelLabel, nivelIcon } from "@/lib/level-format";
+import { statusDiagnosticoBadgeStatus, statusDiagnosticoLabel } from "@/lib/status-format";
 import { useAnamnesePerguntas, useCriarAnamnese } from "@/hooks/use-anamnese";
 import { useCriarDiagnostico, useRevisarDiagnostico } from "@/hooks/use-diagnosticos";
 import { usePaciente } from "@/hooks/use-pacientes";
+import { useMeusConsentimentos } from "@/hooks/use-consentimentos";
 import { ApiError } from "@/lib/api-client";
+import {
+  FalhaNaAnalise,
+  idDoDiagnosticoExistente,
+  tipoDoErro,
+  type TipoErro,
+} from "@/lib/envio-diagnostico";
 import { diagnosticoService } from "@/services/diagnostico-service";
 import { useCamera } from "@/hooks/use-camera";
 import { CapturaLingua } from "@/components/captura/captura-lingua";
@@ -41,6 +49,7 @@ import { cn } from "@/lib/utils";
 import type { Diagnostico, DiagnosticoNivel } from "@/types/diagnostico";
 import type { RespostaAnamnese } from "@/types/anamnese";
 import halityLogo from "@/assets/images/logo-hality-inline.png";
+import { formatarData } from "@/lib/datas";
 
 /**
  * Fluxo de avaliação — passos internos, uma rota só (como em Design/'s
@@ -146,6 +155,10 @@ export function AvaliacaoWizard({
     nivel: DiagnosticoNivel;
     confiancaIA?: number;
     conteudos: NonNullable<Diagnostico["conteudos"]>;
+    // Status, data e vínculo vêm do back: a tela não supõe que alguém vai revisar.
+    status: Diagnostico["status"];
+    criadoEm: string;
+    temProfissionalVinculado?: boolean;
   } | null>(null);
   const [classificacaoConfirmada, setClassificacaoConfirmada] = useState<DiagnosticoNivel | null>(
     null,
@@ -155,6 +168,10 @@ export function AvaliacaoWizard({
   const [versaoRevisao, setVersaoRevisao] = useState(0);
   const [foto, setFoto] = useState<FotoCapturada | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [tipoErro, setTipoErro] = useState<TipoErro>("rede");
+  // O que já foi criado no back: uma nova tentativa continua daqui em vez de duplicar.
+  const [anamneseId, setAnamneseId] = useState<string | null>(null);
+  const [diagnosticoId, setDiagnosticoId] = useState<string | null>(null);
   const inputCameraRef = useRef<HTMLInputElement>(null);
   const inputGaleriaRef = useRef<HTMLInputElement>(null);
 
@@ -178,6 +195,11 @@ export function AvaliacaoWizard({
   const perguntas = useAnamnesePerguntas();
   const criarAnamnese = useCriarAnamnese();
   const criarDiagnostico = useCriarDiagnostico();
+  // Paciente que recusou ou revogou o tratamento de dados de saúde é barrado no envio (403):
+  // avisa já no começo, antes de responder a anamnese e tirar a foto.
+  const consentimentos = useMeusConsentimentos({ enabled: !isProfissional });
+  const saude = consentimentos.data?.find((c) => c.finalidade === "health_data");
+  const semConsentimentoSaude = !!saude && saude.aceito !== null && !saude.vigente;
   const revisarDiagnostico = useRevisarDiagnostico();
 
   const next = () => setStep((s) => s + 1);
@@ -237,6 +259,10 @@ export function AvaliacaoWizard({
   }
 
   function tirarNovamente() {
+    if (diagnosticoId) {
+      setAnamneseId(null);
+      setDiagnosticoId(null);
+    }
     setFoto(null);
     setErro(null);
     setFalhaNaCaptura(false);
@@ -254,36 +280,62 @@ export function AvaliacaoWizard({
       valor: answers[q.id] ?? "",
     }));
     try {
-      // No atendimento pelo profissional, a anamnese nasce no nome do paciente; o diagnóstico herda dela.
-      const anamnese = await criarAnamnese.mutateAsync({
-        versaoQuestionario: perguntas.data?.versao ?? "",
-        respostas,
-        pacienteId: isProfissional ? pacienteId : undefined,
-      });
-      const criado = await criarDiagnostico.mutateAsync({
-        anamneseId: anamnese.id,
-        imagem: foto.file,
-        parametrosCaptura: {
-          origem: foto.origem,
-          mime_type: foto.file.type,
-          tamanho_bytes: foto.file.size,
-          largura: foto.largura,
-          altura: foto.altura,
-          ...(foto.facingMode ? { facing_mode: foto.facingMode } : {}),
-        },
-      });
-      const diagnostico = await diagnosticoService.aguardarResultado(criado.id);
+      let idDiagnostico = diagnosticoId;
+      if (!idDiagnostico) {
+        let idAnamnese = anamneseId;
+        if (!idAnamnese) {
+          // No atendimento pelo profissional, a anamnese nasce no nome do paciente; o diagnóstico herda dela.
+          const anamnese = await criarAnamnese.mutateAsync({
+            versaoQuestionario: perguntas.data?.versao ?? "",
+            respostas,
+            pacienteId: isProfissional ? pacienteId : undefined,
+          });
+          idAnamnese = anamnese.id;
+          setAnamneseId(idAnamnese);
+        }
+        try {
+          const criado = await criarDiagnostico.mutateAsync({
+            anamneseId: idAnamnese,
+            imagem: foto.file,
+            parametrosCaptura: {
+              origem: foto.origem,
+              mime_type: foto.file.type,
+              tamanho_bytes: foto.file.size,
+              largura: foto.largura,
+              altura: foto.altura,
+              ...(foto.facingMode ? { facing_mode: foto.facingMode } : {}),
+            },
+          });
+          idDiagnostico = criado.id;
+        } catch (e) {
+          idDiagnostico = idDoDiagnosticoExistente(e);
+          if (!idDiagnostico) throw e;
+        }
+        setDiagnosticoId(idDiagnostico);
+      }
+      const diagnostico = await diagnosticoService.aguardarResultado(idDiagnostico);
       if (diagnostico.status === "falha" || diagnostico.nivel === null) {
-        throw new Error("Não foi possível analisar a imagem. Tente enviar outra foto.");
+        throw new FalhaNaAnalise("Não foi possível analisar a imagem. Tente enviar outra foto.");
       }
       setResultado({
         id: diagnostico.id,
         nivel: diagnostico.nivel,
         confiancaIA: diagnostico.confiancaIA,
         conteudos: diagnostico.conteudos ?? [],
+        status: diagnostico.status,
+        criadoEm: diagnostico.criadoEm,
+        temProfissionalVinculado: diagnostico.temProfissionalVinculado,
       });
     } catch (e) {
-      setErro(mensagemDeErro(e));
+      const tipo = tipoDoErro(e);
+      setTipoErro(tipo);
+      setErro(
+        tipo !== "consentimento"
+          ? mensagemDeErro(e)
+          : isProfissional
+            ? "O paciente não autorizou o tratamento dos dados de saúde, ou revogou a autorização. O diagnóstico só pode ser feito depois que ele aceitar de novo, no perfil dele."
+            : "Sua autorização para o tratamento dos dados de saúde não está ativa. Ative em Perfil › Privacidade para fazer o diagnóstico.",
+      );
     }
   }
 
@@ -336,9 +388,27 @@ export function AvaliacaoWizard({
                 </Card>
               ))}
             </div>
-            <Button size="lg" onClick={next}>
-              Começar diagnóstico
-            </Button>
+            {semConsentimentoSaude ? (
+              <>
+                <div
+                  role="alert"
+                  className="flex items-start gap-2.5 rounded-2xl border border-[#FCD34D] bg-[#FFFBEB] px-4 py-3 text-[#92400E]"
+                >
+                  <TriangleAlert className="h-4.5 w-4.5 shrink-0" aria-hidden />
+                  <p className="text-[13px] leading-relaxed">
+                    Para fazer o diagnóstico, autorize o tratamento dos seus dados de saúde em
+                    Perfil › Privacidade.
+                  </p>
+                </div>
+                <Button size="lg" onClick={() => router.push("/paciente/perfil")}>
+                  Ir para Privacidade
+                </Button>
+              </>
+            ) : (
+              <Button size="lg" onClick={next}>
+                Começar diagnóstico
+              </Button>
+            )}
             <Button variant="ghost" onClick={back}>
               Cancelar
             </Button>
@@ -643,9 +713,26 @@ export function AvaliacaoWizard({
                 <p className="text-xs leading-relaxed">{erro}</p>
               </div>
             </div>
-            <Button size="lg" onClick={tirarNovamente}>
-              <Camera className="h-4 w-4" /> Enviar outra foto
-            </Button>
+            {tipoErro === "rede" && (
+              // Mantém respostas, foto e o que já foi criado: continua de onde parou.
+              <Button size="lg" onClick={confirmarAnamneseECaptura}>
+                Tentar de novo
+              </Button>
+            )}
+            {tipoErro === "consentimento" && !isProfissional && (
+              <Button size="lg" onClick={() => router.push("/paciente/perfil")}>
+                Ir para Privacidade
+              </Button>
+            )}
+            {tipoErro !== "consentimento" && (
+              <Button
+                size={tipoErro === "foto" ? "lg" : "default"}
+                variant={tipoErro === "foto" ? "default" : "secondary"}
+                onClick={tirarNovamente}
+              >
+                <Camera className="h-4 w-4" /> Enviar outra foto
+              </Button>
+            )}
             <Button variant="secondary" onClick={() => router.push(voltarHref)}>
               Voltar ao início
             </Button>
@@ -863,14 +950,22 @@ export function AvaliacaoWizard({
                 <div>
                   <div className="text-muted-foreground text-[13px]">Imagem analisada</div>
                   <div className="font-heading text-[13px] font-semibold">
-                    {new Date().toLocaleDateString("pt-BR")}
+                    {formatarData(resultado.criadoEm)}
                   </div>
                 </div>
-                <StatusBadge className="ml-auto" label="Aguardando revisão" status="pending" />
+                <StatusBadge
+                  className="ml-auto"
+                  label={statusDiagnosticoLabel(resultado.status)}
+                  status={statusDiagnosticoBadgeStatus(resultado.status)}
+                />
               </div>
-              <div className="bg-secondary text-primary rounded-xl px-3.5 py-2.5 text-[13px]">
-                Um especialista Hality irá revisar este pré-diagnóstico em breve.
-              </div>
+              {resultado.status === "aguardando_revisao" && (
+                <div className="bg-secondary text-primary rounded-xl px-3.5 py-2.5 text-[13px]">
+                  {resultado.temProfissionalVinculado
+                    ? "O profissional que acompanha você vai revisar este pré-diagnóstico."
+                    : "Este pré-diagnóstico é da IA. Ele só é revisado quando você tiver um profissional vinculado."}
+                </div>
+              )}
             </Card>
 
             <Button size="lg" onClick={() => setStep(7)}>

@@ -7,6 +7,7 @@ import { LevelChip } from "@/components/level-chip";
 import { nivelColor, nivelIcon } from "@/lib/level-format";
 import { statusDiagnosticoBadgeStatus, statusDiagnosticoLabel } from "@/lib/status-format";
 import type { DiagnosticoAdminResumo } from "@/types/admin";
+import { formatarData } from "@/lib/datas";
 
 type DiagnosticoAdminCardProps = {
   diagnostico: DiagnosticoAdminResumo;
@@ -39,7 +40,7 @@ export function DiagnosticoAdminCard({ diagnostico: d, href, titulo }: Diagnosti
         <div className="min-w-0 flex-1">
           <div className="font-heading truncate text-sm font-bold">{titulo ?? d.pacienteNome}</div>
           <div className="text-muted-foreground mb-1.5 truncate text-xs">
-            {new Date(d.criadoEm).toLocaleDateString("pt-BR")}
+            {formatarData(d.criadoEm)}
             {titulo === undefined && ` · #${d.id}`}
           </div>
           <StatusBadge

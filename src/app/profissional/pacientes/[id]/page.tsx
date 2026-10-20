@@ -16,6 +16,7 @@ import { usePaciente } from "@/hooks/use-pacientes";
 import { useDiagnosticosProfissionalPaginados } from "@/hooks/use-diagnosticos";
 import { nivelColor, nivelIcon } from "@/lib/level-format";
 import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/status-format";
+import { formatarData } from "@/lib/datas";
 
 export default function PacienteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -57,6 +58,11 @@ export default function PacienteDetailPage({ params }: { params: Promise<{ id: s
               {paciente.nome}
             </div>
             <div className="truncate text-sm text-white/60">{paciente.email}</div>
+            {!paciente.ativo && (
+              <div className="mt-1.5">
+                <StatusBadge label="Aguardando primeiro acesso" status="pending" />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -78,9 +84,7 @@ export default function PacienteDetailPage({ params }: { params: Promise<{ id: s
             <div className="flex justify-between">
               <span className="text-muted-foreground">Vinculado em</span>
               <span className="font-heading font-semibold">
-                {paciente.vinculadoEm
-                  ? new Date(paciente.vinculadoEm).toLocaleDateString("pt-BR")
-                  : "—"}
+                {paciente.vinculadoEm ? formatarData(paciente.vinculadoEm) : "—"}
               </span>
             </div>
           </div>
@@ -116,9 +120,7 @@ export default function PacienteDetailPage({ params }: { params: Promise<{ id: s
                     })}
                   </div>
                   <div className="flex-1">
-                    <div className="font-heading text-sm font-bold">
-                      {new Date(d.criadoEm).toLocaleDateString("pt-BR")}
-                    </div>
+                    <div className="font-heading text-sm font-bold">{formatarData(d.criadoEm)}</div>
                     <StatusBadge
                       className="mt-1"
                       label={d.revisado ? "Revisado" : statusDiagnosticoLabel(d.status)}

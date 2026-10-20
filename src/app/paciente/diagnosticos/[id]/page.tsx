@@ -8,6 +8,7 @@ import { DiagnosticoDetalhe } from "@/components/diagnostico-detalhe";
 import { useDiagnostico } from "@/hooks/use-diagnosticos";
 import { nivelLabel, nivelBadgeStatus } from "@/lib/level-format";
 import { nivelFinal, type Diagnostico } from "@/types/diagnostico";
+import { formatarData } from "@/lib/datas";
 
 const STATUS_LABEL: Record<string, string> = {
   processando: "Aguardando análise",
@@ -15,7 +16,13 @@ const STATUS_LABEL: Record<string, string> = {
   falha: "Falha na análise",
 };
 
-function AvisoRevisao({ revisao }: { revisao: Diagnostico["revisao"] }) {
+function AvisoRevisao({
+  revisao,
+  temProfissionalVinculado,
+}: {
+  revisao: Diagnostico["revisao"];
+  temProfissionalVinculado?: boolean;
+}) {
   if (revisao?.revisado) {
     return (
       <div className="border-secondary bg-secondary/40 rounded-xl border p-3.5">
@@ -30,7 +37,7 @@ function AvisoRevisao({ revisao }: { revisao: Diagnostico["revisao"] }) {
         )}
         <p className="text-muted-foreground text-xs leading-relaxed">
           {revisao.profissionalNome ?? "Profissional Hality"}
-          {revisao.revisadoEm && ` · ${new Date(revisao.revisadoEm).toLocaleDateString("pt-BR")}`}
+          {revisao.revisadoEm && ` · ${formatarData(revisao.revisadoEm)}`}
         </p>
         {revisao.observacoes && (
           <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
@@ -44,8 +51,10 @@ function AvisoRevisao({ revisao }: { revisao: Diagnostico["revisao"] }) {
     <div className="flex items-start gap-2.5 rounded-xl border border-[#FFC107] bg-[#FFF3CD] p-3.5">
       <TriangleAlert className="h-4.5 w-4.5 shrink-0 text-[#92400E]" />
       <p className="text-xs leading-relaxed text-[#92400E]">
-        Pré-diagnóstico gerado por IA, ainda não revisado por um profissional. Não substitui
-        avaliação clínica.
+        Pré-diagnóstico gerado por IA, ainda não revisado por um profissional.{" "}
+        {temProfissionalVinculado === false &&
+          "Ele só é revisado quando você tiver um profissional vinculado. "}
+        Não substitui avaliação clínica.
       </p>
     </div>
   );
@@ -78,7 +87,7 @@ export default function DiagnosticoDetailPage({ params }: { params: Promise<{ id
     <DiagnosticoDetalhe
       diagnostico={diagnostico}
       titulo={`Diagnóstico #${diagnostico.id.slice(-4)}`}
-      subtitulo={new Date(diagnostico.criadoEm).toLocaleDateString("pt-BR")}
+      subtitulo={formatarData(diagnostico.criadoEm)}
       status={{
         label:
           nivelValido !== null
@@ -86,7 +95,14 @@ export default function DiagnosticoDetailPage({ params }: { params: Promise<{ id
             : (STATUS_LABEL[diagnostico.status] ?? diagnostico.status),
         tipo: nivelBadgeStatus(nivelValido),
       }}
-      aviso={nivel ? <AvisoRevisao revisao={diagnostico.revisao} /> : undefined}
+      aviso={
+        nivel ? (
+          <AvisoRevisao
+            revisao={diagnostico.revisao}
+            temProfissionalVinculado={diagnostico.temProfissionalVinculado}
+          />
+        ) : undefined
+      }
     />
   );
 }

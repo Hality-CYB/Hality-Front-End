@@ -279,6 +279,7 @@ describe("diagnosticoService.buscar", () => {
       ],
       imagemUrl: "/api/v1/diagnosticos/imagens/primeira.jpg",
       criadoEm: "2026-09-17T10:00:00",
+      temProfissionalVinculado: false,
       conteudos: [],
       revisao: null,
     });

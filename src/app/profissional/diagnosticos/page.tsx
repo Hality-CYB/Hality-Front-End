@@ -21,6 +21,7 @@ import {
 } from "@/lib/date-period";
 import { cn } from "@/lib/utils";
 import type { StatusDiagnostico } from "@/types/diagnostico";
+import { formatarData } from "@/lib/datas";
 
 const FILTROS_STATUS: { valor: StatusDiagnostico | "todos"; label: string }[] = [
   { valor: "todos", label: "Todos" },
@@ -119,7 +120,7 @@ export default function DiagnosticosProfissionalPage() {
                   {d.pacienteNome ?? "Paciente"}
                 </div>
                 <div className="text-muted-foreground mb-1.5 truncate text-xs">
-                  {new Date(d.criadoEm).toLocaleDateString("pt-BR")}
+                  {formatarData(d.criadoEm)}
                 </div>
                 <StatusBadge
                   label={d.revisado ? "Revisado" : statusDiagnosticoLabel(d.status)}

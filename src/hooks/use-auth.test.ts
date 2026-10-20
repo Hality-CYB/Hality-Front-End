@@ -80,6 +80,7 @@ describe("use-auth hooks", () => {
         email: "carlos@hality.com",
         senha: "senha",
         telefone: "(11) 98888-7777",
+        consentimentos: [{ finalidade: "health_data", versao: "v1", aceito: true }],
       });
     });
 

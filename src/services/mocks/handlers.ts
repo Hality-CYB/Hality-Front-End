@@ -3,6 +3,7 @@ import { profissionaisHandlers } from "@/services/mocks/profissionais-handlers";
 import { diagnosticosHandlers } from "@/services/mocks/diagnosticos-handlers";
 import { anamneseHandlers } from "@/services/mocks/anamnese-handlers";
 import { adminHandlers } from "@/services/mocks/admin-handlers";
+import { consentimentosHandlers } from "@/services/mocks/consentimentos-handlers";
 import { authHandlers } from "@/services/mocks/auth-handlers";
 import { homeHandlers } from "@/services/mocks/home-handlers";
 
@@ -19,6 +20,7 @@ export const handlers = [
   ...diagnosticosHandlers,
   ...anamneseHandlers,
   ...adminHandlers,
+  ...consentimentosHandlers,
   ...authHandlers,
   ...homeHandlers,
 ];

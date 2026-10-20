@@ -18,6 +18,7 @@ import {
 } from "@/hooks/use-usuarios";
 import { useSessaoAtual } from "@/lib/auth/session-context";
 import { cn } from "@/lib/utils";
+import { formatarData } from "@/lib/datas";
 
 type DialogAberto = "editar" | "senha" | "sobre" | null;
 
@@ -81,7 +82,7 @@ export default function AdminPerfilPage() {
               ? [
                   {
                     label: "Acesso desde",
-                    valor: new Date(usuario.criadoEm).toLocaleDateString("pt-BR"),
+                    valor: formatarData(usuario.criadoEm),
                   },
                 ]
               : []),

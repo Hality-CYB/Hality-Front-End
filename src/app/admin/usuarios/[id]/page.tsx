@@ -55,6 +55,7 @@ import { useSessaoAtual } from "@/lib/auth/session-context";
 import { roleLabel, roleBadgeStatus } from "@/lib/role-format";
 import { cn } from "@/lib/utils";
 import type { Vinculo } from "@/types/admin";
+import { formatarData } from "@/lib/datas";
 
 type DialogAberto = "editar" | "profissional" | "vincular" | "bloquear" | null;
 
@@ -102,7 +103,8 @@ export default function UsuarioDetailPage({ params }: { params: Promise<{ id: st
   }
   if (!usuario) return <CarregandoPagina />;
 
-  const bloqueado = usuario.ativo === false;
+  // Inativo à espera do aceite do convite não é bloqueio: o admin ainda pode bloquear.
+  const bloqueado = usuario.ativo === false && !usuario.convitePendente;
   // O admin não se bloqueia por aqui: perderia o acesso no meio da sessão.
   const ehVoceMesmo = usuario.id === sessao.id;
   const vinculosAtivos = isPaciente ? (vinculos.data?.itens ?? []) : [];
@@ -137,6 +139,7 @@ export default function UsuarioDetailPage({ params }: { params: Promise<{ id: st
             <div className="flex flex-wrap gap-1.5">
               <StatusBadge label={roleLabel(usuario.role)} status={roleBadgeStatus(usuario.role)} />
               {bloqueado && <StatusBadge label="Bloqueado" status="danger" />}
+              {usuario.convitePendente && <StatusBadge label="Convite pendente" status="pending" />}
             </div>
           </div>
         </div>
@@ -164,9 +167,7 @@ export default function UsuarioDetailPage({ params }: { params: Promise<{ id: st
               },
               {
                 label: "Cadastro em",
-                valor: usuario.criadoEm
-                  ? new Date(usuario.criadoEm).toLocaleDateString("pt-BR")
-                  : "—",
+                valor: usuario.criadoEm ? formatarData(usuario.criadoEm) : "—",
               },
               ...(usuario.role === "profissional"
                 ? [
@@ -214,7 +215,7 @@ export default function UsuarioDetailPage({ params }: { params: Promise<{ id: st
                       {v.profissionalNome}
                     </div>
                     <div className="text-muted-foreground text-xs">
-                      Desde {new Date(v.vinculadoEm).toLocaleDateString("pt-BR")}
+                      Desde {formatarData(v.vinculadoEm)}
                     </div>
                   </Link>
                   <Button

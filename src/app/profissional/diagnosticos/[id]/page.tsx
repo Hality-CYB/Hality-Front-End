@@ -18,6 +18,7 @@ import { ApiError } from "@/lib/api-client";
 import { nivelColor, nivelLabel } from "@/lib/level-format";
 import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/status-format";
 import type { DiagnosticoNivel } from "@/types/diagnostico";
+import { formatarData } from "@/lib/datas";
 
 function mensagemDaRevisao(erro: unknown): string {
   if (erro instanceof ApiError && erro.status === 409) {
@@ -87,7 +88,7 @@ export default function DiagnosticoReviewPage({ params }: { params: Promise<{ id
     <DiagnosticoDetalhe
       diagnostico={diagnostico}
       titulo={nomePaciente}
-      subtitulo={`${new Date(diagnostico.criadoEm).toLocaleDateString("pt-BR")} · Diagnóstico #${diagnostico.id}`}
+      subtitulo={`${formatarData(diagnostico.criadoEm)} · Diagnóstico #${diagnostico.id}`}
       status={
         revisaoAtual
           ? { label: "Revisado", tipo: "success" }
@@ -116,7 +117,7 @@ export default function DiagnosticoReviewPage({ params }: { params: Promise<{ id
             </div>
             <p className="text-muted-foreground text-xs leading-relaxed">
               {revisaoAtual.profissionalNome ?? "Profissional Hality"} ·{" "}
-              {new Date(revisaoAtual.criadoEm).toLocaleDateString("pt-BR")}
+              {formatarData(revisaoAtual.criadoEm)}
               {visaoProfissional.historico.length > 1 &&
                 ` · ${visaoProfissional.historico.length} revisões no histórico`}
             </p>

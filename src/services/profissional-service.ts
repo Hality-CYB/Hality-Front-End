@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/api-client";
+import { fusoDoNavegador } from "@/lib/datas";
 import {
   adaptBackendResumoProfissional,
   backendResumoProfissionalSchema,
@@ -10,8 +11,13 @@ import {
  * do admin, por `/admin/usuarios?role=profissional` (usuario-service).
  */
 export const profissionalService = {
+  /**
+   * `GET /profissional/resumo`: sem `inicio`/`fim` o back usa os últimos 30 dias.
+   * O fuso vai explícito (o padrão do back é UTC): "hoje" é o do relógio de quem vê.
+   */
   async resumo(): Promise<ResumoProfissional> {
-    const data = await apiClient.get<unknown>("/api/v1/profissional/resumo");
+    const params = new URLSearchParams({ timezone: fusoDoNavegador() });
+    const data = await apiClient.get<unknown>(`/api/v1/profissional/resumo?${params.toString()}`);
     return adaptBackendResumoProfissional(backendResumoProfissionalSchema.parse(data));
   },
 };
