@@ -4,6 +4,8 @@ import { use } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Users } from "lucide-react";
+import { CarregandoPagina, ErroPagina } from "@/components/estado-pagina";
+import { ehNaoEncontrado } from "@/lib/erros";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/empty-state";
 import { ScrollInfinito } from "@/components/scroll-infinito";
@@ -16,12 +18,26 @@ export default function ProfissionalPacientesPage({ params }: { params: Promise<
   const { id } = use(params);
   const searchParams = useSearchParams();
   const voltarHref = searchParams.get("voltar") ?? `/admin/usuarios/${id}`;
-  const { data: profissional } = useUsuario(id);
+  const { data: profissional, isError, error: erro, refetch } = useUsuario(id);
   const lista = useVinculosPaginados({ profissionalId: id, ativo: true, limite: 20 });
   const vinculos = lista.data?.pages.flatMap((p) => p.itens) ?? [];
   const total = lista.data?.pages[0]?.total ?? 0;
 
-  if (!profissional) return null;
+  if (isError) {
+    return (
+      <ErroPagina
+        titulo={ehNaoEncontrado(erro) ? "Profissional não encontrado" : "Não foi possível carregar"}
+        descricao={
+          ehNaoEncontrado(erro)
+            ? "Ele pode ter sido removido."
+            : "Confira sua conexão e tente de novo."
+        }
+        onTentarDeNovo={ehNaoEncontrado(erro) ? undefined : () => refetch()}
+        voltar={{ href: voltarHref, label: "Voltar" }}
+      />
+    );
+  }
+  if (!profissional) return <CarregandoPagina />;
 
   const hrefAtual = `/admin/usuarios/${id}/pacientes?voltar=${encodeURIComponent(voltarHref)}`;
 

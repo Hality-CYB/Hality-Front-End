@@ -3,6 +3,8 @@
 import { use, createElement } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Camera, ScanLine } from "lucide-react";
+import { CarregandoPagina, ErroPagina } from "@/components/estado-pagina";
+import { ehNaoEncontrado } from "@/lib/erros";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
@@ -17,22 +19,25 @@ import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/stat
 
 export default function PacienteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { data: paciente, isError } = usePaciente(id);
+  const { data: paciente, isError, error: erro, refetch } = usePaciente(id);
   // A lista embutida em /pacientes/{id} não diz se houve revisão; a do profissional diz.
   const historico = useDiagnosticosProfissionalPaginados({ pacienteId: id, limite: 20 });
 
   if (isError) {
     return (
-      <div className="p-4">
-        <EmptyState
-          icon={<ScanLine className="h-7 w-7" />}
-          title="Paciente não encontrado"
-          description="Ele pode não estar mais vinculado a você."
-        />
-      </div>
+      <ErroPagina
+        titulo={ehNaoEncontrado(erro) ? "Paciente não encontrado" : "Não foi possível carregar"}
+        descricao={
+          ehNaoEncontrado(erro)
+            ? "Ele pode não estar mais vinculado a você."
+            : "Confira sua conexão e tente de novo."
+        }
+        onTentarDeNovo={ehNaoEncontrado(erro) ? undefined : () => refetch()}
+        voltar={{ href: "/profissional/pacientes", label: "Voltar para pacientes" }}
+      />
     );
   }
-  if (!paciente) return null;
+  if (!paciente) return <CarregandoPagina />;
 
   const diagnosticos = historico.data?.pages.flatMap((p) => p.itens) ?? [];
 

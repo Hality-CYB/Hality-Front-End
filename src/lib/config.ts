@@ -14,5 +14,10 @@
 
 export const config = {
   apiBaseUrl: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000",
-  apiMocking: (process.env.NEXT_PUBLIC_API_MOCKING ?? "enabled") === "enabled",
+  /**
+   * Mock (MSW) só liga com `NEXT_PUBLIC_API_MOCKING=enabled` explícito. Sem a
+   * variável, o app fala com o back de verdade: nenhum ambiente (CI,
+   * homologação, produção) cai em dados falsos por esquecimento.
+   */
+  apiMocking: process.env.NEXT_PUBLIC_API_MOCKING === "enabled",
 } as const;

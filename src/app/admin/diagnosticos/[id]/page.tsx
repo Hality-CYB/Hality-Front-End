@@ -12,7 +12,7 @@ import {
   History,
   Sparkles,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { CarregandoPagina, ErroPagina } from "@/components/estado-pagina";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/status-badge";
 import { LevelChip } from "@/components/level-chip";
@@ -61,29 +61,21 @@ export default function DiagnosticoDetailAdminPage({
           ? "Você não tem permissão para ver este diagnóstico."
           : "Não foi possível carregar o diagnóstico.";
     return (
-      <div className="flex flex-col items-start gap-3 p-4">
-        <Alert type="error" message={mensagem} />
-        <div className="flex gap-2">
-          <Button asChild variant="secondary" size="sm">
-            <Link href={voltarHref}>Voltar</Link>
-          </Button>
-          {status !== 403 && status !== 404 && (
-            <Button size="sm" onClick={() => refetch()}>
-              Tentar de novo
-            </Button>
-          )}
-        </div>
-      </div>
+      <ErroPagina
+        titulo={mensagem}
+        descricao={
+          status === 404
+            ? "Ele pode ter sido removido."
+            : status === 403
+              ? "Esta área é restrita a administradores."
+              : "Confira sua conexão e tente de novo."
+        }
+        onTentarDeNovo={status === 403 || status === 404 ? undefined : () => refetch()}
+        voltar={{ href: voltarHref, label: "Voltar" }}
+      />
     );
   }
-  // enquanto não chega, mostra o carregando
-  if (!diagnostico) {
-    return (
-      <p role="status" className="text-muted-foreground p-4 text-sm">
-        Carregando…
-      </p>
-    );
-  }
+  if (!diagnostico) return <CarregandoPagina />;
 
   const d = diagnostico;
   const hrefAtual = `/admin/diagnosticos/${id}?voltar=${encodeURIComponent(voltarHref)}`;

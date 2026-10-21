@@ -757,12 +757,19 @@ export function AvaliacaoWizard({
                 className="placeholder:text-muted-foreground bg-background focus:bg-card focus:border-primary focus:ring-primary/10 w-full rounded-[13px] border-[1.5px] border-transparent p-4 text-[15px] transition-colors outline-none focus:ring-3"
               />
               {revisarDiagnostico.isSuccess && (
-                <div className="mt-3 flex items-center gap-2 rounded-xl border border-[#6EE7B7] bg-[#D1FAE5] px-3.5 py-2.5 text-[13px] font-semibold text-[#065F46]">
-                  <Check className="h-4 w-4" /> Diagnóstico salvo e enviado ao paciente!
+                <div
+                  role="status"
+                  className="mt-3 flex items-center gap-2 rounded-xl border border-[#6EE7B7] bg-[#D1FAE5] px-3.5 py-2.5 text-[13px] font-semibold text-[#065F46]"
+                >
+                  <Check className="h-4 w-4" aria-hidden /> Revisão salva. O paciente já vê o
+                  resultado revisado.
                 </div>
               )}
               {revisarDiagnostico.isError && (
-                <div className="border-destructive/30 bg-destructive/10 text-destructive mt-3 rounded-xl border px-3.5 py-2.5 text-[13px] font-semibold">
+                <div
+                  role="alert"
+                  className="border-destructive/30 bg-destructive/10 text-destructive mt-3 rounded-xl border px-3.5 py-2.5 text-[13px] font-semibold"
+                >
                   Não foi possível salvar a revisão. Tente novamente.
                 </div>
               )}

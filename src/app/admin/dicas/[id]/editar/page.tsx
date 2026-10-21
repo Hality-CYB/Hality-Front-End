@@ -4,6 +4,8 @@ import { use, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, Trash2 } from "lucide-react";
+import { CarregandoPagina, ErroPagina } from "@/components/estado-pagina";
+import { ehNaoEncontrado } from "@/lib/erros";
 import { Button } from "@/components/ui/button";
 import { DicaForm } from "@/components/dica-form";
 import {
@@ -21,12 +23,26 @@ import { useAtualizarDica, useDica, useRemoverDica } from "@/hooks/use-dicas";
 export default function EditarDicaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const { data: dica } = useDica(id);
+  const { data: dica, isError, error: erro, refetch } = useDica(id);
   const atualizar = useAtualizarDica();
   const remover = useRemoverDica();
   const [confirmarExclusao, setConfirmarExclusao] = useState(false);
 
-  if (!dica) return null;
+  if (isError) {
+    return (
+      <ErroPagina
+        titulo={ehNaoEncontrado(erro) ? "Conteúdo não encontrado" : "Não foi possível carregar"}
+        descricao={
+          ehNaoEncontrado(erro)
+            ? "Ele pode ter sido excluído."
+            : "Confira sua conexão e tente de novo."
+        }
+        onTentarDeNovo={ehNaoEncontrado(erro) ? undefined : () => refetch()}
+        voltar={{ href: "/admin/dicas", label: "Voltar para conteúdos" }}
+      />
+    );
+  }
+  if (!dica) return <CarregandoPagina />;
 
   return (
     <div className="flex flex-col">

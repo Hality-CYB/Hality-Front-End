@@ -2,11 +2,12 @@
 
 import { use, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ScanLine, Stethoscope, CircleCheck, BadgeCheck } from "lucide-react";
+import { Stethoscope, CircleCheck, BadgeCheck } from "lucide-react";
+import { CarregandoPagina, ErroPagina } from "@/components/estado-pagina";
+import { ehNaoEncontrado } from "@/lib/erros";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { EmptyState } from "@/components/empty-state";
 import { DiagnosticoDetalhe, NIVEIS } from "@/components/diagnostico-detalhe";
 import {
   useDiagnostico,
@@ -36,22 +37,38 @@ export default function DiagnosticoReviewPage({ params }: { params: Promise<{ id
   const [classificacao, setClassificacao] = useState<DiagnosticoNivel | null>(null);
   const [observacoes, setObservacoes] = useState("");
 
-  const { data: diagnostico, isError } = useDiagnostico(id);
-  const { data: visaoProfissional, isError: erroProfissional } = useDiagnosticoProfissional(id);
+  const { data: diagnostico, isError, error: erro, refetch } = useDiagnostico(id);
+  const {
+    data: visaoProfissional,
+    isError: erroProfissional,
+    error: erroVisao,
+    refetch: refetchVisao,
+  } = useDiagnosticoProfissional(id);
   const revisar = useRevisarDiagnostico();
 
   if (isError || erroProfissional) {
+    const naoEncontrado = ehNaoEncontrado(erro) || ehNaoEncontrado(erroVisao);
     return (
-      <div className="p-4">
-        <EmptyState
-          icon={<ScanLine className="h-7 w-7" />}
-          title="Diagnóstico indisponível"
-          description="Ele não existe ou é de um paciente que não está vinculado a você."
-        />
-      </div>
+      <ErroPagina
+        titulo={naoEncontrado ? "Diagnóstico indisponível" : "Não foi possível carregar"}
+        descricao={
+          naoEncontrado
+            ? "Ele não existe ou é de um paciente que não está vinculado a você."
+            : "Confira sua conexão e tente de novo."
+        }
+        onTentarDeNovo={
+          naoEncontrado
+            ? undefined
+            : () => {
+                refetch();
+                refetchVisao();
+              }
+        }
+        voltar={{ href: voltarHref, label: "Voltar" }}
+      />
     );
   }
-  if (!diagnostico || !visaoProfissional) return null;
+  if (!diagnostico || !visaoProfissional) return <CarregandoPagina />;
 
   const revisaoAtual = visaoProfissional.revisaoAtual;
   const podeRevisar = diagnostico.status !== "processando" && diagnostico.status !== "falha";
@@ -164,12 +181,19 @@ export default function DiagnosticoReviewPage({ params }: { params: Promise<{ id
                 className="shell:flex-1"
               />
               {revisar.isSuccess && (
-                <div className="mt-3 flex items-center gap-2 rounded-xl border border-[#6EE7B7] bg-[#D1FAE5] px-3.5 py-2.5 text-[13px] font-semibold text-[#065F46]">
-                  <CircleCheck className="h-4 w-4" /> Revisão salva e enviada ao paciente.
+                <div
+                  role="status"
+                  className="mt-3 flex items-center gap-2 rounded-xl border border-[#6EE7B7] bg-[#D1FAE5] px-3.5 py-2.5 text-[13px] font-semibold text-[#065F46]"
+                >
+                  <CircleCheck className="h-4 w-4" aria-hidden /> Revisão salva. O paciente já vê o
+                  resultado revisado.
                 </div>
               )}
               {revisar.isError && (
-                <div className="border-destructive/30 bg-destructive/10 text-destructive mt-3 rounded-xl border px-3.5 py-2.5 text-[13px] font-semibold">
+                <div
+                  role="alert"
+                  className="border-destructive/30 bg-destructive/10 text-destructive mt-3 rounded-xl border px-3.5 py-2.5 text-[13px] font-semibold"
+                >
                   {mensagemDaRevisao(revisar.error)}
                 </div>
               )}

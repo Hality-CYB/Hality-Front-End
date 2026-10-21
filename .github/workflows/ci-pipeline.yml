@@ -72,3 +72,6 @@ jobs:
 
       - name: Run build
         run: npm run build
+        env:
+          # Build de integração: sem mock, igual a homologação e produção.
+          NEXT_PUBLIC_API_MOCKING: disabled
