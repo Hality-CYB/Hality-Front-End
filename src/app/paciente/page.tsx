@@ -103,8 +103,7 @@ export default function PacienteHomePage() {
                 key={dica.id}
                 titulo={dica.titulo}
                 categoria={dica.categoria}
-                corpo={dica.textos.join(" ")}
-                formato="texto"
+                blocos={dica.blocos}
                 compact
               />
             ))}

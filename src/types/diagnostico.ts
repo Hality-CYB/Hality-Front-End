@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { backendConteudoSchema, textosDoConteudo } from "@/types/conteudo";
+import { backendConteudoSchema, blocoConteudoSchema } from "@/types/conteudo";
 import {
   adaptBackendRespostas,
   backendRespostaArmazenadaSchema,
@@ -68,7 +68,7 @@ export const diagnosticoSchema = z.object({
         id: z.number(),
         titulo: z.string(),
         categoria: z.string(),
-        textos: z.array(z.string()),
+        blocos: z.array(blocoConteudoSchema),
       }),
     )
     .optional(),
@@ -151,7 +151,7 @@ export function adaptBackendDiagnosticoDetail(data: BackendDiagnosticoDetail): D
       id: item.id,
       titulo: item.titulo,
       categoria: CATEGORIA_CONTEUDO_PADRAO,
-      textos: textosDoConteudo(item.conteudo),
+      blocos: item.conteudo.itens,
     })),
     revisao: data.revisao
       ? {

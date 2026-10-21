@@ -1034,13 +1034,7 @@ export function AvaliacaoWizard({
               />
             )}
             {resultado.conteudos.map((c) => (
-              <TipCard
-                key={c.id}
-                titulo={c.titulo}
-                categoria={c.categoria}
-                corpo={c.textos.join(" ")}
-                formato="texto"
-              />
+              <TipCard key={c.id} titulo={c.titulo} categoria={c.categoria} blocos={c.blocos} />
             ))}
 
             <Button
