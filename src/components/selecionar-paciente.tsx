@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { ApiError } from "@/lib/api-client";
+import { config } from "@/lib/config";
 import { usePacientes, useCriarPaciente } from "@/hooks/use-pacientes";
 
 type SelecionarPacienteProps = {
@@ -119,8 +120,9 @@ export function SelecionarPaciente({ onSelecionar, onCancelar }: SelecionarPacie
         <div className="bg-secondary flex items-start gap-2 rounded-[10px] px-3.5 py-2.5">
           <Info className="text-primary mt-0.5 h-3.75 w-3.75 shrink-0" />
           <span className="text-muted-foreground text-xs leading-relaxed">
-            O paciente já sai vinculado a você, com uma senha provisória que ele deve trocar no
-            primeiro acesso.
+            O cadastro mantém o vínculo e solicita um convite para o paciente definir a própria
+            senha e ativar a conta.
+            {config.apiMocking && " No modo de demonstração, nenhum e-mail será enviado."}
           </span>
         </div>
         <Button

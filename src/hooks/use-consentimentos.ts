@@ -8,11 +8,12 @@ import type { DecisaoConsentimento } from "@/types/consentimento";
 const CHAVE_TERMOS = ["consentimentos", "termos"];
 const CHAVE_MEUS = ["consentimentos", "meus"];
 
-export function useTermosConsentimento() {
+export function useTermosConsentimento(opcoes: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: CHAVE_TERMOS,
     queryFn: () => consentimentoService.listarTermos(),
     staleTime: 5 * 60 * 1000,
+    enabled: opcoes.enabled ?? true,
   });
 }
 

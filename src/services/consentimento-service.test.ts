@@ -1,8 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { config } from "@/lib/config";
 import { ApiError } from "@/lib/api-client";
-import { clearStoredToken, setStoredToken } from "@/lib/session";
+import { clearStoredToken, getStoredToken, setStoredToken } from "@/lib/session";
 import { server } from "@/services/mocks/server";
 import {
   registrarDecisoesMock,
@@ -17,15 +17,41 @@ const url = (path: string) => `${config.apiBaseUrl}${path}`;
 
 describe("consentimentoService (US-020, #160 do back)", () => {
   beforeEach(() => setStoredToken("mock-token:paciente-2"));
-  afterEach(() => clearStoredToken());
+  afterEach(() => {
+    clearStoredToken();
+    vi.restoreAllMocks();
+  });
 
   it("lista os dois termos com versão e se são obrigatórios", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
     const termos = await consentimentoService.listarTermos();
+    expect(fetchSpy).toHaveBeenCalledWith(
+      url("/api/v1/consentimentos/termos"),
+      expect.objectContaining({
+        credentials: "omit",
+        cache: "no-store",
+        referrerPolicy: "no-referrer",
+      }),
+    );
     expect(termos.map((t) => [t.finalidade, t.obrigatorio])).toEqual([
       ["health_data", true],
       ["image_training", false],
     ]);
     expect(termos.every((t) => t.versao && t.texto)).toBe(true);
+  });
+
+  it("não anexa Bearer nem renova ou apaga sessão ao buscar termos públicos", async () => {
+    const refresh = vi.fn(() => new HttpResponse(null, { status: 401 }));
+    server.use(
+      http.get(url("/api/v1/consentimentos/termos"), ({ request }) => {
+        expect(request.headers.get("authorization")).toBeNull();
+        return new HttpResponse(null, { status: 401 });
+      }),
+      http.post(url("/api/v1/auth/refresh"), refresh),
+    );
+    await expect(consentimentoService.listarTermos()).rejects.toMatchObject({ status: 401 });
+    expect(refresh).not.toHaveBeenCalled();
+    expect(getStoredToken()).toBe("mock-token:paciente-2");
   });
 
   it("sem decisão nenhuma, cada finalidade pede decisão e nada vale", async () => {

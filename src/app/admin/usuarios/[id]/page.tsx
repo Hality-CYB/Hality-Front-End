@@ -40,10 +40,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   mensagemErroAtualizarUsuario,
+  mensagemErroReenviarConvite,
   useAtualizarProfissional,
   useAtualizarUsuario,
   useUsuario,
   useUsuarios,
+  useReenviarConvite,
 } from "@/hooks/use-usuarios";
 import {
   mensagemErroVinculo,
@@ -54,6 +56,7 @@ import {
 import { useSessaoAtual } from "@/lib/auth/session-context";
 import { roleLabel, roleBadgeStatus } from "@/lib/role-format";
 import { cn } from "@/lib/utils";
+import { config } from "@/lib/config";
 import type { Vinculo } from "@/types/admin";
 import { formatarData } from "@/lib/datas";
 
@@ -86,6 +89,7 @@ export default function UsuarioDetailPage({ params }: { params: Promise<{ id: st
   const atualizarProfissional = useAtualizarProfissional();
   const vincular = useCriarVinculo();
   const encerrar = useEncerrarVinculo();
+  const reenviarConvite = useReenviarConvite();
 
   if (isError) {
     return (
@@ -233,6 +237,31 @@ export default function UsuarioDetailPage({ params }: { params: Promise<{ id: st
         </div>
 
         <div className="flex flex-col gap-3.5">
+          {usuario.convitePendente && (
+            <Card className="gap-3 rounded-lg p-5 shadow-sm ring-0">
+              <h2 className="font-heading text-sm font-extrabold">Convite pendente</h2>
+              <p className="text-muted-foreground text-sm">
+                Ao solicitar um novo convite, o link anterior deixa de funcionar.
+              </p>
+              {config.apiMocking && (
+                <Alert type="info" message="Modo demonstração: nenhum e-mail será enviado." />
+              )}
+              <Button
+                variant="secondary"
+                disabled={reenviarConvite.isPending}
+                onClick={() => reenviarConvite.mutate(id)}
+              >
+                <Mail aria-hidden className="size-4" />
+                {reenviarConvite.isPending ? "Reenviando…" : "Reenviar convite"}
+              </Button>
+              {reenviarConvite.isSuccess && reenviarConvite.variables === id && (
+                <Alert type="success" message="Um novo convite foi solicitado." />
+              )}
+              {reenviarConvite.isError && reenviarConvite.variables === id && (
+                <Alert message={mensagemErroReenviarConvite(reenviarConvite.error)} />
+              )}
+            </Card>
+          )}
           <Card className="gap-0 overflow-hidden rounded-lg p-0 shadow-sm ring-0">
             <button onClick={() => setDialogAberto("editar")} className={classeAcao}>
               <div className="bg-secondary flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]">

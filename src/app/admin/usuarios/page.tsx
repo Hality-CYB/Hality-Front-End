@@ -10,6 +10,8 @@ import { EmptyState } from "@/components/empty-state";
 import { ScrollInfinito } from "@/components/scroll-infinito";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { CriarUsuarioDialog } from "@/components/criar-usuario-dialog";
+import { Alert } from "@/components/alert";
+import { config } from "@/lib/config";
 import {
   mensagemErroCriarUsuario,
   useCriarUsuario,
@@ -86,6 +88,18 @@ export default function UsuariosPage() {
       </div>
 
       <div className="flex flex-col gap-2.5 p-4">
+        {criar.isSuccess && (
+          <Alert
+            type="success"
+            message={
+              config.apiMocking
+                ? "Cadastro de demonstração criado. Nenhum e-mail foi enviado."
+                : criar.data.convitePendente
+                  ? "Usuário criado. Convite pendente de ativação."
+                  : "Usuário criado."
+            }
+          />
+        )}
         {total !== undefined && (
           <span className="text-muted-foreground text-xs">
             {total} usuário{total === 1 ? "" : "s"}
@@ -134,6 +148,7 @@ export default function UsuariosPage() {
         open={criarAberto}
         onOpenChange={setCriarAberto}
         salvando={criar.isPending}
+        demonstracao={config.apiMocking}
         erro={criar.isError ? mensagemErroCriarUsuario(criar.error) : null}
         onReset={criar.reset}
         onCreate={(v) => criar.mutate(v, { onSuccess: () => setCriarAberto(false) })}

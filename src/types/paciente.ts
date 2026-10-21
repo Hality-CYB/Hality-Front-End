@@ -64,9 +64,16 @@ export const backendPacienteCriadoSchema = z.object({
   paciente_email: z.string(),
   data_vinculo: z.string(),
   ativo: z.boolean(),
+  convite_pendente: z.boolean(),
+  vinculo_id: z.number().nullable().optional(),
 });
 
-export type PacienteCriado = { pacienteId: string; nome: string; email: string };
+export type PacienteCriado = {
+  pacienteId: string;
+  nome: string;
+  email: string;
+  convitePendente: boolean;
+};
 
 export const backendPacienteDetailSchema = backendPacienteListItemSchema.extend({
   vinculos: z.array(

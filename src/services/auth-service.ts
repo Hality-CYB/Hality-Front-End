@@ -5,7 +5,14 @@ import {
   type Usuario,
   type BackendUser,
 } from "@/types/usuario";
-import { ApiError } from "@/lib/api-client";
+import { ApiError, apiClient } from "@/lib/api-client";
+import {
+  identityTokenSchema,
+  invitationConsentRequiredResponseSchema,
+  passwordRecoveryResponseSchema,
+  type IdentityConfirmation,
+  type IdentityPurpose,
+} from "@/types/auth";
 import { config } from "@/lib/config";
 import { setStoredToken, clearStoredToken } from "@/lib/session";
 import { adicionarUsuarioMock, usuarioMockParaLogin } from "@/services/mocks/auth-handlers";
@@ -175,7 +182,87 @@ async function registrarReal(
   }
 }
 
+/** Sinaliza somente a resposta confirmada do backend, sem inferir o papel pelo token. */
+export class ConsentimentoObrigatorioError extends ApiError {
+  constructor() {
+    super(422, "Para ativar sua conta, responda aos consentimentos abaixo.");
+    this.name = "ConsentimentoObrigatorioError";
+  }
+}
+
+/** Respostas de validação podem repetir o token; nenhum corpo de erro público chega à UI. */
+function identityError(error: unknown, purpose?: IdentityPurpose): ApiError {
+  const status = error instanceof ApiError ? error.status : 0;
+  if (status === 422 && purpose === "invitation" && error instanceof ApiError) {
+    try {
+      if (invitationConsentRequiredResponseSchema.safeParse(JSON.parse(error.message)).success)
+        return new ConsentimentoObrigatorioError();
+    } catch {
+      // Corpo malformado segue para a mensagem fixa de validação, sem expor o conteúdo.
+    }
+  }
+  let message = "Não foi possível concluir a solicitação. Tente novamente.";
+  if (error instanceof TypeError)
+    message = "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.";
+  if (status === 400 && purpose)
+    message =
+      "Este link é inválido ou não está mais disponível. Ele pode ter expirado, já ter sido utilizado ou ter sido revogado.";
+  if (status === 409 && purpose === "invitation")
+    message =
+      "Os termos de consentimento foram atualizados. Leia a nova versão e decida novamente.";
+  if (status === 422) message = "Confira os dados informados e tente novamente.";
+  if (status === 422 && purpose === "invitation")
+    message =
+      "Confira a senha informada. A ativação pode exigir consentimentos; entre em contato com o responsável pelo cadastro para continuar.";
+  if (status === 404 || status === 405)
+    message = "Este serviço está temporariamente indisponível. Tente novamente mais tarde.";
+  if (status === 429) message = "Muitas tentativas. Aguarde antes de tentar novamente.";
+  return new ApiError(
+    status,
+    message,
+    error instanceof ApiError ? error.retryAfterSeconds : undefined,
+  );
+}
+
 export const authService = {
+  async solicitarRecuperacao(email: string): Promise<void> {
+    const result = usuarioSchema.shape.email.safeParse(email.trim());
+    if (!result.success) throw new ApiError(422, "Informe um e-mail válido.");
+    try {
+      const data = await apiClient.post<unknown>(
+        "/api/v1/auth/password-recovery",
+        { email: result.data },
+        { authenticated: false, expectedStatus: 202 },
+      );
+      passwordRecoveryResponseSchema.parse(data);
+    } catch (error) {
+      throw identityError(error);
+    }
+  },
+
+  async confirmarIdentidade(purpose: IdentityPurpose, input: IdentityConfirmation): Promise<void> {
+    if (!identityTokenSchema.safeParse(input.token).success)
+      throw new ApiError(400, "Este link é inválido ou não está mais disponível.");
+    if (input.senha.length < 8)
+      throw new ApiError(422, "A senha deve ter pelo menos 8 caracteres.");
+    const path = purpose === "invitation" ? "invitation" : "password-recovery";
+    try {
+      const payload = {
+        token: input.token,
+        senha: input.senha,
+        ...(purpose === "invitation" && input.consentimentos
+          ? { consentimentos: input.consentimentos }
+          : {}),
+      };
+      await apiClient.post<void>(`/api/v1/auth/${path}/confirm`, payload, {
+        authenticated: false,
+        expectedStatus: 204,
+      });
+    } catch (error) {
+      throw identityError(error, purpose);
+    }
+  },
+
   async login(email: string, senha: string): Promise<Usuario> {
     if (config.apiMocking) {
       const usuario = await loginMock(email, senha);

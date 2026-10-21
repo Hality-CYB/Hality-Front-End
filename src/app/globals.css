@@ -51,6 +51,12 @@
   --color-green-700: #15803d;
   --color-green-600: #16a34a;
   --color-green-100: #d1fae5;
+  /* Valores anteriores dos alerts, sem equivalente na paleta semântica. */
+  --color-alert-error-background: #fff1f0;
+  --color-alert-error-foreground: #c0392b;
+  --color-alert-success-background: #f0fdf4;
+  --text-caption: 13px;
+  --text-micro: 10px;
   --color-warning: #ff9500;
   /* Lighter neutral than muted-foreground — inactive icons, disabled/faint
      states (e.g. an unreached step in a StepBar, a chevron affordance). */
@@ -221,6 +227,7 @@
 }
 
 :root {
+  --control-border-width: 1.5px;
   --background: #f2f2f7;
   --foreground: #1c1c1e;
   --card: #ffffff;

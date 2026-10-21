@@ -7,12 +7,19 @@ type AlertProps = {
 };
 
 const CONFIG = {
-  error: { bg: "#FFF1F0", border: "rgba(255,59,48,0.15)", color: "#C0392B", icone: "!" },
-  success: { bg: "#F0FDF4", border: "rgba(22,163,74,0.2)", color: "#16A34A", icone: "✓" },
+  error: {
+    container: "bg-alert-error-background border-destructive/15 text-alert-error-foreground",
+    icon: "bg-alert-error-foreground",
+    icone: "!",
+  },
+  success: {
+    container: "bg-alert-success-background border-green-600/20 text-green-600",
+    icon: "bg-green-600",
+    icone: "✓",
+  },
   info: {
-    bg: "var(--color-teal-100)",
-    border: "var(--color-teal-200)",
-    color: "var(--primary)",
+    container: "bg-teal-100 border-teal-200 text-primary",
+    icon: "bg-primary",
     icone: "i",
   },
 } as const;
@@ -27,15 +34,17 @@ export function Alert({ message, type = "error", className }: AlertProps) {
     <div
       role={type === "error" ? "alert" : "status"}
       className={cn(
-        "flex items-start gap-2 rounded-xl border px-3.5 py-2.75 text-[13px]",
+        "flex items-start gap-2 rounded-xl border px-3.5 py-2.75 text-(length:--text-caption)",
+        cfg.container,
         className,
       )}
-      style={{ background: cfg.bg, borderColor: cfg.border, color: cfg.color }}
     >
       <span
         aria-hidden
-        className="mt-0.25 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full text-[10px] font-black text-white"
-        style={{ background: cfg.color }}
+        className={cn(
+          "text-primary-foreground mt-0.25 flex size-4.5 shrink-0 items-center justify-center rounded-full text-(length:--text-micro) font-black",
+          cfg.icon,
+        )}
       >
         {cfg.icone}
       </span>

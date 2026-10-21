@@ -10,6 +10,7 @@ import { diagnosticoService } from "@/services/diagnostico-service";
 import { dicaService } from "@/services/dica-service";
 import { adminService } from "@/services/admin-service";
 import { adaptBackendConteudoAdmin, type BackendConteudoAdmin } from "@/types/dica";
+import { atualizarUsuarioMock } from "@/services/mocks/mock-db";
 
 /**
  * Services do admin (`/admin/*`). Os testes de contrato interceptam a chamada;
@@ -69,6 +70,7 @@ describe("usuarioService (admin)", () => {
     expect(pagina.itens[0]).toMatchObject({
       nome: "Ana",
       ativo: false,
+      convitePendente: false,
       perfilProfissional: { registro: "CRO 1", especialidade: null, vinculadoHality: true },
     });
   });
@@ -99,7 +101,6 @@ describe("usuarioService (admin)", () => {
       nome: " X ",
       email: "x@x.com",
       role: "paciente",
-      senha: "12345678",
       profissional,
     });
     await usuarioService.criarAdmin({
@@ -107,7 +108,6 @@ describe("usuarioService (admin)", () => {
       email: "y@x.com",
       telefone: "",
       role: "profissional",
-      senha: "12345678",
       profissional,
     });
 
@@ -116,9 +116,7 @@ describe("usuarioService (admin)", () => {
       email: "x@x.com",
       telefone: null,
       role: "paciente",
-      senha: "12345678",
-      // Senha definida na hora: conta ativa, sem convite (o padrão do back desde a #163 é convidar).
-      enviar_convite: false,
+      enviar_convite: true,
     });
     expect(corpos[1]).toMatchObject({
       profissional: {
@@ -135,14 +133,165 @@ describe("usuarioService (admin)", () => {
     });
   });
 
+  it.each(["paciente", "profissional", "admin"] as const)(
+    "preserva cadastro direto e por convite para %s sem confundir os estados",
+    async (role) => {
+      const direto = await usuarioService.criarAdmin({
+        nome: "Cadastro direto",
+        email: `direto-${role}@example.com`,
+        role,
+        senha: "DiretaSegura902",
+      });
+      expect(direto).toMatchObject({ role, ativo: true, convitePendente: false });
+      expect(usuarioMockParaLogin(direto.email, "DiretaSegura902")).toMatchObject({
+        id: direto.id,
+      });
+      expect(usuarioMockParaLogin(direto.email, SENHA_MOCK)).toBeNull();
+      expect(direto).not.toHaveProperty("senha");
+      const convite = await usuarioService.criarAdmin({
+        nome: "Cadastro por convite",
+        email: `convite-${role}@example.com`,
+        role,
+      });
+      expect(convite).toMatchObject({ role, ativo: false, convitePendente: true });
+      expect(usuarioMockParaLogin(convite.email, SENHA_MOCK)).toBeNull();
+    },
+  );
+
+  it("envia senha e opt-out de convite somente no cadastro direto explícito", async () => {
+    let corpo: unknown;
+    server.use(
+      http.post(url("/api/v1/admin/usuarios"), async ({ request }) => {
+        corpo = await request.json();
+        return HttpResponse.json(
+          {
+            id: "direto",
+            nome: "Direto",
+            email: "direto@example.com",
+            telefone: null,
+            role: "admin",
+            ativo: true,
+            convite_pendente: false,
+            profissional: null,
+            created_at: "2026-10-20T00:00:00Z",
+          },
+          { status: 201 },
+        );
+      }),
+    );
+    await usuarioService.criarAdmin({
+      nome: "Direto",
+      email: "direto@example.com",
+      role: "admin",
+      senha: "DiretaSegura902",
+    });
+    expect(corpo).toEqual({
+      nome: "Direto",
+      email: "direto@example.com",
+      role: "admin",
+      telefone: null,
+      senha: "DiretaSegura902",
+      enviar_convite: false,
+    });
+  });
+
+  it("mocks recusam senha padrão, opt-out sem senha e dados profissionais no papel errado", async () => {
+    const headers = {
+      Authorization: "Bearer mock-token:admin-1",
+      "Content-Type": "application/json",
+    };
+    const base = { nome: "Inválido", email: "invalido@example.com", role: "paciente" };
+    for (const extra of [
+      { enviar_convite: false },
+      { senha: "hality1234" },
+      { profissional: { registro_profissional: "CRO" } },
+    ]) {
+      const response = await fetch(url("/api/v1/admin/usuarios"), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ ...base, ...extra }),
+      });
+      expect(response.status).toBe(422);
+    }
+  });
+
+  it("reenvia convite pendente com Bearer, sem senha, sem criar outro usuário", async () => {
+    const criado = await usuarioService.criarAdmin({
+      nome: "Convite pendente",
+      email: "reenvio-teste@example.com",
+      role: "profissional",
+    });
+    const paginaAntes = await usuarioService.listarAdmin({ busca: criado.email });
+    const reenviado = await usuarioService.reenviarConvite(criado.id);
+    expect(reenviado).toMatchObject({ id: criado.id, ativo: false, convitePendente: true });
+    expect(await usuarioService.listarAdmin({ busca: criado.email })).toEqual(paginaAntes);
+    expect(usuarioMockParaLogin(criado.email, SENHA_MOCK)).toBeNull();
+  });
+
+  it("reenvio usa a rota confirmada e não transporta credenciais no corpo", async () => {
+    let corpo: string | undefined;
+    server.use(
+      http.post(url("/api/v1/admin/usuarios/admin-1/reenviar-convite"), async ({ request }) => {
+        expect(request.headers.get("authorization")).toBe("Bearer mock-token:admin-1");
+        corpo = await request.text();
+        return HttpResponse.json({
+          id: "admin-1",
+          nome: "Admin",
+          email: "admin@example.com",
+          telefone: null,
+          role: "admin",
+          ativo: false,
+          convite_pendente: true,
+          created_at: "2026-10-01T00:00:00Z",
+          profissional: null,
+        });
+      }),
+    );
+    expect(await usuarioService.reenviarConvite("admin-1")).toMatchObject({
+      convitePendente: true,
+    });
+    expect(corpo).toBe("");
+  });
+
+  it("rejeita reenvio de conta ativa, usuário ausente e solicitante sem permissão", async () => {
+    await expect(usuarioService.reenviarConvite("paciente-1")).rejects.toMatchObject({
+      status: 409,
+    });
+    await expect(usuarioService.reenviarConvite("inexistente")).rejects.toMatchObject({
+      status: 404,
+    });
+    setStoredToken("mock-token:profissional-1");
+    await expect(usuarioService.reenviarConvite("paciente-1")).rejects.toMatchObject({
+      status: 403,
+    });
+  });
+
   it("no mock, usuário bloqueado não consegue entrar", async () => {
+    const senha = "ContaTeste789";
+    const criado = await usuarioService.criarAdmin({
+      nome: "Conta bloqueável",
+      email: "conta-bloqueavel@x.com",
+      role: "paciente",
+      senha,
+    });
+    expect(criado.ativo).toBe(true);
+    expect(criado.convitePendente).toBe(false);
+    expect(usuarioMockParaLogin("conta-bloqueavel@x.com", senha)).not.toBeNull();
+
+    await usuarioService.atualizarAdmin(criado.id, { ativo: false });
+
+    expect(usuarioMockParaLogin("conta-bloqueavel@x.com", senha)).toBeNull();
+  });
+
+  it("no mock, usuário convidado não entra antes de ativar e permanece bloqueado após desativação", async () => {
     const criado = await usuarioService.criarAdmin({
       nome: "Bloqueável",
       email: "bloqueavel@x.com",
       role: "paciente",
-      senha: "12345678",
     });
-    expect(usuarioMockParaLogin("bloqueavel@x.com", SENHA_MOCK)).not.toBeNull();
+    expect(criado.convitePendente).toBe(true);
+    expect(criado.ativo).toBe(false);
+    expect(usuarioMockParaLogin("bloqueavel@x.com", SENHA_MOCK)).toBeNull();
 
     await usuarioService.atualizarAdmin(criado.id, { ativo: false });
 
@@ -165,8 +314,9 @@ describe("vinculoService", () => {
       nome: "Dr. Teste",
       email: "dr.teste@x.com",
       role: "profissional",
-      senha: "12345678",
     });
+    // Pré-condição do teste de vínculo: o profissional já ativou a conta.
+    atualizarUsuarioMock(novoProfissional.id, { ativo: true, convitePendente: false });
     const criado = await vinculoService.criar({
       pacienteId: "paciente-1",
       profissionalId: novoProfissional.id,
@@ -307,6 +457,28 @@ describe("diagnosticoService (admin)", () => {
     const revisado = pagina.itens.find((d) => d.revisao.revisado);
     expect(revisado?.pacienteNome).not.toBe("");
     expect(revisado?.nivel).toBe(revisado?.revisao.nivel ?? revisado?.nivelIA);
+  });
+
+  it("preserva o filtro da develop nos handlers globais após criar e reenviar convite", async () => {
+    const semClassificacao = await diagnosticoService.listarAdmin({ semClassificacao: true });
+    expect(semClassificacao.itens.length).toBeGreaterThan(0);
+    expect(semClassificacao.itens.every((d) => d.nivelIA === null)).toBe(true);
+    const criado = await usuarioService.criarAdmin({
+      nome: "Compatibilidade diagnósticos",
+      email: "compat-diagnosticos@example.com",
+      role: "admin",
+    });
+    await usuarioService.reenviarConvite(criado.id);
+    expect(await diagnosticoService.listarAdmin({ semClassificacao: true })).toEqual(
+      semClassificacao,
+    );
+    const classificados = await diagnosticoService.listarAdmin({ classificacao: 1 });
+    expect(classificados.itens.length).toBeGreaterThan(0);
+    expect(classificados.itens.every((d) => d.nivelIA === 1)).toBe(true);
+    // O service dá precedência a sem_classificacao, sem enviar filtros incompatíveis.
+    expect(
+      await diagnosticoService.listarAdmin({ semClassificacao: true, classificacao: 1 }),
+    ).toEqual(semClassificacao);
   });
 });
 
