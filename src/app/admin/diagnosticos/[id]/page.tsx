@@ -22,15 +22,12 @@ import { useDiagnosticoAdmin } from "@/hooks/use-diagnosticos";
 import { ApiError } from "@/lib/api-client";
 import { nivelColor, nivelIcon, nivelLabel } from "@/lib/level-format";
 import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/status-format";
+import { formatarData, formatarDataHora } from "@/lib/datas";
 
 /** O back manda o motivo como código; texto para os que ele usa hoje. */
 const MOTIVO_DATASET: Record<string, string> = {
   exportacao_fora_do_escopo: "A exportação do dataset ainda não faz parte do escopo.",
 };
-
-function dataCurta(iso: string) {
-  return new Date(iso).toLocaleDateString("pt-BR");
-}
 
 /**
  * Detalhe do diagnóstico para o admin (`GET /admin/diagnosticos/{id}`).
@@ -101,12 +98,7 @@ export default function DiagnosticoDetailAdminPage({
           <div className="font-heading text-base font-extrabold text-white">
             Diagnóstico #{d.id}
           </div>
-          <div className="text-xs text-white/60">
-            {new Date(d.criadoEm).toLocaleString("pt-BR", {
-              dateStyle: "short",
-              timeStyle: "short",
-            })}
-          </div>
+          <div className="text-xs text-white/60">{formatarDataHora(d.criadoEm)}</div>
         </div>
         <StatusBadge
           label={statusDiagnosticoLabel(d.status)}
@@ -176,7 +168,7 @@ export default function DiagnosticoDetailAdminPage({
                   <div className="flex justify-between gap-3">
                     <span className="text-muted-foreground">Em</span>
                     <span className="font-heading font-semibold">
-                      {dataCurta(d.revisao.revisadoEm)}
+                      {formatarData(d.revisao.revisadoEm)}
                     </span>
                   </div>
                 )}
@@ -205,7 +197,7 @@ export default function DiagnosticoDetailAdminPage({
                     <div className="min-w-0">
                       <div className="font-heading font-semibold">{r.revisorNome ?? "—"}</div>
                       <div className="text-muted-foreground text-xs">
-                        {r.revisadoEm && dataCurta(r.revisadoEm)}
+                        {r.revisadoEm && formatarData(r.revisadoEm)}
                       </div>
                       {r.observacoes && <p className="mt-1">{r.observacoes}</p>}
                     </div>

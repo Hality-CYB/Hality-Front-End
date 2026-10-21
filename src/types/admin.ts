@@ -42,6 +42,8 @@ export const backendAdminUsuarioSchema = z.object({
   telefone: z.string().nullable(),
   role: z.string(),
   ativo: z.boolean(),
+  /** #163 do back: convite de primeiro acesso ainda não aceito. */
+  convite_pendente: z.boolean().optional().default(false),
   created_at: z.string(),
   profissional: z
     .object({
@@ -62,6 +64,7 @@ export function adaptBackendAdminUsuario(data: BackendAdminUsuario): Usuario {
     telefone: data.telefone,
     role: mapBackendRoleToFrontend(data.role),
     ativo: data.ativo,
+    convitePendente: data.convite_pendente,
     criadoEm: data.created_at,
     perfilProfissional: data.profissional
       ? {

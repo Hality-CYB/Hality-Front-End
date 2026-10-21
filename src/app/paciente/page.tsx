@@ -12,6 +12,7 @@ import { useDiagnosticos } from "@/hooks/use-diagnosticos";
 import { useHome } from "@/hooks/use-home";
 import { nivelColor, nivelIcon } from "@/lib/level-format";
 import { useSessaoAtual } from "@/lib/auth/session-context";
+import { formatarData } from "@/lib/datas";
 
 export default function PacienteHomePage() {
   const { nome } = useSessaoAtual();
@@ -78,7 +79,7 @@ export default function PacienteHomePage() {
               <div className="flex-1">
                 <LevelChip nivel={ultimo.nivel} />
                 <div className="text-muted-foreground mt-1.5 mb-2.5 text-xs">
-                  {new Date(ultimo.criadoEm).toLocaleDateString("pt-BR")}
+                  {formatarData(ultimo.criadoEm)}
                 </div>
               </div>
               <Button variant="secondary" size="sm" asChild>

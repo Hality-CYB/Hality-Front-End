@@ -12,6 +12,7 @@ import { ScrollInfinito } from "@/components/scroll-infinito";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { useUsuario } from "@/hooks/use-usuarios";
 import { useVinculosPaginados } from "@/hooks/use-vinculos";
+import { formatarData } from "@/lib/datas";
 
 /** Pacientes com vínculo ativo com o profissional (`/admin/vinculos?profissional_id=`). */
 export default function ProfissionalPacientesPage({ params }: { params: Promise<{ id: string }> }) {
@@ -80,7 +81,7 @@ export default function ProfissionalPacientesPage({ params }: { params: Promise<
                 <div className="min-w-0 flex-1">
                   <div className="font-heading truncate text-sm font-bold">{v.pacienteNome}</div>
                   <div className="text-muted-foreground truncate text-xs">
-                    Vinculado em {new Date(v.vinculadoEm).toLocaleDateString("pt-BR")}
+                    Vinculado em {formatarData(v.vinculadoEm)}
                   </div>
                 </div>
                 <ChevronRight className="text-gray-3 h-4 w-4" />

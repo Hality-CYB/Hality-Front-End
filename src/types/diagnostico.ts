@@ -48,6 +48,8 @@ export const diagnosticoSchema = z.object({
   criadoEm: z.string(),
   revisadoPor: z.string().optional(),
   revisadoEm: z.iso.datetime().optional(),
+  /** Vem do back (`tem_profissional_vinculado`): diz se alguém vai revisar. */
+  temProfissionalVinculado: z.boolean().optional(),
   revisao: z
     .object({
       revisado: z.boolean(),
@@ -124,6 +126,8 @@ export const backendDiagnosticoDetailSchema = z.object({
     .nullable()
     .optional(),
   erro: z.string().nullable().optional(),
+  /** Sem profissional vinculado, ninguém revisa o diagnóstico. */
+  tem_profissional_vinculado: z.boolean().optional(),
 });
 export type BackendDiagnosticoDetail = z.infer<typeof backendDiagnosticoDetailSchema>;
 
@@ -142,6 +146,7 @@ export function adaptBackendDiagnosticoDetail(data: BackendDiagnosticoDetail): D
     respostasAnamnese: adaptBackendRespostas(data.anamnese.respostas),
     confiancaIA: data.confianca_ia === null ? undefined : Math.round(data.confianca_ia * 100),
     criadoEm: data.data_diagnostico,
+    temProfissionalVinculado: data.tem_profissional_vinculado,
     conteudos: data.conteudos?.map((item) => ({
       id: item.id,
       titulo: item.titulo,

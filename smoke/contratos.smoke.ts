@@ -18,6 +18,7 @@ import {
   backendAdminVinculoListSchema,
 } from "@/types/admin";
 import { backendConteudoListSchema } from "@/types/dica";
+import { backendConsentimentosSchema, backendTermosSchema } from "@/types/consentimento";
 
 /**
  * Smoke sem mock (TASK-209): entra no back real com um usuário de cada papel
@@ -71,6 +72,8 @@ describe("paciente", () => {
   it("perfil, home e diagnósticos", async () => {
     await validar("paciente", "/users/me", backendUserSchema);
     await validar("paciente", "/home", backendHomeSchema);
+    await validar("paciente", "/consentimentos/termos", backendTermosSchema);
+    await validar("paciente", "/users/me/consentimentos", backendConsentimentosSchema);
     const lista = await validar(
       "paciente",
       "/diagnosticos?limite=5",

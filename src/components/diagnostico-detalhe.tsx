@@ -21,6 +21,7 @@ import { formatarResposta } from "@/lib/anamnese-format";
 import { config } from "@/lib/config";
 import { cn } from "@/lib/utils";
 import type { Diagnostico, DiagnosticoNivel } from "@/types/diagnostico";
+import { formatarData } from "@/lib/datas";
 
 export const NIVEIS: DiagnosticoNivel[] = [1, 2, 3];
 
@@ -266,7 +267,7 @@ export function DiagnosticoDetalhe({
                       <span className="text-xs text-white/30">
                         {fotoFalhou
                           ? "Imagem indisponível"
-                          : `Imagem capturada · ${new Date(diagnostico.criadoEm).toLocaleDateString("pt-BR")}`}
+                          : `Imagem capturada · ${formatarData(diagnostico.criadoEm)}`}
                       </span>
                     </>
                   )}

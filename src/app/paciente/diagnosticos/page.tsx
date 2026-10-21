@@ -18,6 +18,7 @@ import {
   type CustomRange,
 } from "@/lib/date-period";
 import { cn } from "@/lib/utils";
+import { formatarData } from "@/lib/datas";
 
 const STATUS_LABEL: Record<string, string> = {
   processando: "Aguardando análise",
@@ -120,9 +121,7 @@ export default function DiagnosticosPage() {
                   <div className="font-heading text-sm font-bold">
                     Diagnóstico #{d.id.slice(-4)}
                   </div>
-                  <div className="text-muted-foreground text-xs">
-                    {new Date(d.criadoEm).toLocaleDateString("pt-BR")}
-                  </div>
+                  <div className="text-muted-foreground text-xs">{formatarData(d.criadoEm)}</div>
                 </div>
                 <StatusBadge
                   label={

@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/api-client";
+import { fusoDoNavegador } from "@/lib/datas";
 import { adaptBackendAdminResumo, backendAdminResumoSchema, type ResumoAdmin } from "@/types/admin";
 
 export const adminService = {
@@ -8,7 +9,7 @@ export const adminService = {
    */
   async resumo(periodo: { inicio?: string; fim?: string } = {}): Promise<ResumoAdmin> {
     const params = new URLSearchParams({
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+      timezone: fusoDoNavegador(),
     });
     if (periodo.inicio) params.set("inicio", periodo.inicio);
     if (periodo.fim) params.set("fim", periodo.fim);

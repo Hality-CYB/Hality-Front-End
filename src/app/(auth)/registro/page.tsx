@@ -6,7 +6,11 @@ import { AuthCard } from "@/components/auth-card";
 import { Alert } from "@/components/alert";
 import { Field, PasswordField } from "@/components/auth-fields";
 import { Button } from "@/components/ui/button";
+import { EscolhaConsentimento } from "@/components/escolha-consentimento";
 import { useRegistrar, useRedirectIfAuthenticated } from "@/hooks/use-auth";
+import { useTermosConsentimento } from "@/hooks/use-consentimentos";
+import { ApiError } from "@/lib/api-client";
+import type { Finalidade } from "@/types/consentimento";
 
 /** Máscara BR: (11) 91234-5678 (ou (11) 1234-5678 pra fixo, 10 dígitos). */
 function formatarTelefone(valor: string): string {
@@ -26,8 +30,11 @@ export default function RegistroPage() {
   const [senha, setSenha] = useState("");
   const [senha2, setSenha2] = useState("");
   const [aceitaTermos, setAceitaTermos] = useState(false);
+  // Decisão explícita por finalidade (#160 do back): nada vem marcado.
+  const [decisoes, setDecisoes] = useState<Partial<Record<Finalidade, boolean>>>({});
   const [erro, setErro] = useState("");
   const registrar = useRegistrar();
+  const termos = useTermosConsentimento();
 
   useRedirectIfAuthenticated();
 
@@ -57,16 +64,42 @@ export default function RegistroPage() {
     }
 
     if (!aceitaTermos) {
-      setErro("Aceite os termos para continuar.");
+      setErro("Aceite os Termos de Uso para continuar.");
       return;
     }
 
-    registrar.mutate({
-      nome: nome.trim(),
-      email: email.trim(),
-      senha,
-      telefone: telefone.trim() || undefined,
-    });
+    const lista = termos.data ?? [];
+    if (lista.some((t) => decisoes[t.finalidade] === undefined)) {
+      setErro("Responda a cada consentimento: aceito ou não aceito.");
+      return;
+    }
+    if (lista.some((t) => t.obrigatorio && !decisoes[t.finalidade])) {
+      setErro("Para criar a conta, aceite o tratamento dos seus dados de saúde.");
+      return;
+    }
+
+    registrar.mutate(
+      {
+        nome: nome.trim(),
+        email: email.trim(),
+        senha,
+        telefone: telefone.trim() || undefined,
+        consentimentos: lista.map((t) => ({
+          finalidade: t.finalidade,
+          versao: t.versao,
+          aceito: decisoes[t.finalidade] === true,
+        })),
+      },
+      {
+        onError: (e) => {
+          // Termo mudou de versão: busca a nova e pede a decisão de novo.
+          if (e instanceof ApiError && e.status === 409) {
+            setDecisoes({});
+            termos.refetch();
+          }
+        },
+      },
+    );
   }
 
   return (
@@ -121,6 +154,32 @@ export default function RegistroPage() {
             <span className="text-primary font-semibold">Política de Privacidade</span>
           </span>
         </label>
+        <div className="flex flex-col gap-2.5">
+          <span className="text-muted-foreground font-heading text-xs font-bold">
+            Como seus dados podem ser usados
+          </span>
+          {termos.isPending && (
+            <p className="text-muted-foreground text-[13px]" role="status">
+              Carregando termos…
+            </p>
+          )}
+          {termos.isError && (
+            <div className="flex flex-col items-start gap-2">
+              <Alert message="Não foi possível carregar os termos. Sem eles não dá para criar a conta." />
+              <Button type="button" size="sm" variant="secondary" onClick={() => termos.refetch()}>
+                Tentar de novo
+              </Button>
+            </div>
+          )}
+          {termos.data?.map((termo) => (
+            <EscolhaConsentimento
+              key={termo.finalidade}
+              termo={termo}
+              aceito={decisoes[termo.finalidade] ?? null}
+              onEscolher={(aceito) => setDecisoes((d) => ({ ...d, [termo.finalidade]: aceito }))}
+            />
+          ))}
+        </div>
         {(erro || registrar.isError) && (
           <Alert
             message={
@@ -131,7 +190,7 @@ export default function RegistroPage() {
             }
           />
         )}
-        <Button type="submit" size="lg" disabled={registrar.isPending}>
+        <Button type="submit" size="lg" disabled={registrar.isPending || !termos.data}>
           {registrar.isPending ? "Criando conta…" : "Criar conta"}
         </Button>
       </form>

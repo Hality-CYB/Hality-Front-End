@@ -9,6 +9,11 @@ import { ApiError } from "@/lib/api-client";
 import { config } from "@/lib/config";
 import { setStoredToken, clearStoredToken } from "@/lib/session";
 import { adicionarUsuarioMock, usuarioMockParaLogin } from "@/services/mocks/auth-handlers";
+import {
+  registrarDecisoesMock,
+  validarDecisoesCadastroMock,
+} from "@/services/mocks/consentimentos-handlers";
+import type { DecisaoConsentimento } from "@/types/consentimento";
 
 /**
  * Fala direto com o FastAPI (fastapi-users): sem BFF do Next no meio.
@@ -41,6 +46,8 @@ export type RegisterInput = {
   email: string;
   senha: string;
   telefone?: string;
+  /** Decisão explícita por finalidade, na versão do termo exibida (#160 do back). */
+  consentimentos: DecisaoConsentimento[];
 };
 
 async function loginMock(email: string, senha: string): Promise<Usuario | null> {
@@ -48,6 +55,7 @@ async function loginMock(email: string, senha: string): Promise<Usuario | null> 
 }
 
 async function registrarMock(input: RegisterInput): Promise<Usuario> {
+  validarDecisoesCadastroMock(input.consentimentos);
   const usuario: Usuario = {
     id: `paciente-${crypto.randomUUID()}`,
     nome: input.nome,
@@ -60,6 +68,7 @@ async function registrarMock(input: RegisterInput): Promise<Usuario> {
   // registro) não encontraria esse usuário — ele nunca existiu em
   // seedUsuarios, só nesse retorno aqui.
   adicionarUsuarioMock(usuario);
+  registrarDecisoesMock(usuario.id, input.consentimentos);
   return usuario;
 }
 
@@ -119,6 +128,7 @@ async function registrarReal(
     email: input.email.trim().toLowerCase(),
     password: input.senha,
     phone: input.telefone,
+    consentimentos: input.consentimentos,
   };
 
   let response: Response;
@@ -136,6 +146,16 @@ async function registrarReal(
     const errorBody = await response.json().catch(() => null);
     if (errorBody?.detail === "REGISTER_USER_ALREADY_EXISTS") {
       throw new ApiError(response.status, "Este e-mail já está cadastrado.");
+    }
+    if (response.status === 409) {
+      // Termo mudou de versão entre abrir a tela e enviar.
+      throw new ApiError(
+        409,
+        "Os termos foram atualizados. Leia a versão nova e confirme de novo.",
+      );
+    }
+    if (response.status === 422 && typeof errorBody?.detail === "string") {
+      throw new ApiError(422, "Para criar a conta, aceite o tratamento dos seus dados de saúde.");
     }
     throw new ApiError(response.status, "Não foi possível concluir o cadastro.");
   }

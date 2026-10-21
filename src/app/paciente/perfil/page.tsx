@@ -10,6 +10,12 @@ import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { PrivacyDialog } from "@/components/privacy-dialog";
 import { useLogout } from "@/hooks/use-auth";
 import {
+  mensagemErroConsentimento,
+  useDecidirConsentimento,
+  useMeusConsentimentos,
+  useTermosConsentimento,
+} from "@/hooks/use-consentimentos";
+import {
   mensagemErroAlterarSenha,
   useAlterarSenha,
   useAtualizarPerfil,
@@ -70,6 +76,9 @@ export default function PerfilPage() {
   }
   const [dialogAberto, setDialogAberto] = useState<"senha" | "privacidade" | "sobre" | null>(null);
   const logout = useLogout();
+  const termos = useTermosConsentimento();
+  const consentimentos = useMeusConsentimentos({ enabled: dialogAberto === "privacidade" });
+  const decidirConsentimento = useDecidirConsentimento();
 
   return (
     <div className="flex flex-col">
@@ -207,8 +216,22 @@ export default function PerfilPage() {
       />
       <PrivacyDialog
         open={dialogAberto === "privacidade"}
-        onOpenChange={(open) => setDialogAberto(open ? "privacidade" : null)}
-        onExcluirConta={() => logout.mutate()}
+        onOpenChange={(open) => {
+          if (!open) decidirConsentimento.reset();
+          setDialogAberto(open ? "privacidade" : null);
+        }}
+        termos={termos.data ?? []}
+        estados={consentimentos.data ?? []}
+        carregando={consentimentos.isPending}
+        erroCarregar={consentimentos.isError}
+        onTentarDeNovo={() => consentimentos.refetch()}
+        onDecidir={(decisao) => decidirConsentimento.mutate(decisao)}
+        salvando={decidirConsentimento.isPending}
+        erroDecisao={
+          decidirConsentimento.isError
+            ? mensagemErroConsentimento(decidirConsentimento.error)
+            : null
+        }
       />
       <AboutDialog
         open={dialogAberto === "sobre"}

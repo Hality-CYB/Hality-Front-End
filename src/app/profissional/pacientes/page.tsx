@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/empty-state";
 import { LevelChip } from "@/components/level-chip";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { usePacientesPaginados } from "@/hooks/use-pacientes";
+import { formatarData } from "@/lib/datas";
 
 export default function PacientesPage() {
   const [busca, setBusca] = useState("");
@@ -62,12 +63,12 @@ export default function PacientesPage() {
                   <div className="text-muted-foreground mb-0.5 truncate text-xs">{p.email}</div>
                   <div className="text-muted-foreground truncate text-xs">
                     {p.totalDiagnosticos} diagnósticos
-                    {p.ultimoDiagnosticoEm &&
-                      ` · último ${new Date(p.ultimoDiagnosticoEm).toLocaleDateString("pt-BR")}`}
+                    {p.ultimoDiagnosticoEm && ` · último ${formatarData(p.ultimoDiagnosticoEm)}`}
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  {!p.ativo && <StatusBadge label="Inativo" status="neutral" />}
+                  {/* Cadastrado pelo profissional, fica inativo até aceitar o convite (#163). */}
+                  {!p.ativo && <StatusBadge label="Aguardando primeiro acesso" status="pending" />}
                   {p.ultimoNivel !== null && <LevelChip nivel={p.ultimoNivel} size="sm" />}
                   <ChevronRight className="text-gray-3 h-4 w-4" />
                 </div>

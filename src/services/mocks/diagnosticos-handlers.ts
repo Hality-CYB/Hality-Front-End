@@ -2,6 +2,7 @@ import { http, HttpResponse } from "msw";
 import { z } from "zod";
 import { config } from "@/lib/config";
 import { usuarioDoRequest } from "@/services/mocks/auth-handlers";
+import { tratamentoBloqueadoMock } from "@/services/mocks/consentimentos-handlers";
 import { respostasDaAnamnese, titularDaAnamnese } from "@/services/mocks/anamnese-handlers";
 import {
   diagnosticosMock as diagnosticos,
@@ -14,6 +15,7 @@ import {
   paginar,
   paraBackendListItem,
   temVinculo,
+  vinculosMock,
 } from "@/services/mocks/mock-db";
 import {
   CODIGO_POR_NIVEL,
@@ -147,6 +149,7 @@ function paraBackendDetail(d: Diagnostico): BackendDiagnosticoDetail {
     escala_saburra: null,
     confianca_ia: d.confiancaIA === undefined ? null : d.confiancaIA / 100,
     imagens: d.imagemUrl ? [{ id: 1, url_arquivo: d.imagemUrl, ordem: 1 }] : [],
+    tem_profissional_vinculado: vinculosMock.some((v) => v.ativo && v.pacienteId === d.pacienteId),
     anamnese: {
       id: idNumerico(d.anamneseId),
       respostas: respostasDaAnamnese(String(idNumerico(d.anamneseId))),
@@ -279,6 +282,24 @@ export const diagnosticosHandlers = [
         : usuario.role === "paciente" && pacienteId === PACIENTE_MOCK_ID);
     if (!pacienteId || !podeUsar) {
       return HttpResponse.json({ detail: "anamnese não encontrada" }, { status: 404 });
+    }
+    // Como o back (#164): uma anamnese gera um diagnóstico só; reenviar devolve o existente.
+    const existente = diagnosticos.find((d) => d.anamneseId === String(anamneseId));
+    if (existente) {
+      return HttpResponse.json(
+        { detail: "anamnese já possui diagnóstico", diagnostico_id: idNumerico(existente.id) },
+        { status: 409 },
+      );
+    }
+    // Como o back (#160): quem recusou ou revogou dados de saúde não envia diagnóstico novo.
+    if (tratamentoBloqueadoMock(pacienteId)) {
+      return HttpResponse.json(
+        {
+          detail:
+            "consentimento para tratamento de dados de saúde não vigente (revogado ou termo desatualizado)",
+        },
+        { status: 403 },
+      );
     }
 
     const id = String(proximoId++);

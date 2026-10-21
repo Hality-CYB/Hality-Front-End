@@ -117,6 +117,8 @@ describe("usuarioService (admin)", () => {
       telefone: null,
       role: "paciente",
       senha: "12345678",
+      // Senha definida na hora: conta ativa, sem convite (o padrão do back desde a #163 é convidar).
+      enviar_convite: false,
     });
     expect(corpos[1]).toMatchObject({
       profissional: {

@@ -80,6 +80,7 @@ const criarUsuarioSchema = z
     telefone: z.string().max(20).nullable().optional(),
     role: roleSchema,
     senha: z.string().min(SENHA_TAMANHO_MINIMO),
+    enviar_convite: z.boolean().optional(),
     profissional: z
       .object({
         registro_profissional: z.string().max(50).nullable().optional(),
