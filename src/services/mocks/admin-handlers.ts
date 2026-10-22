@@ -19,7 +19,8 @@ import {
   idNumerico,
   type VinculoMock,
 } from "@/services/mocks/mock-db";
-import { CATEGORIAS_DICA, type BackendConteudoAdmin } from "@/types/dica";
+import { CATEGORIAS_CONTEUDO, type BackendConteudoAdmin } from "@/types/conteudo-admin";
+import { DESTINOS_CONTEUDO, MIDIA_ACEITA } from "@/types/conteudo";
 import { CODIGO_POR_NIVEL, type Diagnostico } from "@/types/diagnostico";
 import { roleSchema, type Usuario } from "@/types/usuario";
 
@@ -195,12 +196,14 @@ function paraAdminDiagnosticoItem(d: Diagnostico) {
 
 // --- Conteúdos ---
 
-const categoriaSchema = z.enum(Object.keys(CATEGORIAS_DICA) as [string, ...string[]]);
+const categoriaSchema = z.enum(Object.keys(CATEGORIAS_CONTEUDO) as [string, ...string[]]);
+const destinoSchema = z.enum(Object.keys(DESTINOS_CONTEUDO) as [string, ...string[]]);
 const camposConteudo = {
   titulo: z.string().min(1).max(255),
   categoria: categoriaSchema,
   conteudo: z.object({ itens: z.array(z.object({ tipo: z.string() }).loose()).min(1) }).strict(),
   classificacao_ids: z.array(z.number()),
+  destinos: z.array(destinoSchema),
   aparece_na_home: z.boolean(),
   status: z.enum(["rascunho", "publicado"]),
   ordem: z.number().int().min(0),
@@ -209,6 +212,7 @@ const criarConteudoSchema = z
   .object({
     ...camposConteudo,
     classificacao_ids: camposConteudo.classificacao_ids.default([]),
+    destinos: camposConteudo.destinos.default([]),
     aparece_na_home: camposConteudo.aparece_na_home.default(false),
     status: camposConteudo.status.default("rascunho"),
     ordem: camposConteudo.ordem.default(0),
@@ -218,7 +222,116 @@ const atualizarConteudoSchema = z.object(camposConteudo).partial().strict();
 
 const classificacoesValidas = new Set(Object.values(CLASSIFICACAO_ID_POR_NIVEL));
 
+/** Mesmas regras e mensagens de `_validar_destinos_classificacoes`/`_validar_conteudo_publico` do back. */
+function erroDeDestinos(
+  c: Pick<BackendConteudoAdmin, "destinos" | "classificacao_ids" | "conteudo">,
+) {
+  if (c.destinos.includes("orientacoes_diagnostico") && c.classificacao_ids.length === 0) {
+    return "orientacoes_diagnostico exige ao menos uma classificação";
+  }
+  if (c.destinos.includes("captura") && c.classificacao_ids.length > 0) {
+    return "captura não aceita classificação clínica";
+  }
+  if (!c.destinos.includes("landing_publica")) return null;
+  if (c.classificacao_ids.length > 0) return "landing_publica não aceita classificação clínica";
+  for (const bloco of c.conteudo.itens) {
+    const campos = Object.keys(bloco).sort().join(",");
+    if (bloco.tipo === "texto") {
+      if (campos !== "texto,tipo") return "bloco texto público possui campos não permitidos";
+      const texto = String(bloco.texto ?? "");
+      if (!texto.trim()) return "bloco texto público exige texto";
+      if (/[<>]/.test(texto)) return "HTML não é permitido em conteúdo público";
+    } else if (bloco.tipo === "imagem") {
+      if (campos !== "alt,tipo,url") return "bloco imagem público possui campos não permitidos";
+      const urlImagem = String(bloco.url ?? "");
+      const relativa = urlImagem.startsWith("/") && !urlImagem.startsWith("//");
+      if (!relativa && !/^https?:\/\/[^/]+/.test(urlImagem)) {
+        return "URL inválida para conteúdo público";
+      }
+    } else {
+      return `tipo de bloco não permitido em conteúdo público: ${bloco.tipo}`;
+    }
+  }
+  return null;
+}
+
+/** O back mantém `aparece_na_home` (legado) e o destino `home_autenticada` iguais. */
+function sincronizarHome(
+  corpo: Partial<BackendConteudoAdmin>,
+  destinosAtuais: BackendConteudoAdmin["destinos"],
+): Partial<BackendConteudoAdmin> {
+  if (corpo.destinos) {
+    return { ...corpo, aparece_na_home: corpo.destinos.includes("home_autenticada") };
+  }
+  if (corpo.aparece_na_home === undefined) return corpo;
+  const semHome = destinosAtuais.filter((d) => d !== "home_autenticada");
+  return {
+    ...corpo,
+    destinos: corpo.aparece_na_home ? [...semHome, "home_autenticada"] : semHome,
+  };
+}
+
+/**
+ * Mídias de conteúdo enviadas no mock, em memória. Mesmo contrato do
+ * `conteudo_storage` do back: formatos, limites, 400 com `motivo` e 413.
+ */
+const midiasMock = new Map<string, { bytes: ArrayBuffer; tipo: string }>();
+const EXTENSAO_MIDIA: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "video/mp4": ".mp4",
+  "video/webm": ".webm",
+};
+
 export const adminHandlers = [
+  http.post(url("/api/v1/admin/conteudos/midias"), async ({ request }) => {
+    const admin = exigirAdmin(request);
+    if (admin instanceof Response) return admin;
+    const campo = (await request.formData()).get("arquivo");
+    // Checa a forma, não a classe: no teste (jsdom) o arquivo vem de outro realm
+    // e `instanceof Blob` falha.
+    const arquivo =
+      typeof campo === "object" && campo !== null && "arrayBuffer" in campo ? campo : null;
+    if (!arquivo) {
+      return HttpResponse.json({ detail: "arquivo obrigatório" }, { status: 422 });
+    }
+    const extensao = EXTENSAO_MIDIA[arquivo.type];
+    if (!extensao) {
+      return HttpResponse.json(
+        {
+          motivo: "Formato não aceito. Envie imagem JPEG, PNG ou WEBP, ou vídeo MP4 ou WEBM.",
+        },
+        { status: 400 },
+      );
+    }
+    if (arquivo.size === 0) {
+      return HttpResponse.json({ motivo: "O arquivo enviado está vazio." }, { status: 400 });
+    }
+    const tipo = arquivo.type.startsWith("video/") ? "video" : "imagem";
+    if (arquivo.size > MIDIA_ACEITA[tipo].maxMb * 1024 * 1024) {
+      return HttpResponse.json(
+        { detail: "arquivo acima do tamanho máximo permitido" },
+        { status: 413 },
+      );
+    }
+    const nome = `${crypto.randomUUID().replaceAll("-", "")}${extensao}`;
+    // Guarda os bytes, não o objeto: no teste (jsdom) nem o File nem o Blob
+    // globais servem de corpo de Response.
+    midiasMock.set(nome, { bytes: await arquivo.arrayBuffer(), tipo: arquivo.type });
+    return HttpResponse.json(
+      { url: `/api/v1/public/conteudos/midias/${nome}`, tipo },
+      { status: 201 },
+    );
+  }),
+
+  // Aberta, como no back: <img>/<video> carregam sem token.
+  http.get(url("/api/v1/public/conteudos/midias/:nome"), ({ params }) => {
+    const arquivo = midiasMock.get(String(params.nome));
+    if (!arquivo) return HttpResponse.json({ detail: "mídia não encontrada" }, { status: 404 });
+    return new HttpResponse(arquivo.bytes, { headers: { "Content-Type": arquivo.tipo } });
+  }),
+
   http.get(url("/api/v1/admin/usuarios"), ({ request }) => {
     const admin = exigirAdmin(request);
     if (admin instanceof Response) return admin;
@@ -478,6 +591,7 @@ export const adminHandlers = [
     const categoria = params.get("categoria");
     const naHome = params.get("aparece_na_home");
     const classificacaoId = params.get("classificacao_id");
+    const destino = params.get("destino");
     const order = params.get("order") ?? "ordem_asc";
     const comparar: Record<string, (a: BackendConteudoAdmin, b: BackendConteudoAdmin) => number> = {
       ordem_asc: (a, b) => a.ordem - b.ordem || a.id - b.id,
@@ -491,6 +605,7 @@ export const adminHandlers = [
       .filter((c) => !categoria || c.categoria === categoria)
       .filter((c) => naHome === null || String(c.aparece_na_home) === naHome)
       .filter((c) => !classificacaoId || c.classificacao_ids.includes(Number(classificacaoId)))
+      .filter((c) => !destino || (c.destinos as string[]).includes(destino))
       .sort(comparar[order] ?? comparar.ordem_asc);
     return HttpResponse.json({
       items: filtrados.slice((page - 1) * limit, page * limit),
@@ -554,13 +669,25 @@ export const adminHandlers = [
     if (admin instanceof Response) return admin;
     const body = criarConteudoSchema.safeParse(await request.json());
     if (!body.success) return HttpResponse.json({ detail: "dados inválidos" }, { status: 422 });
+    const dados = sincronizarHome(body.data as Partial<BackendConteudoAdmin>, []);
+    const erro = erroDeDestinos(dados as BackendConteudoAdmin);
+    // Validação do schema no back: 422 no formato do Pydantic (lista).
+    if (erro) {
+      return HttpResponse.json(
+        { detail: [{ type: "value_error", loc: ["body"], msg: `Value error, ${erro}` }] },
+        { status: 422 },
+      );
+    }
     if (body.data.classificacao_ids.some((id) => !classificacoesValidas.has(id))) {
-      return HttpResponse.json({ detail: "classificação não encontrada" }, { status: 400 });
+      return HttpResponse.json(
+        { detail: "uma ou mais classificações não foram encontradas" },
+        { status: 400 },
+      );
     }
     const agora = new Date().toISOString();
     const publicado = body.data.status === "publicado";
     const novo: BackendConteudoAdmin = {
-      ...(body.data as Omit<BackendConteudoAdmin, "id" | "created_at" | "updated_at">),
+      ...(dados as Omit<BackendConteudoAdmin, "id" | "created_at" | "updated_at">),
       id: Math.max(0, ...conteudosMock.map((c) => c.id)) + 1,
       created_at: agora,
       updated_at: agora,
@@ -583,6 +710,28 @@ export const adminHandlers = [
     const body = atualizarConteudoSchema.safeParse(await request.json());
     if (!body.success) return HttpResponse.json({ detail: "dados inválidos" }, { status: 422 });
     const atual = conteudosMock[index]!;
+    const mudancas = sincronizarHome(body.data as Partial<BackendConteudoAdmin>, atual.destinos);
+    // Com `destinos` junto de `conteudo` ou `classificacao_ids`, o schema do back já
+    // valida (422 em lista, do Pydantic); no PATCH parcial, o service valida o estado
+    // final (422 com `detail` em texto).
+    const erro = erroDeDestinos({ ...atual, ...mudancas });
+    const peloSchema =
+      body.data.destinos !== undefined &&
+      (body.data.conteudo !== undefined || body.data.classificacao_ids !== undefined);
+    if (erro) {
+      return HttpResponse.json(
+        peloSchema
+          ? { detail: [{ type: "value_error", loc: ["body"], msg: `Value error, ${erro}` }] }
+          : { detail: erro },
+        { status: 422 },
+      );
+    }
+    if ((mudancas.classificacao_ids ?? []).some((id) => !classificacoesValidas.has(id))) {
+      return HttpResponse.json(
+        { detail: "uma ou mais classificações não foram encontradas" },
+        { status: 400 },
+      );
+    }
     const agora = new Date().toISOString();
     // Mesma regra do back: publicar registra quem e quando; voltar a rascunho limpa.
     const publicacao =
@@ -593,7 +742,7 @@ export const adminHandlers = [
           : {};
     const atualizado = {
       ...atual,
-      ...(body.data as Partial<BackendConteudoAdmin>),
+      ...mudancas,
       ...publicacao,
       updated_at: agora,
       atualizado_por_id: admin.id,

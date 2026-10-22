@@ -6,7 +6,9 @@ import { tratamentoBloqueadoMock } from "@/services/mocks/consentimentos-handler
 import { respostasDaAnamnese, titularDaAnamnese } from "@/services/mocks/anamnese-handlers";
 import {
   diagnosticosMock as diagnosticos,
+  CLASSIFICACAO_ID_POR_NIVEL,
   classificacaoResumo,
+  conteudosMock,
   idNumerico,
   maisRecentesPrimeiro,
   nomeDoUsuario,
@@ -113,18 +115,22 @@ function analiseFalsa(): { nivel: DiagnosticoNivel; confiancaIA: number } {
   return { nivel, confiancaIA };
 }
 
-/** Espelha o que app/services/diagnostico_service.py monta em `conteudos`. */
-const CONTEUDO_POR_NIVEL: Record<DiagnosticoNivel, { titulo: string; texto: string }> = {
-  1: { titulo: "Higiene do dia a dia", texto: "Mantenha a rotina de higiene bucal e hidratação." },
-  2: {
-    titulo: "Cuidados recomendados",
-    texto: "Reforce a limpeza lingual diária e considere uma avaliação periodontal.",
-  },
-  3: {
-    titulo: "Encaminhamento sugerido",
-    texto: "Procure um especialista para uma avaliação clínica detalhada.",
-  },
-};
+/**
+ * Espelha `listar_conteudos_por_classificacao` do back: publicados com a
+ * classificação, no destino de orientações ou sem destino (legado), por ordem.
+ */
+function conteudosDoNivel(nivel: DiagnosticoNivel) {
+  const classificacaoId = CLASSIFICACAO_ID_POR_NIVEL[nivel];
+  return conteudosMock
+    .filter(
+      (c) =>
+        c.status === "publicado" &&
+        c.classificacao_ids.includes(classificacaoId) &&
+        (c.destinos.length === 0 || c.destinos.includes("orientacoes_diagnostico")),
+    )
+    .sort((a, b) => a.ordem - b.ordem || a.id - b.id)
+    .map((c) => ({ id: c.id, titulo: c.titulo, conteudo: c.conteudo }));
+}
 
 /** Nível que vale: o da revisão mais recente, senão o da IA. */
 function nivelVigente(d: Diagnostico): DiagnosticoNivel | null {
@@ -154,16 +160,7 @@ function paraBackendDetail(d: Diagnostico): BackendDiagnosticoDetail {
       id: idNumerico(d.anamneseId),
       respostas: respostasDaAnamnese(String(idNumerico(d.anamneseId))),
     },
-    conteudos:
-      nivel !== null
-        ? [
-            {
-              id: nivel,
-              titulo: CONTEUDO_POR_NIVEL[nivel].titulo,
-              conteudo: { itens: [{ tipo: "texto", texto: CONTEUDO_POR_NIVEL[nivel].texto }] },
-            },
-          ]
-        : [],
+    conteudos: nivel !== null ? conteudosDoNivel(nivel) : [],
     revisao: montarRevisaoPaciente(d),
     erro: null,
   };

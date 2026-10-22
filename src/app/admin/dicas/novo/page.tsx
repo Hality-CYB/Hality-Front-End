@@ -3,13 +3,19 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
-import { DicaForm } from "@/components/dica-form";
-import { useCriarDica } from "@/hooks/use-dicas";
-import type { DicaInput } from "@/types/dica";
+import { ConteudoForm } from "@/components/conteudo-form";
+import {
+  mensagemErroConteudo,
+  useCriarConteudo,
+  useEnviarMidia,
+} from "@/hooks/use-conteudos-admin";
+import { useClassificacoes } from "@/hooks/use-classificacoes";
 
-export default function NovaDicaPage() {
+export default function NovoConteudoPage() {
   const router = useRouter();
-  const criar = useCriarDica();
+  const criar = useCriarConteudo();
+  const classificacoes = useClassificacoes();
+  const enviarMidia = useEnviarMidia();
 
   return (
     <div className="flex flex-col">
@@ -20,15 +26,20 @@ export default function NovaDicaPage() {
         >
           <ChevronLeft className="h-3.5 w-3.5" /> Conteúdos
         </Link>
-        <h1 className="text-xl text-white">Nova dica</h1>
+        <h1 className="text-xl text-white">Novo conteúdo</h1>
       </div>
       <div className="p-4">
-        <DicaForm
+        <ConteudoForm
+          classificacoes={classificacoes.data}
+          classificacoesComErro={classificacoes.isError}
+          onTentarClassificacoesDeNovo={() => classificacoes.refetch()}
+          onEnviarMidia={enviarMidia}
           salvando={criar.isPending}
-          erro={criar.isError ? "Não foi possível salvar a dica. Tente novamente." : null}
-          // Na criação o formulário sempre manda todos os campos.
+          erro={criar.isError ? mensagemErroConteudo(criar.error) : null}
           onSalvar={(input) =>
-            criar.mutate(input as DicaInput, { onSuccess: () => router.push("/admin/dicas") })
+            criar.mutate(input, {
+              onSuccess: () => router.push("/admin/dicas?aviso=publicado"),
+            })
           }
         />
       </div>

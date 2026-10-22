@@ -3,43 +3,36 @@ import {
   adaptBackendConteudoAdmin,
   backendConteudoAdminSchema,
   backendConteudoListSchema,
-  blocosDaDica,
-  type CategoriaDica,
-  type Dica,
-  type DicaInput,
-} from "@/types/dica";
+  paraBackendConteudo,
+  type CategoriaConteudo,
+  type ConteudoAdmin,
+  type ConteudoAdminInput,
+} from "@/types/conteudo-admin";
+import {
+  backendMidiaEnviadaSchema,
+  type DestinoConteudo,
+  type MidiaEnviada,
+} from "@/types/conteudo";
 import type { Pagina } from "@/types/admin";
 
-/** Filtros de `GET /admin/conteudos` (#144 do back); nomes de parâmetro em inglês lá. */
-export type FiltroDicas = {
+/** Filtros de `GET /admin/conteudos`; nomes de parâmetro em inglês lá. */
+export type FiltroConteudos = {
   pagina?: number;
   limite?: number;
   /** Busca no título. */
   busca?: string;
   publicado?: boolean;
-  categoria?: CategoriaDica;
+  categoria?: CategoriaConteudo;
+  destino?: DestinoConteudo;
+  classificacaoId?: number;
+  /** Legado, mas pega também conteúdo anterior aos destinos (ver `destinosEfetivos`). */
   mostrarNaHome?: boolean;
   ordem?: "ordem_asc" | "ordem_desc" | "created_at_asc" | "created_at_desc";
 };
 
-function corpoDoConteudo(input: Partial<DicaInput>): Record<string, unknown> {
-  const corpo: Record<string, unknown> = {};
-  if (input.titulo !== undefined) corpo.titulo = input.titulo.trim();
-  if (input.categoria !== undefined) corpo.categoria = input.categoria;
-  if (input.formato !== undefined && input.corpo !== undefined) {
-    corpo.conteudo = {
-      itens: blocosDaDica({ ...input, formato: input.formato, corpo: input.corpo }),
-    };
-  }
-  if (input.mostrarNaHome !== undefined) corpo.aparece_na_home = input.mostrarNaHome;
-  if (input.publicado !== undefined) corpo.status = input.publicado ? "publicado" : "rascunho";
-  if (input.ordem !== undefined) corpo.ordem = input.ordem;
-  return corpo;
-}
-
 /** CRUD de conteúdos do admin (`/admin/conteudos`), com listagem paginada e filtrada no back. */
-export const dicaService = {
-  async listar(filtro: FiltroDicas = {}): Promise<Pagina<Dica>> {
+export const conteudoAdminService = {
+  async listar(filtro: FiltroConteudos = {}): Promise<Pagina<ConteudoAdmin>> {
     const params = new URLSearchParams();
     if (filtro.pagina) params.set("page", String(filtro.pagina));
     if (filtro.limite) params.set("limit", String(filtro.limite));
@@ -48,6 +41,8 @@ export const dicaService = {
       params.set("status", filtro.publicado ? "publicado" : "rascunho");
     }
     if (filtro.categoria) params.set("categoria", filtro.categoria);
+    if (filtro.destino) params.set("destino", filtro.destino);
+    if (filtro.classificacaoId) params.set("classificacao_id", String(filtro.classificacaoId));
     if (filtro.mostrarNaHome !== undefined) {
       params.set("aparece_na_home", String(filtro.mostrarNaHome));
     }
@@ -64,23 +59,34 @@ export const dicaService = {
     };
   },
 
-  async buscar(id: string): Promise<Dica> {
+  async buscar(id: string): Promise<ConteudoAdmin> {
     const data = await apiClient.get<unknown>(`/api/v1/admin/conteudos/${id}`);
     return adaptBackendConteudoAdmin(backendConteudoAdminSchema.parse(data));
   },
 
-  async criar(input: DicaInput): Promise<Dica> {
-    const data = await apiClient.post<unknown>("/api/v1/admin/conteudos", corpoDoConteudo(input));
+  async criar(input: ConteudoAdminInput): Promise<ConteudoAdmin> {
+    const data = await apiClient.post<unknown>(
+      "/api/v1/admin/conteudos",
+      paraBackendConteudo(input),
+    );
     return adaptBackendConteudoAdmin(backendConteudoAdminSchema.parse(data));
   },
 
-  /** PATCH parcial: só vai o que mudou (o corpo só se formato e texto vierem juntos). */
-  async atualizar(id: string, input: Partial<DicaInput>): Promise<Dica> {
+  /** PATCH parcial: só vai o que foi informado. */
+  async atualizar(id: string, input: Partial<ConteudoAdminInput>): Promise<ConteudoAdmin> {
     const data = await apiClient.patch<unknown>(
       `/api/v1/admin/conteudos/${id}`,
-      corpoDoConteudo(input),
+      paraBackendConteudo(input),
     );
     return adaptBackendConteudoAdmin(backendConteudoAdminSchema.parse(data));
+  },
+
+  /** Grava a imagem ou o vídeo no back e devolve a URL para o bloco. */
+  async enviarMidia(arquivo: File): Promise<MidiaEnviada> {
+    const form = new FormData();
+    form.append("arquivo", arquivo);
+    const data = await apiClient.post<unknown>("/api/v1/admin/conteudos/midias", form);
+    return backendMidiaEnviadaSchema.parse(data);
   },
 
   async remover(id: string): Promise<void> {

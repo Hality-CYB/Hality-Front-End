@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
@@ -19,7 +19,16 @@ vi.mock("@/components/auth-card", () => ({
 
 const url = (path: string) => `${config.apiBaseUrl}${path}`;
 
-async function preencherConta() {
+/** Cola o texto de uma vez: digitar letra a letra estoura o timeout com a suíte cheia. */
+async function preencher(campo: HTMLElement, texto: string) {
+  await userEvent.click(campo);
+  await userEvent.paste(texto);
+}
+
+const caixaSaude = () => screen.getByRole("checkbox", { name: /dados de saúde/ });
+const caixaTreino = () => screen.getByRole("checkbox", { name: /treinar a inteligência/ });
+
+async function preencherConta({ aceitarTermosDeUso = true } = {}) {
   render(
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
@@ -27,50 +36,36 @@ async function preencherConta() {
       <RegistroPage />
     </QueryClientProvider>,
   );
-  await userEvent.type(screen.getByPlaceholderText("Seu nome completo"), "Pessoa Nova");
-  await userEvent.type(screen.getByPlaceholderText("seu@email.com"), "nova@hality.com");
+  await preencher(screen.getByPlaceholderText("Seu nome completo"), "Pessoa Nova");
+  await preencher(screen.getByPlaceholderText("seu@email.com"), "nova@hality.com");
   const [senha, confirmar] = screen.getAllByPlaceholderText(/•/);
-  await userEvent.type(senha!, "SenhaSegura1");
-  await userEvent.type(confirmar!, "SenhaSegura1");
-  await userEvent.click(screen.getByRole("checkbox"));
+  await preencher(senha!, "SenhaSegura1");
+  await preencher(confirmar!, "SenhaSegura1");
   // Os termos vêm do back (mock), com nada marcado.
-  await screen.findByRole("group", { name: "Tratamento de dados de saúde" });
-}
-
-function escolher(grupo: string, opcao: "Aceito" | "Não aceito") {
-  const fieldset = screen.getByRole("group", { name: grupo });
-  return userEvent.click(
-    [...fieldset.querySelectorAll("label")].find((l) => l.textContent?.trim() === opcao)!,
-  );
+  await screen.findByRole("checkbox", { name: /dados de saúde/ });
+  if (aceitarTermosDeUso) {
+    await userEvent.click(screen.getByRole("checkbox", { name: /Termos de Uso/ }));
+  }
 }
 
 describe("Cadastro com consentimentos (TASK-208)", () => {
-  it("não envia sem uma decisão em cada consentimento", async () => {
-    const enviado = vi.fn();
-    server.use(http.post(url("/api/v1/auth/register"), enviado));
-    await preencherConta();
-
-    await userEvent.click(screen.getByRole("button", { name: "Criar conta" }));
-
-    expect(await screen.findByRole("alert")).toHaveTextContent("Responda a cada consentimento");
-    expect(enviado).not.toHaveBeenCalled();
+  it("nenhuma caixa vem marcada", async () => {
+    await preencherConta({ aceitarTermosDeUso: false });
+    for (const caixa of screen.getAllByRole("checkbox")) expect(caixa).not.toBeChecked();
   });
 
-  it("recusar dados de saúde explica e bloqueia o cadastro", async () => {
+  it("sem autorizar os dados de saúde, explica e não envia", async () => {
     const enviado = vi.fn();
     server.use(http.post(url("/api/v1/auth/register"), enviado));
     await preencherConta();
 
-    await escolher("Tratamento de dados de saúde", "Não aceito");
-    await escolher("Uso da imagem para treinamento", "Não aceito");
-    expect(screen.getByText(/Sem este consentimento não é possível usar o app/)).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Criar conta" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("aceite o tratamento");
     expect(enviado).not.toHaveBeenCalled();
   });
 
-  it("aceitar saúde e recusar treino envia as duas decisões com a versão", async () => {
+  it("saúde marcada e treino desmarcado: envia as duas decisões com a versão", async () => {
     let corpo: { consentimentos?: unknown } | undefined;
     server.use(
       http.post(url("/api/v1/auth/register"), async ({ request }) => {
@@ -80,8 +75,7 @@ describe("Cadastro com consentimentos (TASK-208)", () => {
     );
     await preencherConta();
 
-    await escolher("Tratamento de dados de saúde", "Aceito");
-    await escolher("Uso da imagem para treinamento", "Não aceito");
+    await userEvent.click(caixaSaude());
     await userEvent.click(screen.getByRole("button", { name: "Criar conta" }));
 
     await vi.waitFor(() => expect(corpo).toBeDefined());
@@ -89,5 +83,24 @@ describe("Cadastro com consentimentos (TASK-208)", () => {
       { finalidade: "health_data", versao: "v1", aceito: true },
       { finalidade: "image_training", versao: "v1", aceito: false },
     ]);
+  });
+
+  it("clicar no nome do termo abre o texto e não marca a caixa", async () => {
+    await preencherConta({ aceitarTermosDeUso: false });
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "termo de uso da imagem para treinamento" }),
+    );
+    const termo = await screen.findByRole("dialog", { name: "Uso da imagem para treinamento" });
+    expect(within(termo).getByText(/Esta autorização é opcional/)).toBeInTheDocument();
+
+    // Com o pop-up aberto o resto da página fica oculto; confere depois de fechar.
+    await userEvent.keyboard("{Escape}");
+    expect(caixaTreino()).not.toBeChecked();
+    await userEvent.click(screen.getByRole("button", { name: "Política de Privacidade" }));
+    const politica = await screen.findByRole("dialog", { name: "Política de Privacidade" });
+    expect(within(politica).getByText("8. Seus direitos")).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.getByRole("checkbox", { name: /Termos de Uso/ })).not.toBeChecked();
   });
 });

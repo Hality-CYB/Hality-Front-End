@@ -14,21 +14,17 @@ import { Card } from "@/components/ui/card";
 import { LevelChip } from "@/components/level-chip";
 import { StatusBadge } from "@/components/status-badge";
 import { TipCard } from "@/components/tip-card";
+import { urlDaApi } from "@/lib/url-da-api";
+import { ConteudoBlocos } from "@/components/conteudo-blocos";
 import { EmptyState } from "@/components/empty-state";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { nivelColor, nivelLabel, nivelIcon, type BadgeStatus } from "@/lib/level-format";
 import { formatarResposta } from "@/lib/anamnese-format";
-import { config } from "@/lib/config";
 import { cn } from "@/lib/utils";
 import type { Diagnostico, DiagnosticoNivel } from "@/types/diagnostico";
 import { formatarData } from "@/lib/datas";
 
 export const NIVEIS: DiagnosticoNivel[] = [1, 2, 3];
-
-/** O back devolve um caminho da própria API; uma URL absoluta (ex.: CDN) é usada como veio. */
-function urlDaImagem(url: string): string {
-  return /^https?:\/\//.test(url) ? url : `${config.apiBaseUrl}${url}`;
-}
 
 const ABAS = [
   { valor: "detalhes", label: "Detalhes" },
@@ -84,7 +80,7 @@ export function DiagnosticoDetalhe({
   const conteudos = diagnostico.conteudos ?? [];
   const analise = nivel ? conteudos[0] : undefined;
   const [fotoFalhou, setFotoFalhou] = useState(false);
-  const fotoUrl = diagnostico.imagemUrl && !fotoFalhou ? urlDaImagem(diagnostico.imagemUrl) : null;
+  const fotoUrl = diagnostico.imagemUrl && !fotoFalhou ? urlDaApi(diagnostico.imagemUrl) : null;
 
   return (
     <div className="flex flex-col">
@@ -239,11 +235,7 @@ export function DiagnosticoDetalhe({
                 {analise && (
                   <div className="border-border shell:mt-6 mt-4 border-t pt-4">
                     <div className="font-heading mb-1.5 text-[13px] font-bold">Análise</div>
-                    {analise.textos.map((texto, i) => (
-                      <p key={i} className="text-muted-foreground text-[13px] leading-relaxed">
-                        {texto}
-                      </p>
-                    ))}
+                    <ConteudoBlocos blocos={analise.blocos} />
                   </div>
                 )}
               </Card>
@@ -327,13 +319,7 @@ export function DiagnosticoDetalhe({
               />
             )}
             {conteudos.map((c) => (
-              <TipCard
-                key={c.id}
-                titulo={c.titulo}
-                categoria={c.categoria}
-                corpo={c.textos.join(" ")}
-                formato="texto"
-              />
+              <TipCard key={c.id} titulo={c.titulo} categoria={c.categoria} blocos={c.blocos} />
             ))}
           </div>
         )}

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { backendConteudoSchema, textosDoConteudo } from "@/types/conteudo";
+import { backendConteudoSchema, type BlocoConteudo } from "@/types/conteudo";
 
 /**
  * Shape real de GET /api/v1/home (app/schemas/home.py) — a descrição da
@@ -34,7 +34,7 @@ export type DicaHome = {
   id: string;
   titulo: string;
   categoria: string;
-  textos: string[];
+  blocos: BlocoConteudo[];
 };
 
 export type HomeData = {
@@ -49,7 +49,7 @@ export function adaptBackendHome(data: BackendHome): HomeData {
       id: String(dica.id),
       titulo: dica.titulo,
       categoria: dica.categoria,
-      textos: textosDoConteudo(dica.conteudo),
+      blocos: dica.conteudo.itens,
     })),
   };
 }

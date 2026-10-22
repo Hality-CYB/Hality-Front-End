@@ -8,7 +8,7 @@ import { DiagnosticoAdminCard } from "@/components/diagnostico-admin-card";
 import { useUsuarios } from "@/hooks/use-usuarios";
 import { useDiagnosticosAdmin } from "@/hooks/use-diagnosticos";
 import { useResumoAdmin } from "@/hooks/use-admin";
-import { useDicas } from "@/hooks/use-dicas";
+import { useConteudosAdmin } from "@/hooks/use-conteudos-admin";
 import { useSessaoAtual } from "@/lib/auth/session-context";
 import { roleLabel, roleBadgeStatus } from "@/lib/role-format";
 import type { Role } from "@/types/usuario";
@@ -31,7 +31,7 @@ const ACOES_RAPIDAS = [
     href: "/admin/diagnosticos",
   },
   {
-    label: "Criar dica",
+    label: "Criar conteúdo",
     Icon: Lightbulb,
     bg: "bg-[#FEF3C7]",
     color: "text-[#D97706]",
@@ -48,7 +48,7 @@ const ACOES_RAPIDAS = [
 
 export default function AdminHomePage() {
   const { nome } = useSessaoAtual();
-  // Usuários e dicas: `total` das listas paginadas (`limite: 1`). Diagnósticos: `GET /admin/resumo`.
+  // Usuários e conteúdos: `total` das listas paginadas (`limite: 1`). Diagnósticos: `GET /admin/resumo`.
   const porPapel = {
     paciente: useUsuarios({ role: "paciente", limite: 1 }).data?.total,
     profissional: useUsuarios({ role: "profissional", limite: 1 }).data?.total,
@@ -58,13 +58,13 @@ export default function AdminHomePage() {
   const recentes = useDiagnosticosAdmin({ limite: 3 }).data?.itens ?? [];
   // A fila de revisão é a inteira: o resumo só conta pendentes criados nos 30 dias.
   const pendentes = useDiagnosticosAdmin({ status: "aguardando_revisao", limite: 1 }).data?.total;
-  const dicasPublicadas = useDicas({ publicado: true, limite: 1 }).data?.total;
+  const conteudosPublicados = useConteudosAdmin({ publicado: true, limite: 1 }).data?.total;
 
   const stats = [
     { valor: resumo?.totalDiagnosticos, label: "diagnósticos em 30 dias", Icon: Beaker },
     { valor: pendentes, label: "aguardando revisão", Icon: Clock },
     { valor: resumo?.revisados, label: "revisados em 30 dias", Icon: CircleCheck },
-    { valor: dicasPublicadas, label: "dicas publicadas", Icon: Lightbulb },
+    { valor: conteudosPublicados, label: "conteúdos publicados", Icon: Lightbulb },
   ];
 
   return (

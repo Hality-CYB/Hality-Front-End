@@ -3,7 +3,7 @@ import type { Profissional } from "@/types/profissional";
 import type { Usuario } from "@/types/usuario";
 import type { Diagnostico } from "@/types/diagnostico";
 import type { BackendAnamneseDetail } from "@/types/anamnese";
-import type { BackendConteudoAdmin } from "@/types/dica";
+import type { BackendConteudoAdmin } from "@/types/conteudo-admin";
 
 /**
  * Dados de mock pro MSW, adaptados dos arrays que existiam em Design/
@@ -309,6 +309,8 @@ export const seedDiagnosticos: Diagnostico[] = [
 /**
  * Conteúdos no formato de `/admin/conteudos` (ConteudoDetail do back). Os
  * `classificacao_ids` usam 11-13 como o banco real (ver CLASSIFICACAO_ID_POR_NIVEL).
+ * Os de `destinos: []` imitam conteúdo anterior aos destinos (#161), que o back
+ * ainda entrega pelas regras antigas (ver `destinosEfetivos`).
  */
 export const seedConteudos: BackendConteudoAdmin[] = [
   {
@@ -325,6 +327,7 @@ export const seedConteudos: BackendConteudoAdmin[] = [
       ],
     },
     classificacao_ids: [11, 12, 13],
+    destinos: [],
     aparece_na_home: true,
     status: "publicado",
     ordem: 1,
@@ -349,6 +352,7 @@ export const seedConteudos: BackendConteudoAdmin[] = [
       ],
     },
     classificacao_ids: [11, 12, 13],
+    destinos: ["home_autenticada", "orientacoes_diagnostico"],
     aparece_na_home: true,
     status: "publicado",
     ordem: 2,
@@ -373,6 +377,7 @@ export const seedConteudos: BackendConteudoAdmin[] = [
       ],
     },
     classificacao_ids: [12, 13],
+    destinos: ["home_autenticada", "orientacoes_diagnostico"],
     aparece_na_home: true,
     status: "publicado",
     ordem: 3,
@@ -398,6 +403,7 @@ export const seedConteudos: BackendConteudoAdmin[] = [
       ],
     },
     classificacao_ids: [11, 12, 13],
+    destinos: ["orientacoes_diagnostico"],
     aparece_na_home: false,
     status: "publicado",
     ordem: 4,
@@ -422,6 +428,7 @@ export const seedConteudos: BackendConteudoAdmin[] = [
       ],
     },
     classificacao_ids: [12, 13],
+    destinos: [],
     aparece_na_home: false,
     status: "publicado",
     ordem: 5,
@@ -441,12 +448,14 @@ export const seedConteudos: BackendConteudoAdmin[] = [
         {
           tipo: "imagem",
           url: "",
+          alt: "Cigarro apagado em um cinzeiro",
           legenda:
             "O cigarro resseca a mucosa oral e deposita substâncias odoríferas nos tecidos. Parar de fumar melhora significativamente o hálito.",
         },
       ],
     },
     classificacao_ids: [13],
+    destinos: ["orientacoes_diagnostico"],
     aparece_na_home: false,
     status: "rascunho",
     ordem: 6,

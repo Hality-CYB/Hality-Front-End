@@ -6,6 +6,7 @@ import { adminHandlers } from "@/services/mocks/admin-handlers";
 import { consentimentosHandlers } from "@/services/mocks/consentimentos-handlers";
 import { authHandlers } from "@/services/mocks/auth-handlers";
 import { homeHandlers } from "@/services/mocks/home-handlers";
+import { classificacoesHandlers } from "@/services/mocks/classificacoes-handlers";
 
 /**
  * Todos os handlers de mock, compostos aqui. auth-service.ts não passa
@@ -23,4 +24,5 @@ export const handlers = [
   ...consentimentosHandlers,
   ...authHandlers,
   ...homeHandlers,
+  ...classificacoesHandlers,
 ];

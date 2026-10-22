@@ -1,7 +1,8 @@
+"use client";
+
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   Lightbulb,
-  Image as ImageIcon,
-  Video,
   Droplet,
   HeartPulse,
   Apple,
@@ -9,14 +10,21 @@ import {
   Sparkles,
   Salad,
   Stethoscope,
+  Play,
   type LucideIcon,
 } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { ConteudoBlocos } from "@/components/conteudo-blocos";
+import { urlDaApi } from "@/lib/url-da-api";
+import { resumoDoConteudo, type BlocoConteudo } from "@/types/conteudo";
 
 /**
- * Shell de apresentação — quando types/dica.ts existir (fase 1), o ideal é
- * trocar essas props soltas por `{ dica: Dica; compact?: boolean }`.
+ * Card de um conteúdo (dica da home, orientação do diagnóstico, preview do
+ * admin). Na grade do desktop todos têm a mesma altura; no celular (uma
+ * coluna) a altura é só limitada, para card curto não sobrar vazio. A mídia
+ * ocupa um espaço fixo e o texto é cortado com "Ver mais". Clicar no card abre
+ * o conteúdo inteiro num modal.
  *
  * "compact" reconcilia a divergência que existia em Design/ (3 versões
  * ligeiramente diferentes do TipCard): adotamos o padding condicional do
@@ -25,9 +33,7 @@ import { cn } from "@/lib/utils";
 type TipCardProps = {
   titulo: string;
   categoria: string;
-  corpo: string;
-  formato: "texto" | "imagem" | "video";
-  midiaUrl?: string;
+  blocos: BlocoConteudo[];
   icon?: LucideIcon;
   compact?: boolean;
 };
@@ -53,65 +59,114 @@ function infoDaCategoria(categoria: string): { label: string; icon: LucideIcon }
   return { label: bruta.charAt(0).toUpperCase() + bruta.slice(1), icon: Lightbulb };
 }
 
-export function TipCard({
-  titulo,
-  categoria,
-  corpo,
-  formato,
-  midiaUrl,
-  icon,
-  compact,
-}: TipCardProps) {
+function ChipCategoria({ label }: { label: string }) {
+  return (
+    <span className="font-heading text-primary bg-secondary shrink-0 rounded-4xl px-2 py-0.5 text-[10px] font-semibold">
+      {label}
+    </span>
+  );
+}
+
+export function TipCard({ titulo, categoria, blocos, icon, compact }: TipCardProps) {
   const { label: categoriaLabel, icon: categoriaIcon } = infoDaCategoria(categoria);
   const Icon = icon ?? categoriaIcon;
+  const { midia, texto } = resumoDoConteudo(blocos);
+  const [aberto, setAberto] = useState(false);
+  const textoRef = useRef<HTMLParagraphElement>(null);
+  const [cortado, setCortado] = useState(false);
+
+  // "Ver mais" só quando o texto não coube; recalcula se o card mudar de largura.
+  useLayoutEffect(() => {
+    const el = textoRef.current;
+    if (!el) return;
+    const medir = () => setCortado(el.scrollHeight > el.clientHeight + 1);
+    medir();
+    if (typeof ResizeObserver === "undefined") return;
+    const observador = new ResizeObserver(medir);
+    observador.observe(el);
+    return () => observador.disconnect();
+  }, [texto, midia]);
+
   return (
-    <Card
-      className={cn(
-        "flex h-full items-start gap-3.5 rounded-lg shadow-sm ring-0",
-        compact ? "p-4" : "p-5",
-      )}
-    >
-      <div
+    <>
+      <button
+        type="button"
+        onClick={() => setAberto(true)}
+        aria-haspopup="dialog"
         className={cn(
-          "text-primary bg-secondary flex shrink-0 items-center justify-center",
-          compact ? "size-[42px] rounded-[12px]" : "size-11 rounded-[13px]",
+          "bg-card text-card-foreground shell:h-80 flex max-h-80 w-full flex-col gap-2.5 overflow-hidden rounded-lg text-left shadow-sm",
+          "focus-visible:ring-ring/50 transition-shadow outline-none hover:shadow-md focus-visible:ring-3",
+          compact ? "p-4" : "p-5",
         )}
       >
-        <Icon className="h-5.5 w-5.5" />
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="mb-1 flex items-center gap-2">
-          <span className="font-heading text-sm font-bold">{titulo}</span>
-          <span className="font-heading text-primary bg-secondary shrink-0 rounded-4xl px-2 py-0.5 text-[10px] font-semibold">
-            {categoriaLabel}
-          </span>
+        <div className="flex w-full shrink-0 items-center gap-3">
+          <div className="text-primary bg-secondary flex size-10 shrink-0 items-center justify-center rounded-[12px]">
+            <Icon className="h-5 w-5" aria-hidden />
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
+            <span className="font-heading line-clamp-1 text-sm font-bold">{titulo}</span>
+            <ChipCategoria label={categoriaLabel} />
+          </div>
         </div>
-        <p className="text-muted-foreground max-h-32 overflow-y-auto pr-1 text-[13px] leading-relaxed">
-          {corpo}
+
+        {midia && (
+          <div className="border-border relative h-32 w-full shrink-0 overflow-hidden rounded-xl border bg-black/5">
+            {midia.tipo === "imagem" ? (
+              // eslint-disable-next-line @next/next/no-img-element -- URL cadastrada pelo admin, de qualquer domínio
+              <img
+                src={urlDaApi(midia.url)}
+                alt={midia.alt ?? ""}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <>
+                {/* No card o vídeo é só a capa; ele toca no modal. */}
+                <video
+                  src={urlDaApi(midia.url)}
+                  preload="metadata"
+                  muted
+                  playsInline
+                  aria-hidden
+                  className="h-full w-full bg-black object-cover"
+                />
+                <span className="absolute inset-0 flex items-center justify-center">
+                  <span className="flex size-10 items-center justify-center rounded-full bg-black/55 text-white">
+                    <Play className="h-5 w-5" aria-hidden />
+                  </span>
+                </span>
+              </>
+            )}
+          </div>
+        )}
+
+        <p
+          ref={textoRef}
+          className={cn(
+            "text-muted-foreground min-h-0 w-full text-[13px] leading-relaxed whitespace-pre-line",
+            midia ? "line-clamp-3" : "line-clamp-8",
+          )}
+        >
+          {texto}
         </p>
-        {formato !== "texto" &&
-          (midiaUrl ? (
-            <div className="border-border mt-2.5 overflow-hidden rounded-xl border">
-              {formato === "imagem" ? (
-                // eslint-disable-next-line @next/next/no-img-element -- dica com mídia externa arbitrária, revisar em fase 2 com next/image
-                <img src={midiaUrl} alt={titulo} className="block max-h-55 w-full object-cover" />
-              ) : (
-                <video src={midiaUrl} controls className="block max-h-55 w-full bg-black" />
-              )}
+
+        {(cortado || midia?.tipo === "video") && (
+          <span className="font-heading text-primary mt-auto shrink-0 text-xs font-bold">
+            {midia?.tipo === "video" && !cortado ? "Assistir" : "Ver mais"}
+          </span>
+        )}
+      </button>
+
+      <Dialog open={aberto} onOpenChange={setAberto}>
+        <DialogContent className="shell:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="pr-8">{titulo}</DialogTitle>
+            <div>
+              <ChipCategoria label={categoriaLabel} />
             </div>
-          ) : (
-            <div className="bg-background border-border text-gray-3 mt-2.5 flex aspect-video flex-col items-center justify-center gap-1.5 rounded-xl border">
-              {formato === "video" ? (
-                <Video className="h-5.5 w-5.5" />
-              ) : (
-                <ImageIcon className="h-5.5 w-5.5" />
-              )}
-              <span className="font-heading text-[11px]">
-                {formato === "video" ? "Vídeo" : "Imagem"}
-              </span>
-            </div>
-          ))}
-      </div>
-    </Card>
+          </DialogHeader>
+          <ConteudoBlocos blocos={blocos} />
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

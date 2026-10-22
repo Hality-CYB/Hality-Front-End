@@ -7,7 +7,7 @@ import {
 } from "@/services/mocks/seed-data";
 import { nivelLabel } from "@/lib/level-format";
 import { CODIGO_POR_NIVEL, type Diagnostico, type DiagnosticoNivel } from "@/types/diagnostico";
-import type { BackendConteudoAdmin } from "@/types/dica";
+import type { BackendConteudoAdmin } from "@/types/conteudo-admin";
 import type { Usuario } from "@/types/usuario";
 
 /**

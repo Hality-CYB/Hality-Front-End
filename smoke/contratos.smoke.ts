@@ -17,7 +17,8 @@ import {
   backendAdminUsuarioListSchema,
   backendAdminVinculoListSchema,
 } from "@/types/admin";
-import { backendConteudoListSchema } from "@/types/dica";
+import { backendConteudoListSchema } from "@/types/conteudo-admin";
+import { backendClassificacoesSchema } from "@/types/classificacao";
 import { backendConsentimentosSchema, backendTermosSchema } from "@/types/consentimento";
 
 /**
@@ -120,6 +121,7 @@ describe("admin", () => {
     await validar("admin", "/admin/usuarios?limite=5", backendAdminUsuarioListSchema);
     await validar("admin", "/admin/vinculos?limite=5", backendAdminVinculoListSchema);
     await validar("admin", "/admin/conteudos?page=1&limit=5", backendConteudoListSchema);
+    await validar("admin", "/classificacoes", backendClassificacoesSchema);
     await validar("admin", "/admin/resumo?timezone=UTC", backendAdminResumoSchema);
   });
 
