@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Eye, EyeOff } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { useLogin, useRedirectIfAuthenticated } from "@/hooks/use-auth";
+import { authService } from "@/services/auth-service";
 import cybFullLogo from "@/assets/images/full-logo-check-your-breath.png";
 
 /** Porta Design/AuthFlow.tsx's tela de login — layout próprio, sem card. */
@@ -16,6 +17,7 @@ export function LoginForm() {
   const [emailFocado, setEmailFocado] = useState(false);
   const [senhaFocada, setSenhaFocada] = useState(false);
   const login = useLogin();
+  const urlGoogle = authService.obterUrlDeAutorizacaoGoogle();
 
   useRedirectIfAuthenticated();
 
@@ -39,8 +41,11 @@ export function LoginForm() {
       <div className="mx-auto w-full max-w-100 px-6 pb-13">
         <form onSubmit={handleSubmit} className="flex flex-col">
           <div className="mb-4">
-            <label className="font-heading mb-2 block text-sm font-semibold">Email</label>
+            <label htmlFor="login-email" className="font-heading mb-2 block text-sm font-semibold">
+              Email
+            </label>
             <input
+              id="login-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -55,7 +60,9 @@ export function LoginForm() {
 
           <div className="mb-6">
             <div className="mb-2 flex items-center justify-between">
-              <label className="font-heading text-sm font-semibold">Senha</label>
+              <label htmlFor="login-senha" className="font-heading text-sm font-semibold">
+                Senha
+              </label>
               <Link
                 href="/esqueci-senha"
                 className="font-heading text-primary text-[13px] font-semibold"
@@ -65,6 +72,7 @@ export function LoginForm() {
             </div>
             <div className="relative">
               <input
+                id="login-senha"
                 type={mostrarSenha ? "text" : "password"}
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
@@ -78,6 +86,7 @@ export function LoginForm() {
               <button
                 type="button"
                 onClick={() => setMostrarSenha((s) => !s)}
+                aria-label={mostrarSenha ? "Ocultar senha" : "Mostrar senha"}
                 className="text-gray-3 absolute top-1/2 right-3.5 flex -translate-y-1/2 p-1"
               >
                 {mostrarSenha ? (
@@ -108,42 +117,46 @@ export function LoginForm() {
           </button>
         </form>
 
-        {/*
-          Login com Google — comentado até ser integrado.
+        <div className="my-5 flex items-center gap-3" aria-hidden>
+          <div className="h-px flex-1 bg-[#E5E7EB]" />
+          <span className="text-muted-foreground text-[13px]">ou</span>
+          <div className="h-px flex-1 bg-[#E5E7EB]" />
+        </div>
 
-          <div className="my-5 flex items-center gap-3">
-            <div className="h-px flex-1 bg-[#E5E7EB]" />
-            <span className="text-muted-foreground text-[13px]">ou</span>
-            <div className="h-px flex-1 bg-[#E5E7EB]" />
-          </div>
+        <a
+          href={urlGoogle}
+          referrerPolicy="no-referrer"
+          aria-describedby="disponibilidade-login-google"
+          className="font-heading focus-visible:ring-ring/50 flex w-full items-center justify-center gap-2.5 rounded-4xl border-[1.5px] border-[#E5E7EB] bg-white py-3.75 text-base font-semibold text-[#3C4043] transition-colors outline-none hover:bg-gray-50 focus-visible:ring-3 active:opacity-85"
+        >
+          <svg width="20" height="20" viewBox="0 0 48 48" className="shrink-0" aria-hidden>
+            <path
+              fill="#EA4335"
+              d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+            />
+            <path
+              fill="#4285F4"
+              d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+            />
+            <path
+              fill="#FBBC05"
+              d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+            />
+            <path
+              fill="#34A853"
+              d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+            />
+          </svg>
+          Continuar com Google
+        </a>
+        <p
+          id="disponibilidade-login-google"
+          className="text-muted-foreground mt-2 text-center text-xs"
+        >
+          Disponível para pacientes
+        </p>
 
-          <button
-            type="button"
-            className="font-heading flex w-full items-center justify-center gap-2.5 rounded-4xl border-[1.5px] border-[#E5E7EB] bg-white py-3.75 text-base font-semibold text-[#3C4043]"
-          >
-            <svg width="20" height="20" viewBox="0 0 48 48" className="shrink-0">
-              <path
-                fill="#EA4335"
-                d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
-              />
-              <path
-                fill="#4285F4"
-                d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
-              />
-              <path
-                fill="#34A853"
-                d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
-              />
-            </svg>
-            Continuar com Google
-          </button>
-        */}
-
-        <p className="text-muted-foreground mt-6 text-center text-[15px]">
+        <p className="text-muted-foreground mt-5 text-center text-[15px]">
           Não possui conta?{" "}
           <Link href="/registro" className="font-heading text-primary font-bold">
             Registrar
