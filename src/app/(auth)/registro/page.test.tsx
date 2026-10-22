@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
@@ -41,6 +41,9 @@ async function preencherConta({ aceitarTermosDeUso = true } = {}) {
   const [senha, confirmar] = screen.getAllByPlaceholderText(/•/);
   await preencher(senha!, "SenhaSegura1");
   await preencher(confirmar!, "SenhaSegura1");
+  fireEvent.change(screen.getByLabelText("Data de nascimento *"), {
+    target: { value: "1990-05-20" },
+  });
   // Os termos vêm do back (mock), com nada marcado.
   await screen.findByRole("checkbox", { name: /dados de saúde/ });
   if (aceitarTermosDeUso) {
@@ -102,5 +105,17 @@ describe("Cadastro com consentimentos (TASK-208)", () => {
     expect(within(politica).getByText("8. Seus direitos")).toBeInTheDocument();
     await userEvent.keyboard("{Escape}");
     expect(screen.getByRole("checkbox", { name: /Termos de Uso/ })).not.toBeChecked();
+  });
+
+  it("sem data de nascimento, pede o dado e não envia", async () => {
+    const enviado = vi.fn();
+    server.use(http.post(url("/api/v1/auth/register"), enviado));
+    await preencherConta();
+    fireEvent.change(screen.getByLabelText("Data de nascimento *"), { target: { value: "" } });
+    await userEvent.click(caixaSaude());
+    await userEvent.click(screen.getByRole("button", { name: "Criar conta" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Informe a data de nascimento.");
+    expect(enviado).not.toHaveBeenCalled();
   });
 });

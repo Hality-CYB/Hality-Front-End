@@ -53,6 +53,8 @@ export type RegisterInput = {
   email: string;
   senha: string;
   telefone?: string;
+  /** "aaaa-mm-dd"; obrigatória no cadastro de paciente. */
+  dataNascimento: string;
   /** Decisão explícita por finalidade, na versão do termo exibida (#160 do back). */
   consentimentos: DecisaoConsentimento[];
 };
@@ -135,6 +137,7 @@ async function registrarReal(
     email: input.email.trim().toLowerCase(),
     password: input.senha,
     phone: input.telefone,
+    data_nascimento: input.dataNascimento,
     consentimentos: input.consentimentos,
   };
 

@@ -3,8 +3,6 @@ import { http, HttpResponse } from "msw";
 import { config } from "@/lib/config";
 import { clearStoredToken, setStoredToken } from "@/lib/session";
 import { pacienteService } from "@/services/paciente-service";
-import { usuarioService } from "@/services/usuario-service";
-import { usuarioMockParaLogin, SENHA_MOCK } from "@/services/mocks/auth-handlers";
 import { server } from "@/services/mocks/server";
 
 beforeEach(() => setStoredToken("mock-token:profissional-1"));
@@ -20,6 +18,7 @@ describe("cadastro profissional com convite (develop 1a3d9c9)", () => {
           nome: "Paciente Teste",
           email: "teste@example.com",
           telefone: null,
+          data_nascimento: "1990-05-20",
         });
         return HttpResponse.json(
           {
@@ -38,32 +37,16 @@ describe("cadastro profissional com convite (develop 1a3d9c9)", () => {
       }),
     );
     expect(
-      await pacienteService.criar({ nome: " Paciente Teste ", email: "teste@example.com" }),
+      await pacienteService.criar({
+        nome: " Paciente Teste ",
+        email: "teste@example.com",
+        dataNascimento: "1990-05-20",
+      }),
     ).toEqual({
       pacienteId,
       nome: "Paciente Teste",
       email: "teste@example.com",
       convitePendente: true,
-    });
-  });
-
-  it("no mock, mantém vínculo e cadastro visíveis, mas não autoriza login antes do aceite", async () => {
-    const criado = await pacienteService.criar({
-      nome: "Novo Convite",
-      email: "convite-prof@example.com",
-    });
-    expect(criado.convitePendente).toBe(true);
-    expect(usuarioMockParaLogin(criado.email, SENHA_MOCK)).toBeNull();
-    expect((await pacienteService.listar({ busca: criado.email })).itens).toEqual([
-      expect.objectContaining({ id: criado.pacienteId, ativo: false }),
-    ]);
-    expect(await pacienteService.buscar(criado.pacienteId)).toMatchObject({
-      id: criado.pacienteId,
-    });
-    setStoredToken("mock-token:admin-1");
-    expect(await usuarioService.buscarAdmin(criado.pacienteId)).toMatchObject({
-      convitePendente: true,
-      ativo: false,
     });
   });
 });

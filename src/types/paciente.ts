@@ -38,6 +38,7 @@ const backendPacienteListItemSchema = z.object({
   nome: z.string(),
   email: z.string(),
   telefone: z.string().nullable(),
+  data_nascimento: z.string().nullable(),
   ativo: z.boolean(),
   total_diagnosticos: z.number(),
   ultimo_diagnostico_em: z.string().nullable(),
@@ -95,6 +96,8 @@ export type PacienteResumo = {
   nome: string;
   email: string;
   telefone: string | null;
+  /** "aaaa-mm-dd"; vazia em cadastro antigo. */
+  dataNascimento: string | null;
   ativo: boolean;
   totalDiagnosticos: number;
   ultimoDiagnosticoEm: string | null;
@@ -121,6 +124,7 @@ function adaptBackendPacienteItem(
     nome: item.nome,
     email: item.email,
     telefone: item.telefone,
+    dataNascimento: item.data_nascimento,
     ativo: item.ativo,
     totalDiagnosticos: item.total_diagnosticos,
     ultimoDiagnosticoEm: item.ultimo_diagnostico_em,

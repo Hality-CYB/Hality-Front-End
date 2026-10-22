@@ -87,9 +87,9 @@ const RECOMENDACOES = [
   "Preencher corretamente o formulário de anamnese",
   "Realizar a foto conforme a demonstração no aplicativo",
   "Fotografar com o celular na posição indicada e o flash ligado",
-  "Realizar o exame pela manhã, em jejum",
-  "Não usar antisséptico bucal antes do exame",
-  "Manter-se hidratado(a) antes da captura",
+  "Estar em um ambiente bem iluminado",
+  "Manter a língua relaxada e completamente estendida",
+  "Centralizar a língua na marcação da câmera",
 ];
 
 export default function LandingPage() {

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { ApiError } from "@/lib/api-client";
 import { config } from "@/lib/config";
+import { hojeNoCalendario, problemaDaDataDeNascimento } from "@/lib/datas";
 import { usePacientes, useCriarPaciente } from "@/hooks/use-pacientes";
 
 type SelecionarPacienteProps = {
@@ -26,7 +27,7 @@ function mensagemDoCadastro(erro: unknown): string {
 
 /**
  * Passo 0 do "Avaliar paciente": escolher um paciente vinculado ou fazer um
- * cadastro simples (nome, e-mail e telefone), que já sai vinculado ao
+ * cadastro simples (nome, e-mail, data de nascimento e telefone), que já sai vinculado ao
  * profissional. O paciente completa o cadastro depois.
  */
 export function SelecionarPaciente({ onSelecionar, onCancelar }: SelecionarPacienteProps) {
@@ -36,14 +37,25 @@ export function SelecionarPaciente({ onSelecionar, onCancelar }: SelecionarPacie
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [telefone, setTelefone] = useState("");
+  const [dataNascimento, setDataNascimento] = useState("");
 
   const { data: pacientes, isLoading } = usePacientes({ busca: buscaAdiada, limite: 20 });
   const criarPaciente = useCriarPaciente();
-  const novoPacienteValido = nome.trim().length >= 2 && email.trim().includes("@");
+  const problemaNascimento = dataNascimento ? problemaDaDataDeNascimento(dataNascimento) : null;
+  const novoPacienteValido =
+    nome.trim().length >= 2 &&
+    email.trim().includes("@") &&
+    !!dataNascimento &&
+    !problemaNascimento;
 
   function cadastrarEContinuar() {
     criarPaciente.mutate(
-      { nome: nome.trim(), email: email.trim(), telefone: telefone.trim() || undefined },
+      {
+        nome: nome.trim(),
+        email: email.trim(),
+        telefone: telefone.trim() || undefined,
+        dataNascimento,
+      },
       { onSuccess: (paciente) => onSelecionar(paciente.pacienteId) },
     );
   }
@@ -97,6 +109,28 @@ export function SelecionarPaciente({ onSelecionar, onCancelar }: SelecionarPacie
             placeholder="paciente@email.com"
             className="border-border mb-3.5 w-full rounded-[10px] border-[1.5px] px-3.5 py-2.75 text-sm outline-none"
           />
+          <label
+            htmlFor="nascimento-paciente"
+            className="font-heading mb-1.5 block text-[13px] font-bold"
+          >
+            Data de nascimento *
+          </label>
+          <input
+            id="nascimento-paciente"
+            type="date"
+            value={dataNascimento}
+            min="1900-01-01"
+            max={hojeNoCalendario()}
+            onChange={(e) => setDataNascimento(e.target.value)}
+            aria-describedby={problemaNascimento ? "nascimento-paciente-erro" : undefined}
+            aria-invalid={problemaNascimento ? true : undefined}
+            className="border-border mb-3.5 w-full rounded-[10px] border-[1.5px] px-3.5 py-2.75 text-sm outline-none"
+          />
+          {problemaNascimento && (
+            <p id="nascimento-paciente-erro" className="text-destructive -mt-2 mb-3.5 text-xs">
+              {problemaNascimento}
+            </p>
+          )}
           <label
             htmlFor="telefone-paciente"
             className="font-heading mb-1.5 block text-[13px] font-bold"

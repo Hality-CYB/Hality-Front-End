@@ -24,6 +24,8 @@ export const usuarioSchema = z.object({
   email: z.string().email(),
   role: roleSchema,
   telefone: z.string().nullable().optional(),
+  /** "aaaa-mm-dd"; só paciente tem. */
+  dataNascimento: z.string().nullable().optional(),
   criadoEm: z.string().optional(),
   ativo: z.boolean().optional(),
   /** Inativo porque ainda não aceitou o convite de primeiro acesso (não é bloqueio). */
@@ -44,6 +46,7 @@ export const backendUserSchema = z.object({
   email: z.string().email(),
   name: z.string(),
   phone: z.string().nullable().optional(),
+  data_nascimento: z.string().nullable().optional(),
   role: z.string(),
   is_active: z.boolean(),
   is_superuser: z.boolean().optional(),
@@ -68,6 +71,7 @@ export function adaptBackendUser(data: BackendUser): Usuario {
     email: data.email,
     role: mapBackendRoleToFrontend(data.role),
     telefone: data.phone ?? undefined,
+    dataNascimento: data.data_nascimento ?? null,
     criadoEm: data.created_at,
     ativo: data.is_active,
     perfilProfissional: data.profissional
