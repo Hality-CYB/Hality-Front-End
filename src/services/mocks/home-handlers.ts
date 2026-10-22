@@ -41,7 +41,12 @@ export const homeHandlers = [
         : null,
       // Mesmos conteúdos que o admin edita em /admin/conteudos.
       dicas: conteudosMock
-        .filter((c) => c.status === "publicado" && c.aparece_na_home)
+        // Mesma regra do back: destino da home ou o campo legado.
+        .filter(
+          (c) =>
+            c.status === "publicado" &&
+            (c.destinos.includes("home_autenticada") || c.aparece_na_home),
+        )
         .sort((a, b) => a.ordem - b.ordem)
         .map((c) => ({
           id: c.id,

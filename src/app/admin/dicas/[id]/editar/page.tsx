@@ -7,7 +7,7 @@ import { ChevronLeft, Trash2 } from "lucide-react";
 import { CarregandoPagina, ErroPagina } from "@/components/estado-pagina";
 import { ehNaoEncontrado } from "@/lib/erros";
 import { Button } from "@/components/ui/button";
-import { DicaForm } from "@/components/dica-form";
+import { ConteudoForm } from "@/components/conteudo-form";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,14 +18,24 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useAtualizarDica, useDica, useRemoverDica } from "@/hooks/use-dicas";
+import {
+  mensagemErroConteudo,
+  useEnviarMidia,
+  useAtualizarConteudo,
+  useConteudoAdmin,
+  useRemoverConteudo,
+} from "@/hooks/use-conteudos-admin";
+import { useClassificacoes } from "@/hooks/use-classificacoes";
+import { Alert } from "@/components/alert";
 
-export default function EditarDicaPage({ params }: { params: Promise<{ id: string }> }) {
+export default function EditarConteudoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const { data: dica, isError, error: erro, refetch } = useDica(id);
-  const atualizar = useAtualizarDica();
-  const remover = useRemoverDica();
+  const { data: conteudo, isError, error: erro, refetch } = useConteudoAdmin(id);
+  const atualizar = useAtualizarConteudo();
+  const remover = useRemoverConteudo();
+  const classificacoes = useClassificacoes();
+  const enviarMidia = useEnviarMidia();
   const [confirmarExclusao, setConfirmarExclusao] = useState(false);
 
   if (isError) {
@@ -42,7 +52,7 @@ export default function EditarDicaPage({ params }: { params: Promise<{ id: strin
       />
     );
   }
-  if (!dica) return <CarregandoPagina />;
+  if (!conteudo) return <CarregandoPagina />;
 
   return (
     <div className="flex flex-col">
@@ -53,36 +63,51 @@ export default function EditarDicaPage({ params }: { params: Promise<{ id: strin
         >
           <ChevronLeft className="h-3.5 w-3.5" /> Conteúdos
         </Link>
-        <h1 className="text-xl text-white">Editar dica</h1>
+        <h1 className="text-xl text-white">Editar conteúdo</h1>
       </div>
       <div className="flex flex-col gap-3.5 p-4">
-        <DicaForm
-          dica={dica}
+        <ConteudoForm
+          conteudo={conteudo}
+          classificacoes={classificacoes.data}
+          classificacoesComErro={classificacoes.isError}
+          onTentarClassificacoesDeNovo={() => classificacoes.refetch()}
+          onEnviarMidia={enviarMidia}
           salvando={atualizar.isPending}
-          erro={atualizar.isError ? "Não foi possível salvar a dica. Tente novamente." : null}
+          erro={atualizar.isError ? mensagemErroConteudo(atualizar.error) : null}
           onSalvar={(input) =>
-            atualizar.mutate({ id, ...input }, { onSuccess: () => router.push("/admin/dicas") })
+            atualizar.mutate(
+              { id, ...input },
+              {
+                onSuccess: () => router.push("/admin/dicas?aviso=salvo"),
+              },
+            )
           }
         />
-        <Button variant="danger" onClick={() => setConfirmarExclusao(true)}>
-          <Trash2 className="h-4 w-4" /> Excluir dica
+        {remover.isError && <Alert message={mensagemErroConteudo(remover.error, "excluir")} />}
+        <Button
+          variant="danger"
+          disabled={remover.isPending}
+          onClick={() => setConfirmarExclusao(true)}
+        >
+          <Trash2 className="h-4 w-4" /> Excluir conteúdo
         </Button>
       </div>
 
       <AlertDialog open={confirmarExclusao} onOpenChange={setConfirmarExclusao}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir dica</AlertDialogTitle>
+            <AlertDialogTitle>Excluir conteúdo</AlertDialogTitle>
             <AlertDialogDescription>
-              <strong>{dica.titulo}</strong> sai da home e das orientações e não pode ser
-              recuperada. Para só tirar do ar, salve como rascunho.
+              <strong>{conteudo.titulo}</strong> sai de todos os destinos e não pode ser recuperado.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               variant="danger"
-              onClick={() => remover.mutate(id, { onSuccess: () => router.push("/admin/dicas") })}
+              onClick={() =>
+                remover.mutate(id, { onSuccess: () => router.push("/admin/dicas?aviso=excluido") })
+              }
             >
               Excluir
             </AlertDialogAction>

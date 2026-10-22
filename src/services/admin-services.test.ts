@@ -7,9 +7,7 @@ import { usuarioMockParaLogin, SENHA_MOCK } from "@/services/mocks/auth-handlers
 import { usuarioService } from "@/services/usuario-service";
 import { vinculoService } from "@/services/vinculo-service";
 import { diagnosticoService } from "@/services/diagnostico-service";
-import { dicaService } from "@/services/dica-service";
 import { adminService } from "@/services/admin-service";
-import { adaptBackendConteudoAdmin, type BackendConteudoAdmin } from "@/types/dica";
 
 /**
  * Services do admin (`/admin/*`). Os testes de contrato interceptam a chamada;
@@ -333,103 +331,5 @@ describe("adminService.resumo", () => {
 
     expect(query?.get("timezone")).toBeTruthy();
     expect(resumo).toMatchObject({ totalDiagnosticos: 9, pendentes: 6, revisados: 3 });
-  });
-});
-
-describe("dicaService e adaptBackendConteudoAdmin", () => {
-  const base: BackendConteudoAdmin = {
-    id: 1,
-    titulo: "T",
-    categoria: "tratamento",
-    conteudo: { itens: [{ tipo: "texto", texto: "Oi" }] },
-    classificacao_ids: [13],
-    aparece_na_home: false,
-    status: "rascunho",
-    ordem: 0,
-    created_at: "2026-10-01T00:00:00Z",
-    updated_at: "2026-10-01T00:00:00Z",
-    criado_por_id: null,
-    atualizado_por_id: null,
-    publicado_por_id: null,
-    publicado_em: null,
-  };
-
-  it("reconhece texto, imagem e blocos que o editor não monta", () => {
-    expect(adaptBackendConteudoAdmin(base)).toMatchObject({ formato: "texto", corpo: "Oi" });
-    expect(
-      adaptBackendConteudoAdmin({
-        ...base,
-        conteudo: { itens: [{ tipo: "imagem", url: "https://x/a.png", legenda: "L" }] },
-      }),
-    ).toMatchObject({ formato: "imagem", corpo: "L", midiaUrl: "https://x/a.png" });
-    expect(
-      adaptBackendConteudoAdmin({
-        ...base,
-        conteudo: { itens: [{ tipo: "protocolo_tratamento", descricao: "Mensal" }] },
-      }),
-    ).toMatchObject({ formato: "outro", corpo: "Mensal", classificacaoIds: [13] });
-  });
-
-  it("lista paginada: manda filtros em inglês e adapta a página", async () => {
-    let query: URLSearchParams | undefined;
-    server.use(
-      http.get(url("/api/v1/admin/conteudos"), ({ request }) => {
-        query = new URL(request.url).searchParams;
-        return HttpResponse.json({ items: [base], total: 21, page: 2, limit: 20, has_next: false });
-      }),
-    );
-
-    const pagina = await dicaService.listar({
-      pagina: 2,
-      limite: 20,
-      busca: " lingua ",
-      publicado: false,
-      mostrarNaHome: true,
-      ordem: "ordem_asc",
-    });
-
-    expect(Object.fromEntries(query!)).toEqual({
-      page: "2",
-      limit: "20",
-      q: "lingua",
-      status: "rascunho",
-      aparece_na_home: "true",
-      order: "ordem_asc",
-    });
-    expect(pagina).toMatchObject({ pagina: 2, total: 21, totalPaginas: 2 });
-    expect(pagina.itens[0]).toMatchObject({ id: "1", formato: "texto" });
-  });
-
-  it("na edição sem formato, não reescreve o corpo; publicar vira status", async () => {
-    let corpo: unknown;
-    server.use(
-      http.patch(url("/api/v1/admin/conteudos/1"), async ({ request }) => {
-        corpo = await request.json();
-        return HttpResponse.json({ ...base, status: "publicado" });
-      }),
-    );
-
-    await dicaService.atualizar("1", { titulo: " Novo ", publicado: true, ordem: 2 });
-
-    expect(corpo).toEqual({ titulo: "Novo", status: "publicado", ordem: 2 });
-  });
-
-  it("no mock, o conteúdo criado e publicado na home aparece no GET /home", async () => {
-    await dicaService.criar({
-      titulo: "Dica nova do admin",
-      categoria: "higiene",
-      formato: "texto",
-      corpo: "Texto",
-      mostrarNaHome: true,
-      publicado: true,
-      ordem: 0,
-    });
-
-    setStoredToken("mock-token:paciente-1");
-    const home = await fetch(url("/api/v1/home"), {
-      headers: { Authorization: "Bearer mock-token:paciente-1" },
-    }).then((r) => r.json());
-
-    expect(home.dicas.map((d: { titulo: string }) => d.titulo)).toContain("Dica nova do admin");
   });
 });
