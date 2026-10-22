@@ -793,7 +793,7 @@ export function AvaliacaoWizard({
                   <LevelChip nivel={resultado.nivel} />
                   {resultado.confiancaIA !== undefined && (
                     <div className="text-muted-foreground mt-1.5 text-xs">
-                      Confiança: {resultado.confiancaIA}%
+                      Escala de halitose: {resultado.confiancaIA}%
                     </div>
                   )}
                 </div>
@@ -926,9 +926,9 @@ export function AvaliacaoWizard({
                 })}
               </div>
               <LevelChip nivel={resultado.nivel} size="lg" />
-              {resultado.confiancaIA && (
+              {resultado.confiancaIA !== undefined && (
                 <div className="mt-2.5 text-xs text-white/50">
-                  Confiança da análise: {resultado.confiancaIA}%
+                  Escala de halitose: {resultado.confiancaIA}%
                 </div>
               )}
             </div>
