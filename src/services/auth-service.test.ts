@@ -97,6 +97,7 @@ describe("authService", () => {
 
     const usuario = await authService.registrar({
       nome: "Usuário Teste",
+      dataNascimento: "1990-01-01",
       email: "teste@hality.com",
       senha: "SenhaSegura123!",
       telefone: "(11) 99999-9999",
@@ -113,6 +114,7 @@ describe("authService", () => {
       email: "teste@hality.com",
       password: "SenhaSegura123!",
       phone: "(11) 99999-9999",
+      data_nascimento: "1990-01-01",
       // Decisões explícitas por finalidade, com a recusa do opcional enviada também.
       consentimentos: [
         { finalidade: "health_data", versao: "v1", aceito: true },
@@ -134,6 +136,7 @@ describe("authService", () => {
     await expect(
       authService.registrar({
         nome: "Fulano",
+        dataNascimento: "1990-01-01",
         email: "ja-existe@hality.com",
         senha: "SenhaSegura123!",
         consentimentos: [{ finalidade: "health_data", versao: "v1", aceito: true }],
@@ -154,6 +157,7 @@ describe("authService", () => {
     await expect(
       authService.registrar({
         nome: "Fulano",
+        dataNascimento: "1990-01-01",
         email: "novo@hality.com",
         senha: "SenhaSegura123!",
         consentimentos: [{ finalidade: "health_data", versao: "v0", aceito: true }],

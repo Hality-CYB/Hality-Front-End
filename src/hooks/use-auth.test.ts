@@ -81,6 +81,7 @@ describe("use-auth hooks", () => {
     act(() => {
       result.current.mutate({
         nome: "Carlos",
+        dataNascimento: "1990-01-01",
         email: "carlos@hality.com",
         senha: "senha",
         telefone: "(11) 98888-7777",

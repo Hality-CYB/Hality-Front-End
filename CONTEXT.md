@@ -35,6 +35,8 @@ Check Your Breath (CYB) é o app da Hality Diagnóstico do Hálito: usa IA para 
 
 ## Últimas atualizações
 
+- **2026-10-22** - O número que vem em `confianca_ia` não é confiança: é a escala de halitose do modelo (0 sem halitose, 1 halitose social). As telas passam a mostrar "Escala de halitose: X%" no lugar de "Confiança" (resultado da avaliação, detalhe do diagnóstico e detalhe do admin). O nome do campo no contrato da API continua o mesmo.
+
 <!-- Adicionar uma entrada nova no topo antes de cada push relevante. Formato: data — resumo. -->
 
 - **2026-10-02** — Fluxo do profissional ligado às rotas reais (PR #17): lista de pacientes e cadastro simples (`/pacientes`), anamnese pelo profissional (`POST /pacientes/{id}/anamneses`), lista, detalhe e revisão versionada de diagnósticos (`/profissional/diagnosticos`) e resumo (`/profissional/resumo`). O detalhe do diagnóstico é um componente compartilhado entre paciente e profissional. Quando o profissional corrige o nível, o dele fica em destaque e o da IA vai para um selo, vindo de `automatico` na visão do profissional ou como "Ajustado na revisão" na do paciente. "Revisado" passou a ser `status === "concluido"`, e esse rótulo depende da PR #104 do back, ainda aberta, em que a IA termina em `aguardando_revisao`.

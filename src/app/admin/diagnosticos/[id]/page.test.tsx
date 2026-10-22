@@ -67,7 +67,7 @@ describe("Detalhe do diagnóstico do admin", () => {
 
     expect(await screen.findByText("Ana Paula Ferreira")).toBeInTheDocument();
     expect(screen.getByText("Classificação da IA")).toBeInTheDocument();
-    expect(screen.getByText("Confiança da IA 87%")).toBeInTheDocument();
+    expect(screen.getByText("Escala de halitose 87%")).toBeInTheDocument();
     expect(screen.getByText("Aguardando revisão.")).toBeInTheDocument();
     expect(screen.getByText("Indisponível")).toBeInTheDocument();
     expect(

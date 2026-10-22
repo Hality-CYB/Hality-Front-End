@@ -16,6 +16,7 @@ import { useRegistrar, useRedirectIfAuthenticated } from "@/hooks/use-auth";
 import { useTermosConsentimento } from "@/hooks/use-consentimentos";
 import { ApiError } from "@/lib/api-client";
 import { problemaDaSenha } from "@/lib/senha";
+import { hojeNoCalendario, problemaDaDataDeNascimento } from "@/lib/datas";
 import type { Finalidade } from "@/types/consentimento";
 
 /** Máscara BR: (11) 91234-5678 (ou (11) 1234-5678 pra fixo, 10 dígitos). */
@@ -32,6 +33,7 @@ function formatarTelefone(valor: string): string {
 export default function RegistroPage() {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
+  const [dataNascimento, setDataNascimento] = useState("");
   const [telefone, setTelefone] = useState("");
   const [senha, setSenha] = useState("");
   const [senha2, setSenha2] = useState("");
@@ -58,6 +60,12 @@ export default function RegistroPage() {
     const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
     if (!emailValido) {
       setErro("Informe um e-mail válido.");
+      return;
+    }
+
+    const problemaNascimento = problemaDaDataDeNascimento(dataNascimento);
+    if (problemaNascimento) {
+      setErro(problemaNascimento);
       return;
     }
 
@@ -89,6 +97,7 @@ export default function RegistroPage() {
         email: email.trim(),
         senha,
         telefone: telefone.trim() || undefined,
+        dataNascimento,
         consentimentos: lista.map((t) => ({
           finalidade: t.finalidade,
           versao: t.versao,
@@ -126,6 +135,15 @@ export default function RegistroPage() {
           type="email"
           placeholder="seu@email.com"
           autoComplete="email"
+        />
+        <Field
+          label="Data de nascimento *"
+          value={dataNascimento}
+          onChange={setDataNascimento}
+          type="date"
+          min="1900-01-01"
+          max={hojeNoCalendario()}
+          autoComplete="bday"
         />
         <Field
           label="Telefone"
