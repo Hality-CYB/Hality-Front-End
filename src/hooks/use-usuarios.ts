@@ -48,6 +48,8 @@ export function useUsuarios(filtro: FiltroUsuariosAdmin = {}, opcoes: { enabled?
     queryKey: ["usuarios", "lista", filtro],
     queryFn: () => usuarioService.listarAdmin(filtro),
     enabled: opcoes.enabled ?? true,
+    refetchInterval: (query) =>
+      query.state.data?.itens.some((usuario) => usuario.convitePendente) ? 15_000 : false,
   });
 }
 
@@ -58,6 +60,10 @@ export function useUsuariosPaginados(filtro: Omit<FiltroUsuariosAdmin, "pagina">
     initialPageParam: 1,
     getNextPageParam: (ultima) =>
       ultima.pagina < ultima.totalPaginas ? ultima.pagina + 1 : undefined,
+    refetchInterval: (query) =>
+      query.state.data?.pages.some((page) => page.itens.some((usuario) => usuario.convitePendente))
+        ? 15_000
+        : false,
   });
 }
 
@@ -66,6 +72,7 @@ export function useUsuario(id: string) {
     queryKey: ["usuarios", "detalhe", id],
     queryFn: () => usuarioService.buscarAdmin(id),
     enabled: !!id,
+    refetchInterval: (query) => (query.state.data?.convitePendente ? 15_000 : false),
   });
 }
 
