@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authService, type RegisterInput } from "@/services/auth-service";
 import { hasActiveSession } from "@/lib/session";
-import type { IdentityConfirmation, IdentityPurpose } from "@/types/auth";
+import type { DefinicaoDeSenha, FinalidadeDoLink } from "@/types/auth";
 
 export { ConsentimentoObrigatorioError } from "@/services/auth-service";
 
@@ -17,41 +17,45 @@ export function useSolicitarRecuperacao() {
   });
 }
 
-export function useConfirmarIdentidade(purpose: IdentityPurpose) {
-  const inputRef = useRef<IdentityConfirmation | null>(null);
-  const pendingRef = useRef<Promise<void> | null>(null);
+/**
+ * Define a senha pelo link do e-mail. Senha e token ficam só numa ref durante
+ * o envio, fora das variáveis e do cache da mutation, e um segundo clique
+ * reaproveita o envio em andamento.
+ */
+export function useDefinirSenhaPeloLink(finalidade: FinalidadeDoLink) {
+  const entradaRef = useRef<DefinicaoDeSenha | null>(null);
+  const emAndamentoRef = useRef<Promise<void> | null>(null);
   const mutation = useMutation({
     mutationFn: async () => {
-      const input = inputRef.current;
-      inputRef.current = null;
-      if (!input) throw new Error("Não foi possível concluir a solicitação.");
-      await authService.confirmarIdentidade(purpose, input);
+      const entrada = entradaRef.current;
+      entradaRef.current = null;
+      if (!entrada) throw new Error("Não foi possível concluir.");
+      await authService.definirSenhaPeloLink(finalidade, entrada);
     },
     retry: false,
-    // Falha offline imediatamente, sem enfileirar token/senha para enviar ao reconectar.
+    // Falha na hora quando está offline, sem enfileirar token e senha para reenviar depois.
     networkMode: "always",
     gcTime: 0,
   });
   const { mutateAsync, reset } = mutation;
   useEffect(
     () => () => {
-      inputRef.current = null;
+      entradaRef.current = null;
     },
     [],
   );
-  function confirmar(input: IdentityConfirmation): Promise<void> {
-    if (pendingRef.current) return pendingRef.current;
-    inputRef.current = input;
-    // Não guarda senha ou token nas variáveis/cache da mutation.
-    const pending = mutateAsync().finally(() => {
-      inputRef.current = null;
-      pendingRef.current = null;
+  function definir(entrada: DefinicaoDeSenha): Promise<void> {
+    if (emAndamentoRef.current) return emAndamentoRef.current;
+    entradaRef.current = entrada;
+    const envio = mutateAsync().finally(() => {
+      entradaRef.current = null;
+      emAndamentoRef.current = null;
       reset();
     });
-    pendingRef.current = pending;
-    return pending;
+    emAndamentoRef.current = envio;
+    return envio;
   }
-  return { confirmar, isPending: mutation.isPending };
+  return { definir, enviando: mutation.isPending };
 }
 
 export function useLogin() {

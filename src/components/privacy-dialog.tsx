@@ -1,11 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Download, FileText, Mail, Trash2 } from "lucide-react";
+import { Download, Mail, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/alert";
-import { cn } from "@/lib/utils";
+import {
+  CaixaDeConsentimento,
+  LinkDoTermo,
+  useLeituraDeTermos,
+} from "@/components/caixas-de-termos";
 import type {
   DecisaoConsentimento,
   EstadoConsentimento,
@@ -33,35 +37,6 @@ function descricaoDoEstado(estado: EstadoConsentimento): string {
   if (estado.aceito === null) return "Você ainda não decidiu.";
   const quando = estado.decididoEm ? ` em ${formatarData(estado.decididoEm)}` : "";
   return estado.vigente ? `Aceito${quando}.` : `Não aceito${quando}.`;
-}
-
-function Toggle({
-  on,
-  rotulo,
-  desabilitado,
-  onToggle,
-}: {
-  on: boolean;
-  rotulo: string;
-  desabilitado?: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={rotulo}
-      disabled={desabilitado}
-      onClick={onToggle}
-      className={cn(
-        "flex h-5.5 w-9.5 shrink-0 items-center rounded-4xl p-0.5 transition-colors disabled:opacity-50",
-        on ? "bg-primary justify-end" : "justify-start bg-[#D1D5DB]",
-      )}
-    >
-      <div className="h-4.5 w-4.5 rounded-full bg-white shadow" />
-    </button>
-  );
 }
 
 /** Ação que ainda não existe no back: visível, mas sem fingir que funciona. */
@@ -98,14 +73,14 @@ export function PrivacyDialog({
   erroDecisao,
 }: PrivacyDialogProps) {
   const [confirmarRevogacao, setConfirmarRevogacao] = useState(false);
+  const leitura = useLeituraDeTermos();
 
   function handleOpenChange(next: boolean) {
     if (!next) setConfirmarRevogacao(false);
     onOpenChange(next);
   }
 
-  function alternar(estado: EstadoConsentimento) {
-    const aceitar = !estado.vigente;
+  function decidir(estado: EstadoConsentimento, aceitar: boolean) {
     if (!aceitar && estado.obrigatorio) {
       setConfirmarRevogacao(true);
       return;
@@ -146,33 +121,20 @@ export function PrivacyDialog({
                 key={estado.finalidade}
                 className="bg-background flex flex-col gap-2 rounded-xl p-3.5"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-heading text-[13px] font-bold">
-                      {titulo}
-                      {estado.obrigatorio && (
-                        <span className="text-muted-foreground font-normal"> · obrigatório</span>
-                      )}
-                    </div>
-                    <div className="text-muted-foreground text-xs">{descricaoDoEstado(estado)}</div>
-                  </div>
-                  <Toggle
-                    on={estado.vigente}
-                    rotulo={titulo}
-                    desabilitado={salvando}
-                    onToggle={() => alternar(estado)}
+                {termo ? (
+                  <CaixaDeConsentimento
+                    termo={termo}
+                    marcada={estado.vigente}
+                    onMudar={(aceitar) => decidir(estado, aceitar)}
+                    onLer={leitura.abrir}
+                    desabilitada={salvando}
                   />
-                </div>
-                {termo && (
-                  <details>
-                    <summary className="text-primary cursor-pointer text-xs font-semibold">
-                      Ler o termo (versão {termo.versao})
-                    </summary>
-                    <p className="text-muted-foreground mt-1 text-xs leading-relaxed whitespace-pre-line">
-                      {termo.texto}
-                    </p>
-                  </details>
+                ) : (
+                  <span className="font-heading text-[13px] font-bold">{titulo}</span>
                 )}
+                <div className="text-muted-foreground pl-6.5 text-xs">
+                  {descricaoDoEstado(estado)}
+                </div>
                 {estado.obrigatorio && confirmarRevogacao && (
                   <div className="flex flex-col gap-2.5 rounded-xl border border-[#FCA5A5] bg-[#FEE2E2] p-3.5">
                     <span className="text-[13px] leading-relaxed text-[#991B1B]">
@@ -212,15 +174,25 @@ export function PrivacyDialog({
 
           {erroDecisao && <Alert message={erroDecisao} />}
 
+          <p className="text-muted-foreground border-border border-t pt-3.5 text-[13px]">
+            Leia os{" "}
+            <LinkDoTermo onAbrir={() => leitura.abrir({ tipo: "uso" })}>Termos de Uso</LinkDoTermo>{" "}
+            e a{" "}
+            <LinkDoTermo onAbrir={() => leitura.abrir({ tipo: "privacidade" })}>
+              Política de Privacidade
+            </LinkDoTermo>
+            .
+          </p>
+
           {/* Fora do escopo do back por enquanto: ficam visíveis, mas desativadas. */}
-          <div className="border-border flex flex-col gap-2 border-t pt-3.5">
+          <div className="flex flex-col gap-2">
             <EmBreve Icon={Mail} label="Comunicações por e-mail" />
-            <EmBreve Icon={FileText} label="Política de privacidade" />
             <EmBreve Icon={Download} label="Baixar meus dados" />
             <EmBreve Icon={Trash2} label="Excluir minha conta" />
           </div>
         </div>
       </DialogContent>
+      {leitura.dialogo}
     </Dialog>
   );
 }

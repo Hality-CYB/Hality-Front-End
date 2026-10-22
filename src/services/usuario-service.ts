@@ -105,7 +105,7 @@ export const usuarioService = {
     const data = await apiClient.post<unknown>(
       `/api/v1/admin/usuarios/${id}/reenviar-convite`,
       undefined,
-      { expectedStatus: 200 },
+      { statusEsperado: 200 },
     );
     return adaptBackendAdminUsuario(backendAdminUsuarioSchema.parse(data));
   },

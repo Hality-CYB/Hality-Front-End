@@ -14,7 +14,7 @@ export default function EsqueciSenhaPage() {
   const [email, setEmail] = useState("");
   const [erroEmail, setErroEmail] = useState("");
   const [espera, setEspera] = useState(0);
-  const recovery = useSolicitarRecuperacao();
+  const recuperacao = useSolicitarRecuperacao();
 
   useEffect(() => {
     if (espera <= 0) return;
@@ -24,82 +24,75 @@ export default function EsqueciSenhaPage() {
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (recovery.isPending || espera > 0) return;
+    if (recuperacao.isPending || espera > 0) return;
     setErroEmail("");
     if (!usuarioSchema.shape.email.safeParse(email.trim()).success) {
       setErroEmail("Informe um e-mail válido.");
       return;
     }
-    recovery.mutate(email.trim(), {
+    recuperacao.mutate(email.trim(), {
       onError: (error) => {
-        if ("retryAfterSeconds" in error && typeof error.retryAfterSeconds === "number")
-          setEspera(error.retryAfterSeconds);
+        if (
+          "segundosParaTentarDeNovo" in error &&
+          typeof error.segundosParaTentarDeNovo === "number"
+        )
+          setEspera(error.segundosParaTentarDeNovo);
       },
       onSuccess: () => setEmail(""),
     });
   }
 
   return (
-    <AuthCard variant="identity">
-      <div className="bg-secondary text-primary mb-4 flex size-11 items-center justify-center rounded-md">
-        <KeyRound aria-hidden className="size-5" />
+    <AuthCard>
+      <div className="bg-secondary text-primary mb-4 flex h-12 w-12 items-center justify-center rounded-[14px]">
+        <KeyRound aria-hidden className="h-5.5 w-5.5" />
       </div>
-      <h1 className="mb-1 text-xl font-extrabold">Recuperar senha</h1>
-      <p className="text-muted-foreground mb-6 text-sm leading-relaxed">
-        Informe seu e-mail para receber as instruções de recuperação.
+      <h2 className="font-heading mb-1 text-[22px] font-black">Recuperar senha</h2>
+      <p className="text-muted-foreground mb-6 text-sm">
+        Informe seu e-mail para receber o link de recuperação.
       </p>
-      {recovery.isSuccess ? (
-        <div className="flex flex-col gap-4">
+      {recuperacao.isSuccess ? (
+        <div className="flex flex-col gap-3.5">
           <Alert
             type="success"
-            message="Se o endereço estiver cadastrado, enviaremos instruções. Verifique também a caixa de spam."
+            message="Se o e-mail estiver cadastrado, você vai receber um link para criar uma nova senha. Confira também a caixa de spam."
           />
-          <Button variant="secondary" onClick={() => recovery.reset()}>
-            Solicitar novamente
+          <Button variant="secondary" onClick={() => recuperacao.reset()}>
+            Pedir de novo
           </Button>
         </div>
       ) : (
         <form
           onSubmit={handleSubmit}
           noValidate
-          aria-busy={recovery.isPending}
+          aria-busy={recuperacao.isPending}
           className="flex flex-col gap-3.5"
         >
           <Field
-            variant="identity"
             label="E-mail"
             value={email}
             onChange={setEmail}
             type="email"
             autoComplete="email"
             required
-            disabled={recovery.isPending}
+            disabled={recuperacao.isPending}
             placeholder="seu@email.com"
             error={erroEmail || undefined}
           />
-          {recovery.isError && <Alert message={recovery.error.message} />}
+          {recuperacao.isError && <Alert message={recuperacao.error.message} />}
           {espera > 0 && (
             <p role="status" className="text-muted-foreground text-sm">
-              Tente novamente em {espera} segundos.
+              Tente de novo em {espera} segundos.
             </p>
           )}
-          <Button
-            type="submit"
-            size="lg"
-            className="shadow-md"
-            disabled={recovery.isPending || espera > 0}
-          >
-            {recovery.isPending
-              ? "Solicitando…"
-              : recovery.isError
-                ? "Tentar novamente"
-                : "Solicitar recuperação"}
+          <Button type="submit" size="lg" disabled={recuperacao.isPending || espera > 0}>
+            {recuperacao.isPending ? "Enviando…" : "Enviar link"}
           </Button>
         </form>
       )}
-      <p className="mt-5 text-center">
-        <Link href="/login" className="text-primary text-sm font-semibold">
-          Voltar ao login
+      <p className="mt-4 text-center">
+        <Link href="/login" className="text-muted-foreground text-sm">
+          ← Voltar ao login
         </Link>
       </p>
     </AuthCard>

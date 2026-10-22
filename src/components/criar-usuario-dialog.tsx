@@ -95,7 +95,6 @@ export function CriarUsuarioDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit} aria-busy={salvando} className="flex flex-col gap-3.5">
           <Field
-            variant="identity"
             label="Nome completo"
             value={nome}
             onChange={setNome}
@@ -106,7 +105,6 @@ export function CriarUsuarioDialog({
             disabled={salvando}
           />
           <Field
-            variant="identity"
             label="E-mail"
             value={email}
             onChange={setEmail}
@@ -116,7 +114,6 @@ export function CriarUsuarioDialog({
             disabled={salvando}
           />
           <Field
-            variant="identity"
             label="Telefone (opcional)"
             value={telefone}
             onChange={setTelefone}
@@ -153,7 +150,6 @@ export function CriarUsuarioDialog({
           {role === "profissional" && (
             <>
               <Field
-                variant="identity"
                 label="Registro profissional"
                 value={registro}
                 onChange={setRegistro}
@@ -161,7 +157,6 @@ export function CriarUsuarioDialog({
                 disabled={salvando}
               />
               <Field
-                variant="identity"
                 label="Especialidade"
                 value={especialidade}
                 onChange={setEspecialidade}

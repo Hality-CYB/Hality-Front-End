@@ -2,7 +2,7 @@ import React, { type ReactNode } from "react";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useLogin, useRegistrar, useLogout, useConfirmarIdentidade } from "@/hooks/use-auth";
+import { useLogin, useRegistrar, useLogout, useDefinirSenhaPeloLink } from "@/hooks/use-auth";
 import { authService } from "@/services/auth-service";
 import { clearStoredToken, getStoredToken, setStoredToken } from "@/lib/session";
 
@@ -24,7 +24,7 @@ vi.mock("@/services/auth-service", () => ({
     login: vi.fn(),
     registrar: vi.fn(),
     logout: vi.fn(),
-    confirmarIdentidade: vi.fn(),
+    definirSenhaPeloLink: vi.fn(),
   },
 }));
 
@@ -105,11 +105,11 @@ describe("use-auth hooks", () => {
     expect(mockPush).toHaveBeenCalledWith("/login");
   });
 
-  it.each(["password_reset", "invitation"] as const)(
+  it.each(["recuperacao", "convite"] as const)(
     "compartilha envios simultâneos de %s e preserva a sessão e o cache",
-    async (purpose) => {
+    async (finalidade) => {
       let finish: () => void = () => {};
-      vi.mocked(authService.confirmarIdentidade).mockImplementationOnce(
+      vi.mocked(authService.definirSenhaPeloLink).mockImplementationOnce(
         () =>
           new Promise<void>((resolve) => {
             finish = resolve;
@@ -121,24 +121,24 @@ describe("use-auth hooks", () => {
       client.setQueryData(["recurso-existente"], { preservado: true });
       const clearSpy = vi.spyOn(client, "clear");
       setStoredToken("access-existente");
-      const { result } = renderHook(() => useConfirmarIdentidade(purpose), {
+      const { result } = renderHook(() => useDefinirSenhaPeloLink(finalidade), {
         wrapper: createWrapper(client),
       });
       let pending!: Promise<void>;
       act(() => {
-        pending = result.current.confirmar({
+        pending = result.current.definir({
           token: "token-sintetico-somente-para-testes",
           senha: "NovaSenha123",
         });
         expect(
-          result.current.confirmar({
+          result.current.definir({
             token: "outro-token-sintetico-para-teste",
             senha: "OutraSenha123",
           }),
         ).toBe(pending);
       });
-      await waitFor(() => expect(authService.confirmarIdentidade).toHaveBeenCalledTimes(1));
-      expect(authService.confirmarIdentidade).toHaveBeenCalledWith(purpose, {
+      await waitFor(() => expect(authService.definirSenhaPeloLink).toHaveBeenCalledTimes(1));
+      expect(authService.definirSenhaPeloLink).toHaveBeenCalledWith(finalidade, {
         token: "token-sintetico-somente-para-testes",
         senha: "NovaSenha123",
       });

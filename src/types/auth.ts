@@ -2,19 +2,16 @@ import type { Usuario } from "@/types/usuario";
 import { z } from "zod";
 import type { DecisaoConsentimento } from "@/types/consentimento";
 
-export type IdentityPurpose = "password_reset" | "invitation";
-export const identityTokenSchema = z.string().min(20);
-// Política da interface aprovada nas referências. O backend confirmado exige mínimo de 8.
-export const identityPasswordSchema = z.string().min(8).regex(/[A-Z]/).regex(/[a-z]/).regex(/\d/);
-export type IdentityConfirmation = {
+/** Para que serve o link enviado por e-mail (`purpose` do back: invitation | password_reset). */
+export type FinalidadeDoLink = "convite" | "recuperacao";
+export const tokenDoLinkSchema = z.string().min(20);
+export type DefinicaoDeSenha = {
   token: string;
   senha: string;
   consentimentos?: DecisaoConsentimento[];
 };
-export const invitationConsentRequiredResponseSchema = z.object({
-  detail: z.literal("o consentimento para tratamento de dados de saúde é obrigatório"),
-});
-export const passwordRecoveryResponseSchema = z.object({ message: z.string() });
+/** Corpo do 202 de `POST /auth/password-recovery`. */
+export const respostaRecuperacaoSchema = z.object({ message: z.string() });
 
 export type LoginCredentials = {
   email: string;

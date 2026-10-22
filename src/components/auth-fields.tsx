@@ -9,7 +9,6 @@ type FieldProps = Omit<ComponentProps<"input">, "value" | "onChange" | "children
   value: string;
   onChange: (v: string) => void;
   error?: string;
-  variant?: "default" | "identity";
   endAdornment?: ReactNode;
 };
 
@@ -24,7 +23,6 @@ export function Field({
   type = "text",
   id,
   error,
-  variant = "default",
   endAdornment,
   className,
   ...props
@@ -36,10 +34,7 @@ export function Field({
     <div>
       <label
         htmlFor={inputId}
-        className={cn(
-          "font-heading text-muted-foreground mb-1.5 block font-semibold",
-          variant === "identity" ? "text-xs" : "text-(length:--text-caption)",
-        )}
+        className="font-heading text-muted-foreground mb-1.5 block text-(length:--text-caption) font-semibold"
       >
         {label}
       </label>
@@ -57,9 +52,7 @@ export function Field({
           }
           className={cn(
             inputClass,
-            variant === "identity"
-              ? "focus:ring-ring/20 rounded-md border transition-colors"
-              : "focus:ring-primary/10 rounded-2xl border-(length:--control-border-width) transition-all",
+            "focus:ring-primary/10 rounded-2xl border-(length:--control-border-width) transition-all",
             className,
           )}
         />
@@ -77,13 +70,7 @@ export function Field({
 type PasswordFieldProps = Omit<FieldProps, "type" | "endAdornment">;
 
 /** Porta Design/AuthFlow.tsx's PasswordField — com toggle de mostrar/ocultar. */
-export function PasswordField({
-  label,
-  id,
-  className,
-  variant = "default",
-  ...props
-}: PasswordFieldProps) {
+export function PasswordField({ label, id, className, ...props }: PasswordFieldProps) {
   const generatedId = useId();
   const inputId = id ?? generatedId;
   const [show, setShow] = useState(false);
@@ -92,7 +79,6 @@ export function PasswordField({
       {...props}
       id={inputId}
       label={label}
-      variant={variant}
       type={show ? "text" : "password"}
       placeholder="••••••••"
       className={cn("pr-12", className)}
@@ -104,17 +90,12 @@ export function PasswordField({
           aria-controls={inputId}
           disabled={props.disabled}
           onClick={() => setShow((s) => !s)}
-          className={cn(
-            "focus-visible:ring-ring absolute top-1/2 flex -translate-y-1/2 rounded-sm outline-none focus-visible:ring-2 disabled:opacity-60",
-            variant === "identity"
-              ? "text-muted-foreground right-3 p-2"
-              : "text-gray-3 right-3.5 p-1",
-          )}
+          className="focus-visible:ring-ring text-gray-3 absolute top-1/2 right-3.5 flex -translate-y-1/2 rounded-sm p-1 outline-none focus-visible:ring-2 disabled:opacity-60"
         >
           {show ? (
-            <EyeOff aria-hidden className={variant === "identity" ? "size-4" : "size-4.5"} />
+            <EyeOff aria-hidden className="size-4.5" />
           ) : (
-            <Eye aria-hidden className={variant === "identity" ? "size-4" : "size-4.5"} />
+            <Eye aria-hidden className="size-4.5" />
           )}
         </button>
       }

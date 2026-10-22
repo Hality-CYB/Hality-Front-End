@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { readIdentityLink } from "@/lib/identity-link";
+import { lerLinkDeAcesso } from "@/lib/link-de-acesso";
 
 export function proxy(request: NextRequest) {
   const response = NextResponse.next();
-  if (readIdentityLink(request.nextUrl).purpose) {
+  if (lerLinkDeAcesso(request.nextUrl).finalidade) {
     response.headers.set("Referrer-Policy", "no-referrer");
   }
   return response;

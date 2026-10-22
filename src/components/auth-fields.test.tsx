@@ -49,45 +49,41 @@ it("mantém a orientação acessível ao adicionar e remover um erro", () => {
   expect(input).toHaveAccessibleDescription("Use seu e-mail de cadastro.");
 });
 
-it.each(["default", "identity"] as const)(
-  "mantém teclado, edição e visibilidade da senha na variante %s",
-  async (variant) => {
-    const user = userEvent.setup();
-    const submit = vi.fn((event) => event.preventDefault());
-    function Form() {
-      const [value, setValue] = useState("");
-      return (
-        <form onSubmit={submit}>
-          <PasswordField
-            variant={variant}
-            label="Senha"
-            value={value}
-            onChange={setValue}
-            autoComplete="new-password"
-          />
-        </form>
-      );
-    }
-    render(<Form />);
-    const input = screen.getByLabelText("Senha");
-    await user.type(input, "Segura123");
-    expect(input).toHaveValue("Segura123");
-    expect(input).toHaveAttribute("type", "password");
-    await user.tab();
-    const toggle = screen.getByRole("button", { name: "Mostrar senha" });
-    expect(toggle).toHaveFocus();
-    expect(toggle).toHaveAttribute("aria-controls", input.id);
-    await user.keyboard("{Enter}");
-    expect(input).toHaveAttribute("type", "text");
-    expect(screen.getByRole("button", { name: "Ocultar senha" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
+it("mantém teclado, edição e visibilidade da senha", async () => {
+  const user = userEvent.setup();
+  const submit = vi.fn((event) => event.preventDefault());
+  function Form() {
+    const [value, setValue] = useState("");
+    return (
+      <form onSubmit={submit}>
+        <PasswordField
+          label="Senha"
+          value={value}
+          onChange={setValue}
+          autoComplete="new-password"
+        />
+      </form>
     );
-    await user.keyboard(" ");
-    expect(input).toHaveAttribute("type", "password");
-    expect(submit).not.toHaveBeenCalled();
-  },
-);
+  }
+  render(<Form />);
+  const input = screen.getByLabelText("Senha");
+  await user.type(input, "Segura123");
+  expect(input).toHaveValue("Segura123");
+  expect(input).toHaveAttribute("type", "password");
+  await user.tab();
+  const toggle = screen.getByRole("button", { name: "Mostrar senha" });
+  expect(toggle).toHaveFocus();
+  expect(toggle).toHaveAttribute("aria-controls", input.id);
+  await user.keyboard("{Enter}");
+  expect(input).toHaveAttribute("type", "text");
+  expect(screen.getByRole("button", { name: "Ocultar senha" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await user.keyboard(" ");
+  expect(input).toHaveAttribute("type", "password");
+  expect(submit).not.toHaveBeenCalled();
+});
 
 it("bloqueia também a alternância de visibilidade quando o campo está desabilitado", async () => {
   const user = userEvent.setup();

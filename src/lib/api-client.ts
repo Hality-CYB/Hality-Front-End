@@ -11,7 +11,7 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
-    public retryAfterSeconds?: number,
+    public segundosParaTentarDeNovo?: number,
   ) {
     super(message);
     this.name = "ApiError";
@@ -59,11 +59,11 @@ async function renovarAccessToken(): Promise<string | null> {
   return refreshEmAndamento;
 }
 
-type ApiRequestInit = RequestInit & { authenticated?: boolean; expectedStatus?: number };
+type ApiRequestInit = RequestInit & { autenticada?: boolean; statusEsperado?: number };
 
 async function request<T>(path: string, init?: ApiRequestInit, retentativa = false): Promise<T> {
-  const { authenticated = true, expectedStatus, ...requestInit } = init ?? {};
-  const token = authenticated ? getStoredToken() : null;
+  const { autenticada = true, statusEsperado, ...requestInit } = init ?? {};
+  const token = autenticada ? getStoredToken() : null;
   // Com FormData (upload de arquivo) quem define o Content-Type é o
   // navegador, porque ele precisa incluir o boundary do multipart.
   const headers: Record<string, string> = {
@@ -74,7 +74,7 @@ async function request<T>(path: string, init?: ApiRequestInit, retentativa = fal
   if (token && !headers["Authorization"]) {
     headers["Authorization"] = `Bearer ${token}`;
   }
-  if (!authenticated) {
+  if (!autenticada) {
     for (const name of Object.keys(headers)) {
       if (name.toLowerCase() === "authorization") delete headers[name];
     }
@@ -83,19 +83,19 @@ async function request<T>(path: string, init?: ApiRequestInit, retentativa = fal
   const response = await fetch(`${config.apiBaseUrl}${path}`, {
     ...requestInit,
     headers,
-    ...(!authenticated && {
+    ...(!autenticada && {
       credentials: "omit",
       cache: "no-store",
       referrerPolicy: "no-referrer",
     }),
   });
-  if (response.ok && expectedStatus !== undefined && response.status !== expectedStatus) {
+  if (response.ok && statusEsperado !== undefined && response.status !== statusEsperado) {
     throw new ApiError(response.status, "Resposta inesperada do servidor.");
   }
 
   // access_token expirado: tenta renovar em silêncio uma vez só, e refaz a
   // chamada original com o token novo — quem chamou nem fica sabendo.
-  if (authenticated && response.status === 401 && !retentativa) {
+  if (autenticada && response.status === 401 && !retentativa) {
     const novoToken = await renovarAccessToken();
     if (novoToken) {
       return request<T>(path, init, true);
@@ -103,7 +103,7 @@ async function request<T>(path: string, init?: ApiRequestInit, retentativa = fal
   }
 
   if (!response.ok) {
-    if (authenticated && response.status === 401) {
+    if (autenticada && response.status === 401) {
       clearStoredToken();
     }
     const retryAfter = response.headers.get("Retry-After");

@@ -13,7 +13,7 @@ afterEach(() => {
   clearStoredToken();
 });
 
-describe("contratos públicos de identidade (backend develop 1a3d9c9; MSW)", () => {
+describe("convite e recuperação pelo link do e-mail (contrato do back; MSW)", () => {
   it("envia decisões versionadas somente no aceite de convite e preserva a sessão", async () => {
     const consentimentos = [{ finalidade: "health_data" as const, versao: "v1", aceito: true }];
     setStoredToken("sessao-existente");
@@ -28,12 +28,12 @@ describe("contratos públicos de identidade (backend develop 1a3d9c9; MSW)", () 
         return new HttpResponse(null, { status: 204 });
       }),
     );
-    await authService.confirmarIdentidade("invitation", {
+    await authService.definirSenhaPeloLink("convite", {
       token,
       senha: "NovaSenha123",
       consentimentos,
     });
-    await authService.confirmarIdentidade("password_reset", {
+    await authService.definirSenhaPeloLink("recuperacao", {
       token,
       senha: "NovaSenha123",
       consentimentos,
@@ -46,7 +46,7 @@ describe("contratos públicos de identidade (backend develop 1a3d9c9; MSW)", () 
       http.post(url("invitation/confirm"), () =>
         HttpResponse.json(
           {
-            detail: "o consentimento para tratamento de dados de saúde é obrigatório",
+            detail: "CONSENTIMENTO_OBRIGATORIO",
             input: { token, senha: "NovaSenha123" },
           },
           { status: 422 },
@@ -54,7 +54,7 @@ describe("contratos públicos de identidade (backend develop 1a3d9c9; MSW)", () 
       ),
     );
     const error = await authService
-      .confirmarIdentidade("invitation", { token, senha: "NovaSenha123" })
+      .definirSenhaPeloLink("convite", { token, senha: "NovaSenha123" })
       .catch((value: unknown) => value);
     expect(error).toBeInstanceOf(ConsentimentoObrigatorioError);
     expect(JSON.stringify(error)).not.toContain(token);
@@ -71,7 +71,7 @@ describe("contratos públicos de identidade (backend develop 1a3d9c9; MSW)", () 
       ),
     );
     const error = await authService
-      .confirmarIdentidade("invitation", { token, senha: "NovaSenha123" })
+      .definirSenhaPeloLink("convite", { token, senha: "NovaSenha123" })
       .catch((value: unknown) => value);
     expect(error).toBeInstanceOf(ApiError);
     expect(error).not.toBeInstanceOf(ConsentimentoObrigatorioError);
@@ -105,11 +105,11 @@ describe("contratos públicos de identidade (backend develop 1a3d9c9; MSW)", () 
     expect(getStoredToken()).toBe("sessao-existente");
   });
 
-  it.each(["password_reset", "invitation"] as const)(
+  it.each(["recuperacao", "convite"] as const)(
     "confirma %s com token e senha e aceita 204",
-    async (purpose) => {
+    async (finalidade) => {
       setStoredToken("sessao-existente");
-      const path = purpose === "invitation" ? "invitation" : "password-recovery";
+      const path = finalidade === "convite" ? "invitation" : "password-recovery";
       let body: unknown;
       server.use(
         http.post(url(`${path}/confirm`), async ({ request }) => {
@@ -118,7 +118,7 @@ describe("contratos públicos de identidade (backend develop 1a3d9c9; MSW)", () 
           return new HttpResponse(null, { status: 204 });
         }),
       );
-      await authService.confirmarIdentidade(purpose, { token, senha: "NovaSenha123" });
+      await authService.definirSenhaPeloLink(finalidade, { token, senha: "NovaSenha123" });
       expect(body).toEqual({ token, senha: "NovaSenha123" });
       expect(getStoredToken()).toBe("sessao-existente");
     },
@@ -133,7 +133,7 @@ describe("contratos públicos de identidade (backend develop 1a3d9c9; MSW)", () 
         ),
       );
       await expect(
-        authService.confirmarIdentidade("password_reset", { token, senha: "NovaSenha123" }),
+        authService.definirSenhaPeloLink("recuperacao", { token, senha: "NovaSenha123" }),
       ).rejects.toMatchObject({
         status: 400,
         message: expect.stringContaining("pode ter expirado"),
@@ -152,7 +152,7 @@ describe("contratos públicos de identidade (backend develop 1a3d9c9; MSW)", () 
       }),
     );
     await expect(
-      authService.confirmarIdentidade("password_reset", { token, senha: "NovaSenha123" }),
+      authService.definirSenhaPeloLink("recuperacao", { token, senha: "NovaSenha123" }),
     ).rejects.toMatchObject({ status: 401 });
     expect(refresh).not.toHaveBeenCalled();
     expect(getStoredToken()).toBe("sessao-existente");
@@ -170,28 +170,47 @@ describe("contratos públicos de identidade (backend develop 1a3d9c9; MSW)", () 
         ),
       );
       const error = await authService
-        .confirmarIdentidade("invitation", { token, senha: "NovaSenha123" })
+        .definirSenhaPeloLink("convite", { token, senha: "NovaSenha123" })
         .catch((value: unknown) => value);
       expect(error).toBeInstanceOf(ApiError);
       expect((error as Error).message).not.toContain(token);
       expect((error as Error).message).not.toContain("NovaSenha123");
-      if (status === 429) expect(error).toMatchObject({ retryAfterSeconds: 2 });
+      if (status === 429) expect(error).toMatchObject({ segundosParaTentarDeNovo: 2 });
     },
   );
 
-  it.each([409, 422])(
-    "não confunde erro %s de consentimento com token usado ou conta ativa",
-    async (status) => {
-      server.use(
-        http.post(url("invitation/confirm"), () =>
-          HttpResponse.json({ detail: "consentimento" }, { status }),
-        ),
-      );
-      await expect(
-        authService.confirmarIdentidade("invitation", { token, senha: "NovaSenha123" }),
-      ).rejects.toMatchObject({ status, message: expect.stringContaining("consentimento") });
-    },
-  );
+  it("409 no convite pede a decisão de novo, sem confundir com token usado", async () => {
+    server.use(
+      http.post(url("invitation/confirm"), () =>
+        HttpResponse.json({ detail: "versão do termo desatualizada" }, { status: 409 }),
+      ),
+    );
+    await expect(
+      authService.definirSenhaPeloLink("convite", { token, senha: "NovaSenha123" }),
+    ).rejects.toMatchObject({ status: 409, message: expect.stringContaining("termos") });
+  });
+
+  it("422 sem o código de consentimento é tratado como senha recusada", async () => {
+    server.use(
+      http.post(url("invitation/confirm"), () =>
+        HttpResponse.json({ detail: "o consentimento é obrigatório" }, { status: 422 }),
+      ),
+    );
+    const erro = await authService
+      .definirSenhaPeloLink("convite", { token, senha: "NovaSenha123" })
+      .catch((value: unknown) => value);
+    expect(erro).not.toBeInstanceOf(ConsentimentoObrigatorioError);
+    expect((erro as Error).message).toContain("A senha não foi aceita");
+  });
+
+  it("senha fora da regra nem chega a ser enviada", async () => {
+    const enviado = vi.fn();
+    server.use(http.post(url("password-recovery/confirm"), enviado));
+    await expect(
+      authService.definirSenhaPeloLink("recuperacao", { token, senha: "semmaiuscula1" }),
+    ).rejects.toMatchObject({ status: 422 });
+    expect(enviado).not.toHaveBeenCalled();
+  });
 
   it("mantém a resposta genérica 202 também quando o backend limita a recuperação", async () => {
     server.use(
@@ -211,7 +230,7 @@ describe("contratos públicos de identidade (backend develop 1a3d9c9; MSW)", () 
       status: 422,
     });
     await expect(
-      authService.confirmarIdentidade("invitation", { token: "", senha: "NovaSenha123" }),
+      authService.definirSenhaPeloLink("convite", { token: "", senha: "NovaSenha123" }),
     ).rejects.toMatchObject({ status: 400 });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -252,7 +271,7 @@ describe("contratos públicos de identidade (backend develop 1a3d9c9; MSW)", () 
       ),
     );
     await expect(
-      authService.confirmarIdentidade("invitation", { token, senha: "NovaSenha123" }),
+      authService.definirSenhaPeloLink("convite", { token, senha: "NovaSenha123" }),
     ).rejects.toThrow("Não foi possível concluir");
   });
 });

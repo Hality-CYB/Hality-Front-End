@@ -17,7 +17,7 @@ import cybFullLogo from "@/assets/images/full-logo-check-your-breath.png";
 import cybIcon from "@/assets/images/icon-check-your-breath.png";
 import { Button } from "@/components/ui/button";
 import { ScrollReveal } from "@/components/scroll-reveal";
-import { IdentityLinkEntry } from "@/components/identity-password-form";
+import { EntradaPorLink } from "@/components/definir-senha-form";
 
 /**
  * Repaginação completa da landing (era um porte quase 1:1 de
@@ -94,9 +94,9 @@ const RECOMENDACOES = [
 
 export default function LandingPage() {
   return (
-    <IdentityLinkEntry>
+    <EntradaPorLink>
       <LandingContent />
-    </IdentityLinkEntry>
+    </EntradaPorLink>
   );
 }
 

@@ -58,6 +58,6 @@ it("remove Authorization explícito de chamadas públicas", async () => {
   await apiClient.post(
     "/api/v1/auth/invitation/confirm",
     {},
-    { authenticated: false, headers: { authorization: "Bearer nao-enviar" } },
+    { autenticada: false, headers: { authorization: "Bearer nao-enviar" } },
   );
 });

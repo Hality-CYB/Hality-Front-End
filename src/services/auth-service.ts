@@ -7,13 +7,13 @@ import {
 } from "@/types/usuario";
 import { ApiError, apiClient } from "@/lib/api-client";
 import {
-  identityTokenSchema,
-  invitationConsentRequiredResponseSchema,
-  passwordRecoveryResponseSchema,
-  type IdentityConfirmation,
-  type IdentityPurpose,
+  tokenDoLinkSchema,
+  respostaRecuperacaoSchema,
+  type DefinicaoDeSenha,
+  type FinalidadeDoLink,
 } from "@/types/auth";
 import { config } from "@/lib/config";
+import { problemaDaSenha } from "@/lib/senha";
 import { setStoredToken, clearStoredToken } from "@/lib/session";
 import { adicionarUsuarioMock, usuarioMockParaLogin } from "@/services/mocks/auth-handlers";
 import {
@@ -164,6 +164,13 @@ async function registrarReal(
     if (response.status === 422 && typeof errorBody?.detail === "string") {
       throw new ApiError(422, "Para criar a conta, aceite o tratamento dos seus dados de saúde.");
     }
+    if (response.status === 422) {
+      // Lista do Pydantic: no cadastro, o único campo que o front não valida igual é a senha.
+      throw new ApiError(
+        422,
+        "A senha precisa de 8 caracteres ou mais, com letra maiúscula, minúscula e número.",
+      );
+    }
     throw new ApiError(response.status, "Não foi possível concluir o cadastro.");
   }
 
@@ -182,84 +189,100 @@ async function registrarReal(
   }
 }
 
-/** Sinaliza somente a resposta confirmada do backend, sem inferir o papel pelo token. */
+/** O back pediu os consentimentos antes de ativar o convite (`CONSENTIMENTO_OBRIGATORIO`). */
 export class ConsentimentoObrigatorioError extends ApiError {
   constructor() {
-    super(422, "Para ativar sua conta, responda aos consentimentos abaixo.");
+    super(422, "Para ativar sua conta, autorize o uso dos seus dados abaixo.");
     this.name = "ConsentimentoObrigatorioError";
   }
 }
 
-/** Respostas de validação podem repetir o token; nenhum corpo de erro público chega à UI. */
-function identityError(error: unknown, purpose?: IdentityPurpose): ApiError {
-  const status = error instanceof ApiError ? error.status : 0;
-  if (status === 422 && purpose === "invitation" && error instanceof ApiError) {
-    try {
-      if (invitationConsentRequiredResponseSchema.safeParse(JSON.parse(error.message)).success)
-        return new ConsentimentoObrigatorioError();
-    } catch {
-      // Corpo malformado segue para a mensagem fixa de validação, sem expor o conteúdo.
-    }
+function detalheDoErro(erro: ApiError): unknown {
+  try {
+    return (JSON.parse(erro.message) as { detail?: unknown }).detail;
+  } catch {
+    return undefined;
   }
-  let message = "Não foi possível concluir a solicitação. Tente novamente.";
-  if (error instanceof TypeError)
-    message = "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.";
-  if (status === 400 && purpose)
-    message =
-      "Este link é inválido ou não está mais disponível. Ele pode ter expirado, já ter sido utilizado ou ter sido revogado.";
-  if (status === 409 && purpose === "invitation")
-    message =
-      "Os termos de consentimento foram atualizados. Leia a nova versão e decida novamente.";
-  if (status === 422) message = "Confira os dados informados e tente novamente.";
-  if (status === 422 && purpose === "invitation")
-    message =
-      "Confira a senha informada. A ativação pode exigir consentimentos; entre em contato com o responsável pelo cadastro para continuar.";
-  if (status === 404 || status === 405)
-    message = "Este serviço está temporariamente indisponível. Tente novamente mais tarde.";
-  if (status === 429) message = "Muitas tentativas. Aguarde antes de tentar novamente.";
+}
+
+/**
+ * Converte o erro dos fluxos por link (convite e recuperação) numa mensagem
+ * fixa: o corpo do back pode repetir o token, então nunca chega à tela.
+ */
+function erroDoLink(erro: unknown, finalidade?: FinalidadeDoLink): ApiError {
+  const status = erro instanceof ApiError ? erro.status : 0;
+  if (
+    status === 422 &&
+    finalidade === "convite" &&
+    erro instanceof ApiError &&
+    detalheDoErro(erro) === "CONSENTIMENTO_OBRIGATORIO"
+  ) {
+    return new ConsentimentoObrigatorioError();
+  }
+  let mensagem = "Não foi possível concluir. Tente de novo.";
+  if (erro instanceof TypeError) {
+    mensagem = "Não foi possível conectar ao servidor. Confira sua conexão e tente de novo.";
+  }
+  if (status === 400 && finalidade) {
+    mensagem =
+      "Este link não vale mais. Ele pode ter expirado, já ter sido usado ou ter sido substituído por um novo.";
+  }
+  if (status === 409 && finalidade === "convite") {
+    mensagem = "Os termos foram atualizados. Leia a versão nova e decida de novo.";
+  }
+  if (status === 422) {
+    mensagem =
+      "A senha não foi aceita. Ela precisa de 8 caracteres ou mais, com letra maiúscula, minúscula e número.";
+  }
+  if (status === 404 || status === 405) {
+    mensagem = "Este serviço está indisponível agora. Tente de novo mais tarde.";
+  }
+  if (status === 429) mensagem = "Muitas tentativas. Aguarde um pouco e tente de novo.";
   return new ApiError(
     status,
-    message,
-    error instanceof ApiError ? error.retryAfterSeconds : undefined,
+    mensagem,
+    erro instanceof ApiError ? erro.segundosParaTentarDeNovo : undefined,
   );
 }
 
 export const authService = {
   async solicitarRecuperacao(email: string): Promise<void> {
-    const result = usuarioSchema.shape.email.safeParse(email.trim());
-    if (!result.success) throw new ApiError(422, "Informe um e-mail válido.");
+    const resultado = usuarioSchema.shape.email.safeParse(email.trim());
+    if (!resultado.success) throw new ApiError(422, "Informe um e-mail válido.");
     try {
       const data = await apiClient.post<unknown>(
         "/api/v1/auth/password-recovery",
-        { email: result.data },
-        { authenticated: false, expectedStatus: 202 },
+        { email: resultado.data },
+        { autenticada: false, statusEsperado: 202 },
       );
-      passwordRecoveryResponseSchema.parse(data);
-    } catch (error) {
-      throw identityError(error);
+      respostaRecuperacaoSchema.parse(data);
+    } catch (erro) {
+      throw erroDoLink(erro);
     }
   },
 
-  async confirmarIdentidade(purpose: IdentityPurpose, input: IdentityConfirmation): Promise<void> {
-    if (!identityTokenSchema.safeParse(input.token).success)
-      throw new ApiError(400, "Este link é inválido ou não está mais disponível.");
-    if (input.senha.length < 8)
-      throw new ApiError(422, "A senha deve ter pelo menos 8 caracteres.");
-    const path = purpose === "invitation" ? "invitation" : "password-recovery";
+  /** Define a senha pelo link do e-mail; no convite, envia também os consentimentos. */
+  async definirSenhaPeloLink(finalidade: FinalidadeDoLink, input: DefinicaoDeSenha): Promise<void> {
+    if (!tokenDoLinkSchema.safeParse(input.token).success) {
+      throw new ApiError(400, "Este link não vale mais.");
+    }
+    const problema = problemaDaSenha(input.senha);
+    if (problema) throw new ApiError(422, problema);
+    const caminho = finalidade === "convite" ? "invitation" : "password-recovery";
     try {
       const payload = {
         token: input.token,
         senha: input.senha,
-        ...(purpose === "invitation" && input.consentimentos
+        ...(finalidade === "convite" && input.consentimentos
           ? { consentimentos: input.consentimentos }
           : {}),
       };
-      await apiClient.post<void>(`/api/v1/auth/${path}/confirm`, payload, {
-        authenticated: false,
-        expectedStatus: 204,
+      await apiClient.post<void>(`/api/v1/auth/${caminho}/confirm`, payload, {
+        autenticada: false,
+        statusEsperado: 204,
       });
-    } catch (error) {
-      throw identityError(error, purpose);
+    } catch (erro) {
+      throw erroDoLink(erro, finalidade);
     }
   },
 

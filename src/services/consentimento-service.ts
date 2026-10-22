@@ -13,7 +13,7 @@ export const consentimentoService = {
   /** Público: usado no cadastro, antes de existir conta. */
   async listarTermos(): Promise<TermoConsentimento[]> {
     const data = await apiClient.get<unknown>("/api/v1/consentimentos/termos", {
-      authenticated: false,
+      autenticada: false,
     });
     return adaptBackendTermos(backendTermosSchema.parse(data));
   },
