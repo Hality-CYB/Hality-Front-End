@@ -143,7 +143,7 @@ export default function DiagnosticoDetailAdminPage({
                 <div className="flex flex-col gap-1">
                   <LevelChip nivel={d.nivel} size="lg" />
                   <span className="text-muted-foreground text-xs">
-                    {d.confiancaIA !== null && `Confiança da IA ${d.confiancaIA}%`}
+                    {d.confiancaIA !== null && `Escala de halitose ${d.confiancaIA}%`}
                     {d.confiancaIA !== null && d.escalaSaburra !== null && " · "}
                     {d.escalaSaburra !== null && `Saburra ${d.escalaSaburra}`}
                   </span>
