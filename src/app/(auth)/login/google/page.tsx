@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { RetornoLoginGoogle } from "@/components/retorno-login-google";
+import { RetornoLoginGoogle } from "@/components/google-login-callback";
 
 export const metadata: Metadata = {
   title: "Entrar com Google — CYB",

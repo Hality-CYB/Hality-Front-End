@@ -5,11 +5,15 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { ApiError } from "@/lib/api-client";
 import {
+  consumirDestinoLoginGoogle,
+  limparDestinoLoginGoogle,
+} from "@/lib/google-login-destination";
+import {
   lerRetornoGoogle,
   mensagemDoErroCallbackGoogle,
   removerParametrosDoRetornoGoogle,
   type RetornoGoogle,
-} from "@/lib/retorno-google";
+} from "@/lib/google-auth-callback";
 import { authService } from "@/services/auth-service";
 import type { DecisaoConsentimento } from "@/types/consentimento";
 
@@ -95,6 +99,9 @@ export function useAuthGoogle() {
     const retorno = retornoRef.current;
     const estadoImediato = estadoSemTroca(retorno);
     if (estadoImediato) {
+      // No primeiro acesso, o destino precisa sobreviver enquanto a pessoa
+      // lê e decide os consentimentos. Erros e cancelamentos encerram o fluxo.
+      if (retorno.status !== "consentimento") limparDestinoLoginGoogle();
       queueMicrotask(() => {
         if (ativo) setEstado(estadoImediato);
       });
@@ -107,11 +114,12 @@ export function useAuthGoogle() {
           codigoRef.current = null;
           queryClient.removeQueries({ queryKey: ["currentUser"] });
           setEstado({ status: "sucesso", mensagem: "Login concluído. Redirecionando…" });
-          replace("/paciente");
+          replace(consumirDestinoLoginGoogle());
           refresh();
         })
         .catch((erro: unknown) => {
           if (!ativo) return;
+          limparDestinoLoginGoogle();
           setEstado({
             status: "erro",
             mensagem:
@@ -124,6 +132,7 @@ export function useAuthGoogle() {
 
     function esquecerCodigo() {
       codigoRef.current = null;
+      limparDestinoLoginGoogle();
     }
     window.addEventListener("pagehide", esquecerCodigo);
     return () => {
@@ -151,13 +160,14 @@ export function useAuthGoogle() {
       codigoRef.current = null;
       queryClient.removeQueries({ queryKey: ["currentUser"] });
       setEstado({ status: "sucesso", mensagem: "Conta criada. Redirecionando…" });
-      replace("/paciente");
+      replace(consumirDestinoLoginGoogle());
       refresh();
     } catch (erro) {
       const mensagem =
         erro instanceof Error ? erro.message : "Não foi possível criar sua conta. Tente novamente.";
       if (erro instanceof ApiError && erro.status === 400) {
         codigoRef.current = null;
+        limparDestinoLoginGoogle();
         setEstado({ status: "erro", mensagem });
       } else {
         setEstado({
@@ -181,6 +191,7 @@ export function useAuthGoogle() {
     descartarCodigo: () => {
       codigoRef.current = null;
       consentimentosRef.current = undefined;
+      limparDestinoLoginGoogle();
     },
   };
 }

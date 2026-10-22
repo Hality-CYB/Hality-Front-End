@@ -3,7 +3,7 @@ import {
   lerRetornoGoogle,
   mensagemDoErroCallbackGoogle,
   removerParametrosDoRetornoGoogle,
-} from "@/lib/retorno-google";
+} from "@/lib/google-auth-callback";
 
 const codigo = "codigo-temporario-de-uso-unico";
 const url = (query = "") => new URL(`/login/google${query}`, "https://cyb.test");

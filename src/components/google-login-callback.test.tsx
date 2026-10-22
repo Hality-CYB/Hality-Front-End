@@ -4,8 +4,9 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
-import { RetornoLoginGoogle } from "@/components/retorno-login-google";
+import { RetornoLoginGoogle } from "@/components/google-login-callback";
 import { config } from "@/lib/config";
+import { guardarDestinoLoginGoogle } from "@/lib/google-login-destination";
 import { clearStoredToken, getStoredToken } from "@/lib/session";
 import { server } from "@/services/mocks/server";
 
@@ -50,6 +51,7 @@ function abrir(query: string) {
 afterEach(() => {
   cleanup();
   clearStoredToken();
+  sessionStorage.clear();
   vi.clearAllMocks();
   window.history.replaceState(null, "", "/");
 });
@@ -99,6 +101,22 @@ describe("retorno visual do login com Google", () => {
     expect(mockRefresh).toHaveBeenCalledTimes(1);
   });
 
+  it("volta para o destino seguro de paciente preservado antes de ir ao Google", async () => {
+    guardarDestinoLoginGoogle("/paciente/perfil?aba=privacidade");
+    server.use(
+      http.post(exchangeUrl, () =>
+        HttpResponse.json({ access_token: "access-google", token_type: "bearer" }),
+      ),
+    );
+
+    abrir(`?code=${codigo}&etapa=sessao`);
+
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith("/paciente/perfil?aba=privacidade"),
+    );
+    expect(sessionStorage.getItem("hality:google_return_to")).toBeNull();
+  });
+
   it("mostra os termos desmarcados no primeiro acesso sem trocar o código antes da decisão", async () => {
     const exchange = vi.fn();
     server.use(http.post(exchangeUrl, exchange));
@@ -146,6 +164,22 @@ describe("retorno visual do login com Google", () => {
       ],
     });
     expect(getStoredToken()).toBe("access-novo");
+  });
+
+  it("preserva o destino de paciente também durante os consentimentos do primeiro acesso", async () => {
+    guardarDestinoLoginGoogle("/paciente/perfil");
+    server.use(
+      http.post(exchangeUrl, () =>
+        HttpResponse.json({ access_token: "access-novo", token_type: "bearer" }),
+      ),
+    );
+    abrir(`?code=${codigo}&etapa=consentimento`);
+    await userEvent.click(await screen.findByRole("checkbox", { name: /dados de saúde/ }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Aceitar e continuar" }));
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/paciente/perfil"));
+    expect(sessionStorage.getItem("hality:google_return_to")).toBeNull();
   });
 
   it("recarrega termos atualizados e reutiliza o código somente numa nova decisão explícita", async () => {
