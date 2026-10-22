@@ -37,7 +37,11 @@ export function RetornoLoginGoogle() {
         })),
       )
       .catch((erro: unknown) => {
-        if (erro instanceof ApiError && erro.status === 409) {
+        if (
+          erro instanceof ApiError &&
+          erro.status === 409 &&
+          erro.message.startsWith("Os termos foram atualizados.")
+        ) {
           setDecisoes({});
           void termos.refetch();
         }

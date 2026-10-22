@@ -239,6 +239,40 @@ describe("retorno visual do login com Google", () => {
     });
   });
 
+  it("encerra o primeiro acesso quando a conta Google já existe", async () => {
+    let buscas = 0;
+    server.use(
+      http.get(termosUrl, () => {
+        buscas += 1;
+        return HttpResponse.json({
+          itens: [
+            {
+              finalidade: "health_data",
+              versao: "v1",
+              obrigatorio: true,
+              titulo: "Tratamento de dados de saúde",
+              texto: "Termo de saúde",
+            },
+          ],
+        });
+      }),
+      http.post(exchangeUrl, () =>
+        HttpResponse.json({ detail: "já existe uma conta com este e-mail" }, { status: 409 }),
+      ),
+    );
+
+    abrir(`?code=${codigo}&etapa=consentimento`);
+    await userEvent.click(await screen.findByRole("checkbox", { name: /dados de saúde/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Aceitar e continuar" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Não foi possível entrar" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("e-mail e senha");
+    expect(buscas).toBe(1);
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
   it("mostra o cancelamento como estado recuperável sem chamar a troca", async () => {
     const exchange = vi.fn();
     server.use(http.post(exchangeUrl, exchange));

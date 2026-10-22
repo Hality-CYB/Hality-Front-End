@@ -165,7 +165,17 @@ export function useAuthGoogle() {
     } catch (erro) {
       const mensagem =
         erro instanceof Error ? erro.message : "Não foi possível criar sua conta. Tente novamente.";
-      if (erro instanceof ApiError && erro.status === 400) {
+      const termosDesatualizados =
+        erro instanceof ApiError &&
+        erro.status === 409 &&
+        erro.message.startsWith("Os termos foram atualizados.");
+      const erroFinal =
+        erro instanceof ApiError &&
+        (erro.status === 400 ||
+          erro.status === 403 ||
+          (erro.status === 409 && !termosDesatualizados));
+
+      if (erroFinal) {
         codigoRef.current = null;
         limparDestinoLoginGoogle();
         setEstado({ status: "erro", mensagem });
