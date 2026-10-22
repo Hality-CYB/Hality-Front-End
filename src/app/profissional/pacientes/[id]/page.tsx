@@ -16,7 +16,7 @@ import { usePaciente } from "@/hooks/use-pacientes";
 import { useDiagnosticosProfissionalPaginados } from "@/hooks/use-diagnosticos";
 import { nivelColor, nivelIcon } from "@/lib/level-format";
 import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/status-format";
-import { formatarData } from "@/lib/datas";
+import { formatarData, formatarDataSemHorario, idadeEmAnos } from "@/lib/datas";
 
 export default function PacienteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -77,6 +77,14 @@ export default function PacienteDetailPage({ params }: { params: Promise<{ id: s
         <Card className="rounded-lg p-5 shadow-sm ring-0">
           <h2 className="mb-3 text-lg">Dados</h2>
           <div className="flex flex-col gap-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Data de nascimento</span>
+              <span className="font-heading font-semibold">
+                {paciente.dataNascimento
+                  ? `${formatarDataSemHorario(paciente.dataNascimento)} (${idadeEmAnos(paciente.dataNascimento)} anos)`
+                  : "—"}
+              </span>
+            </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Telefone</span>
               <span className="font-heading font-semibold">{paciente.telefone || "—"}</span>

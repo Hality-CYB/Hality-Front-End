@@ -20,6 +20,8 @@ export type NovoPaciente = {
   nome: string;
   email: string;
   telefone?: string;
+  /** "aaaa-mm-dd"; obrigatória. */
+  dataNascimento: string;
 };
 
 export const pacienteService = {
@@ -47,6 +49,7 @@ export const pacienteService = {
       nome: input.nome.trim(),
       email: input.email.trim(),
       telefone: input.telefone?.trim() || null,
+      data_nascimento: input.dataNascimento,
     });
     const criado = backendPacienteCriadoSchema.parse(data);
     return {
