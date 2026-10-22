@@ -8,8 +8,7 @@ import {
   Camera,
   Sun,
   Sparkles,
-  Ban,
-  Droplet,
+  Crosshair,
   CircleCheck,
   ClipboardList,
   ChevronLeft,
@@ -88,13 +87,12 @@ const PREPARO = [
   },
 ];
 
+/** Só o que ajuda a tirar uma boa foto (pedido do cliente: sem jejum, hidratação nem enxaguante). */
 const ORIENTACOES_CAPTURA = [
-  { Icon: Sun, title: "Manhã e jejum", desc: "Faça o exame pela manhã" },
   { Icon: Sparkles, title: "Boa iluminação", desc: "Ambiente bem iluminado" },
   { Icon: ScanLine, title: "Flash ativo", desc: "Ligue o flash do celular" },
-  { Icon: Ban, title: "Sem enxaguante", desc: "Não use antes do exame" },
-  { Icon: Droplet, title: "Hidratado(a)", desc: "Beba água antes" },
   { Icon: CircleCheck, title: "Língua relaxada", desc: "Completamente estendida" },
+  { Icon: Crosshair, title: "Na marcação", desc: "Centralize a língua na moldura" },
 ];
 
 const TIPOS_IMAGEM_ACEITOS = "image/jpeg,image/png,image/webp";
