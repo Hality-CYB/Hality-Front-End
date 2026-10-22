@@ -4,7 +4,7 @@ type ScoreMeterProps = {
   size?: number;
 };
 
-/** Anel de progresso em SVG (0-100), usado para pontuações/confiança da IA. */
+/** Anel de progresso em SVG (0-100), usado para pontuações/escala de halitose da IA. */
 export function ScoreMeter({ score, color, size = 100 }: ScoreMeterProps) {
   const r = size * 0.42;
   const circumference = 2 * Math.PI * r;

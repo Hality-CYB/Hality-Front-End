@@ -102,6 +102,16 @@ function montarRevisaoPaciente(d: Diagnostico): BackendDiagnosticoDetail["revisa
 }
 
 /**
+ * `confiancaIA` é a escala de halitose do modelo (0 a 100), com cortes em
+ * 50 e 75 entre os níveis.
+ */
+const FAIXA_ESCALA_POR_NIVEL: Record<DiagnosticoNivel, [number, number]> = {
+  1: [0, 49],
+  2: [50, 74],
+  3: [75, 100],
+};
+
+/**
  * Sem modelo de IA de verdade, a "análise" é aleatória — só pra ter algo
  * pra mostrar na tela de resultado durante o desenvolvimento. Igual ao
  * back, o diagnóstico nasce "processando" e só sai disso num GET feito
@@ -111,7 +121,8 @@ function montarRevisaoPaciente(d: Diagnostico): BackendDiagnosticoDetail["revisa
 function analiseFalsa(): { nivel: DiagnosticoNivel; confiancaIA: number } {
   const niveis = [1, 2, 3] as const;
   const nivel = niveis[Math.floor(Math.random() * niveis.length)] ?? 1;
-  const confiancaIA = 70 + Math.floor(Math.random() * 25);
+  const [min, max] = FAIXA_ESCALA_POR_NIVEL[nivel];
+  const confiancaIA = min + Math.floor(Math.random() * (max - min + 1));
   return { nivel, confiancaIA };
 }
 

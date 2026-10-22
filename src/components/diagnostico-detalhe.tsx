@@ -132,7 +132,7 @@ export function DiagnosticoDetalhe({
                   background: "linear-gradient(135deg,rgba(11,107,130,0.05),rgba(22,163,74,0.04))",
                 }}
               >
-                <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
                   <div className="flex items-center gap-3">
                     <div className="bg-secondary text-primary flex h-8 w-8 items-center justify-center rounded-[9px]">
                       {nivelProfissional ? (
@@ -141,24 +141,30 @@ export function DiagnosticoDetalhe({
                         <Sparkles className="h-4 w-4" />
                       )}
                     </div>
-                    <div className="font-heading text-primary text-sm font-extrabold">
+                    <div className="font-heading text-primary text-sm font-extrabold whitespace-nowrap">
                       {nivelProfissional ? "Resultado do profissional" : "Resultado da IA"}
                     </div>
                   </div>
                   {nivelProfissional && (
                     <div
-                      className="border-border bg-card/70 text-muted-foreground flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px]"
+                      className="border-border bg-card/70 text-muted-foreground flex max-w-full items-center gap-1.5 rounded-[13px] border px-2.5 py-1 text-[11px]"
                       title="Classificação original da IA, antes da revisão"
                     >
-                      <Sparkles className="h-3 w-3" />
+                      <Sparkles className="h-3 w-3 shrink-0" />
                       {nivelOriginalIA ? (
                         <span>
                           IA:{" "}
                           <span style={{ color: nivelColor(nivelOriginalIA) }}>
                             {nivelLabel(nivelOriginalIA)}
                           </span>
-                          {diagnostico.confiancaIA !== undefined &&
-                            ` · ${diagnostico.confiancaIA}%`}
+                          {diagnostico.confiancaIA !== undefined && (
+                            <>
+                              {" · "}
+                              <span className="whitespace-nowrap">
+                                escala de halitose {diagnostico.confiancaIA}%
+                              </span>
+                            </>
+                          )}
                         </span>
                       ) : (
                         <span>Ajustado na revisão</span>
@@ -187,7 +193,7 @@ export function DiagnosticoDetalhe({
                     {!nivelProfissional && diagnostico.confiancaIA !== undefined && (
                       <>
                         <div className="text-muted-foreground mt-1.5 mb-1.5 text-xs">
-                          Confiança: {diagnostico.confiancaIA}%
+                          Escala de halitose: {diagnostico.confiancaIA}%
                         </div>
                         <div className="bg-secondary h-1.25 w-30 overflow-hidden rounded-4xl">
                           <div
