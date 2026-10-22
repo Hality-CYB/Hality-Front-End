@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { User, Mail, Phone, Key, Shield, Info, ChevronRight, LogOut } from "lucide-react";
+import { User, Mail, Phone, Cake, Key, Shield, Info, ChevronRight, LogOut } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AvatarWithRole } from "@/components/avatar-with-role";
@@ -23,6 +23,7 @@ import {
 } from "@/hooks/use-usuarios";
 import { useSessaoAtual } from "@/lib/auth/session-context";
 import { cn } from "@/lib/utils";
+import { formatarDataSemHorario, hojeNoCalendario, problemaDaDataDeNascimento } from "@/lib/datas";
 
 const ITENS_CONFIGURACAO = [
   {
@@ -59,20 +60,32 @@ export default function PerfilPage() {
   const [editing, setEditing] = useState(false);
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
+  const [dataNascimento, setDataNascimento] = useState("");
   const nomeAtual = usuario?.nome ?? sessao.nome;
   const telefoneAtual = usuario?.telefone ?? "";
+  const dataNascimentoAtual = usuario?.dataNascimento ?? "";
+  const problemaNascimento = editing ? problemaDaDataDeNascimento(dataNascimento) : null;
 
   function alternarEdicao() {
     if (!editing) {
       setNome(nomeAtual);
       setTelefone(telefoneAtual);
+      setDataNascimento(dataNascimentoAtual);
       atualizarPerfil.reset();
     }
     setEditing((e) => !e);
   }
 
   function salvar() {
-    atualizarPerfil.mutate({ nome, telefone }, { onSuccess: () => setEditing(false) });
+    atualizarPerfil.mutate(
+      {
+        nome,
+        telefone,
+        // Só manda a data se mudou.
+        ...(dataNascimento !== dataNascimentoAtual ? { dataNascimento } : {}),
+      },
+      { onSuccess: () => setEditing(false) },
+    );
   }
   const [dialogAberto, setDialogAberto] = useState<"senha" | "privacidade" | "sobre" | null>(null);
   const logout = useLogout();
@@ -132,6 +145,52 @@ export default function PerfilPage() {
             <div
               className={cn(
                 "bg-background flex items-center gap-2.5 rounded-[13px] border-[1.5px] p-3.5 transition-colors",
+                editing
+                  ? problemaNascimento
+                    ? "border-destructive"
+                    : "border-primary"
+                  : "border-transparent",
+              )}
+            >
+              <Cake className="text-gray-3 h-4 w-4 shrink-0" />
+              <div className="flex-1">
+                <label
+                  htmlFor="perfil-data-nascimento"
+                  className="text-gray-3 font-heading mb-0.5 block text-[10px] font-bold tracking-wide uppercase"
+                >
+                  Data de nascimento
+                </label>
+                {editing ? (
+                  <input
+                    id="perfil-data-nascimento"
+                    type="date"
+                    min="1900-01-01"
+                    max={hojeNoCalendario()}
+                    value={dataNascimento}
+                    onChange={(e) => setDataNascimento(e.target.value)}
+                    aria-invalid={problemaNascimento ? true : undefined}
+                    aria-describedby={
+                      problemaNascimento ? "perfil-data-nascimento-erro" : undefined
+                    }
+                    className="w-full bg-transparent text-[15px] outline-none"
+                  />
+                ) : (
+                  <div id="perfil-data-nascimento" className="text-[15px]">
+                    {dataNascimentoAtual
+                      ? formatarDataSemHorario(dataNascimentoAtual)
+                      : "Não informada"}
+                  </div>
+                )}
+              </div>
+            </div>
+            {problemaNascimento && (
+              <p id="perfil-data-nascimento-erro" className="text-destructive -mt-1 text-xs">
+                {problemaNascimento}
+              </p>
+            )}
+            <div
+              className={cn(
+                "bg-background flex items-center gap-2.5 rounded-[13px] border-[1.5px] p-3.5 transition-colors",
                 editing ? "border-primary" : "border-transparent",
               )}
             >
@@ -154,14 +213,14 @@ export default function PerfilPage() {
           </div>
           {editing && atualizarPerfil.isError && (
             <p className="text-destructive mt-3 text-[13px]">
-              Não foi possível salvar. Confira o nome (mínimo de 2 letras) e tente novamente.
+              Não foi possível salvar. Confira os dados e tente de novo.
             </p>
           )}
           {editing && (
             <Button
               className="mt-4 w-full"
               onClick={salvar}
-              disabled={nome.trim().length < 2 || atualizarPerfil.isPending}
+              disabled={nome.trim().length < 2 || !!problemaNascimento || atualizarPerfil.isPending}
             >
               {atualizarPerfil.isPending ? "Salvando…" : "Salvar alterações"}
             </Button>

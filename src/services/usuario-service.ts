@@ -42,6 +42,8 @@ export type AtualizacaoUsuarioAdmin = {
 export type AtualizacaoPerfil = {
   nome?: string;
   telefone?: string;
+  /** "aaaa-mm-dd"; só paciente (o back recusa para os outros papéis). */
+  dataNascimento?: string;
   profissional?: { registro: string; especialidade: string };
 };
 
@@ -60,6 +62,7 @@ export const usuarioService = {
     const corpo: Record<string, unknown> = {};
     if (input.nome !== undefined) corpo.name = input.nome.trim();
     if (input.telefone !== undefined) corpo.phone = input.telefone.trim() || null;
+    if (input.dataNascimento !== undefined) corpo.data_nascimento = input.dataNascimento;
     if (input.profissional) {
       corpo.profissional = {
         registro_profissional: input.profissional.registro.trim() || null,
