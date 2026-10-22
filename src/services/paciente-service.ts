@@ -39,8 +39,8 @@ export const pacienteService = {
   },
 
   /**
-   * Cadastro simples pelo profissional (#101 do back). Sem `senha`, o back cria a
-   * conta com uma senha provisória padrão, que o paciente deve trocar depois.
+   * Cadastro com convite pelo profissional (#118 do back). A conta fica inativa;
+   * o vínculo já permite continuar a avaliação. Nenhuma senha é enviada pelo cliente.
    */
   async criar(input: NovoPaciente): Promise<PacienteCriado> {
     const data = await apiClient.post<unknown>("/api/v1/pacientes", {
@@ -53,6 +53,7 @@ export const pacienteService = {
       pacienteId: criado.paciente_id,
       nome: criado.paciente_nome,
       email: criado.paciente_email,
+      convitePendente: criado.convite_pendente,
     };
   },
 };

@@ -4,10 +4,9 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/alert";
+import { RequisitosSenha } from "@/components/requisitos-senha";
 import { cn } from "@/lib/utils";
-
-/** Mesmo mínimo do back (`SENHA_TAMANHO_MINIMO`). */
-const SENHA_TAMANHO_MINIMO = 8;
+import { senhaValida } from "@/lib/senha";
 
 type ChangePasswordDialogProps = {
   open: boolean;
@@ -38,8 +37,7 @@ export function ChangePasswordDialog({
   const [confirmar, setConfirmar] = useState("");
 
   const naoCoincidem = confirmar.length > 0 && nova !== confirmar;
-  const podeSalvar =
-    atual.length > 0 && nova.length >= SENHA_TAMANHO_MINIMO && nova === confirmar && !salvando;
+  const podeSalvar = atual.length > 0 && senhaValida(nova) && nova === confirmar && !salvando;
 
   function handleOpenChange(next: boolean) {
     if (!next) {
@@ -78,9 +76,10 @@ export function ChangePasswordDialog({
               type="password"
               value={nova}
               onChange={(e) => setNova(e.target.value)}
-              placeholder={`Mínimo ${SENHA_TAMANHO_MINIMO} caracteres`}
+              aria-describedby="requisitos-nova-senha"
               className="border-border w-full rounded-xl border-[1.5px] px-3.5 py-3 text-sm outline-none"
             />
+            <RequisitosSenha id="requisitos-nova-senha" senha={nova} className="mt-2" />
           </div>
           <div>
             <label className="text-muted-foreground font-heading mb-1.5 block text-xs font-bold tracking-wide uppercase">

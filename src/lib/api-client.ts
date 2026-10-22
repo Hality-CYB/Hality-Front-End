@@ -11,6 +11,7 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public segundosParaTentarDeNovo?: number,
   ) {
     super(message);
     this.name = "ApiError";
@@ -58,8 +59,11 @@ async function renovarAccessToken(): Promise<string | null> {
   return refreshEmAndamento;
 }
 
-async function request<T>(path: string, init?: RequestInit, retentativa = false): Promise<T> {
-  const token = getStoredToken();
+type ApiRequestInit = RequestInit & { autenticada?: boolean; statusEsperado?: number };
+
+async function request<T>(path: string, init?: ApiRequestInit, retentativa = false): Promise<T> {
+  const { autenticada = true, statusEsperado, ...requestInit } = init ?? {};
+  const token = autenticada ? getStoredToken() : null;
   // Com FormData (upload de arquivo) quem define o Content-Type é o
   // navegador, porque ele precisa incluir o boundary do multipart.
   const headers: Record<string, string> = {
@@ -70,15 +74,28 @@ async function request<T>(path: string, init?: RequestInit, retentativa = false)
   if (token && !headers["Authorization"]) {
     headers["Authorization"] = `Bearer ${token}`;
   }
+  if (!autenticada) {
+    for (const name of Object.keys(headers)) {
+      if (name.toLowerCase() === "authorization") delete headers[name];
+    }
+  }
 
   const response = await fetch(`${config.apiBaseUrl}${path}`, {
-    ...init,
+    ...requestInit,
     headers,
+    ...(!autenticada && {
+      credentials: "omit",
+      cache: "no-store",
+      referrerPolicy: "no-referrer",
+    }),
   });
+  if (response.ok && statusEsperado !== undefined && response.status !== statusEsperado) {
+    throw new ApiError(response.status, "Resposta inesperada do servidor.");
+  }
 
   // access_token expirado: tenta renovar em silêncio uma vez só, e refaz a
   // chamada original com o token novo — quem chamou nem fica sabendo.
-  if (response.status === 401 && !retentativa) {
+  if (autenticada && response.status === 401 && !retentativa) {
     const novoToken = await renovarAccessToken();
     if (novoToken) {
       return request<T>(path, init, true);
@@ -86,10 +103,20 @@ async function request<T>(path: string, init?: RequestInit, retentativa = false)
   }
 
   if (!response.ok) {
-    if (response.status === 401) {
+    if (autenticada && response.status === 401) {
       clearStoredToken();
     }
-    throw new ApiError(response.status, await response.text());
+    const retryAfter = response.headers.get("Retry-After");
+    const seconds = retryAfter
+      ? /^\d+$/.test(retryAfter)
+        ? Number(retryAfter)
+        : Math.ceil((Date.parse(retryAfter) - Date.now()) / 1000)
+      : undefined;
+    throw new ApiError(
+      response.status,
+      await response.text(),
+      seconds !== undefined && Number.isFinite(seconds) ? Math.max(0, seconds) : undefined,
+    );
   }
 
   if (response.status === 204) {
@@ -106,24 +133,25 @@ function serializarBody(body: unknown): BodyInit | undefined {
 }
 
 export const apiClient = {
-  get: <T>(path: string, init?: RequestInit) => request<T>(path, { ...init, method: "GET" }),
-  post: <T>(path: string, body?: unknown, init?: RequestInit) =>
+  get: <T>(path: string, init?: ApiRequestInit) => request<T>(path, { ...init, method: "GET" }),
+  post: <T>(path: string, body?: unknown, init?: ApiRequestInit) =>
     request<T>(path, {
       ...init,
       method: "POST",
       body: serializarBody(body),
     }),
-  put: <T>(path: string, body?: unknown, init?: RequestInit) =>
+  put: <T>(path: string, body?: unknown, init?: ApiRequestInit) =>
     request<T>(path, {
       ...init,
       method: "PUT",
       body: serializarBody(body),
     }),
-  patch: <T>(path: string, body?: unknown, init?: RequestInit) =>
+  patch: <T>(path: string, body?: unknown, init?: ApiRequestInit) =>
     request<T>(path, {
       ...init,
       method: "PATCH",
       body: serializarBody(body),
     }),
-  delete: <T>(path: string, init?: RequestInit) => request<T>(path, { ...init, method: "DELETE" }),
+  delete: <T>(path: string, init?: ApiRequestInit) =>
+    request<T>(path, { ...init, method: "DELETE" }),
 };

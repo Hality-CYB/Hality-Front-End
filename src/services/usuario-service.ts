@@ -27,7 +27,8 @@ export type NovoUsuarioAdmin = {
   email: string;
   telefone?: string;
   role: Role;
-  senha: string;
+  /** Apenas cadastro direto explícito. Sem senha, cria por convite. */
+  senha?: string;
   profissional?: { registro: string; especialidade: string; vinculadoHality: boolean };
 };
 
@@ -99,6 +100,16 @@ export const usuarioService = {
     return adaptBackendAdminUsuario(backendAdminUsuarioSchema.parse(data));
   },
 
+  /** Gera um novo convite e revoga o anterior; 409 se a conta já foi ativada. */
+  async reenviarConvite(id: string): Promise<Usuario> {
+    const data = await apiClient.post<unknown>(
+      `/api/v1/admin/usuarios/${id}/reenviar-convite`,
+      undefined,
+      { statusEsperado: 200 },
+    );
+    return adaptBackendAdminUsuario(backendAdminUsuarioSchema.parse(data));
+  },
+
   /** 409 se o e-mail já existe. `profissional` só é aceito com role profissional. */
   async criarAdmin(input: NovoUsuarioAdmin): Promise<Usuario> {
     const data = await apiClient.post<unknown>("/api/v1/admin/usuarios", {
@@ -106,10 +117,8 @@ export const usuarioService = {
       email: input.email.trim(),
       telefone: input.telefone?.trim() || null,
       role: input.role,
-      senha: input.senha,
-      // Desde a #163 o back manda convite por padrão e deixa a conta inativa até o aceite.
-      // Este cadastro define a senha na hora, então pede conta ativa, sem convite.
-      enviar_convite: false,
+      ...(input.senha !== undefined ? { senha: input.senha } : {}),
+      enviar_convite: input.senha === undefined,
       ...(input.role === "profissional" && input.profissional
         ? {
             profissional: {

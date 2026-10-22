@@ -77,6 +77,30 @@ export function useCriarUsuario() {
   });
 }
 
+export function useReenviarConvite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => usuarioService.reenviarConvite(id),
+    retry: false,
+    networkMode: "always",
+    onSuccess: (usuario) => {
+      queryClient.setQueryData(["usuarios", "detalhe", usuario.id], usuario);
+      queryClient.invalidateQueries({ queryKey: ["usuarios"] });
+    },
+  });
+}
+
+export function mensagemErroReenviarConvite(erro: unknown): string {
+  if (erro instanceof ApiError) {
+    if (erro.status === 403) return "Você não tem permissão para reenviar convites.";
+    if (erro.status === 404) return "Usuário não encontrado. Atualize a página.";
+    if (erro.status === 409)
+      return "Não é possível reenviar: a conta já está ativa ou o convite já foi aceito.";
+    if (erro.status === 429) return "Muitas tentativas. Aguarde antes de tentar novamente.";
+  }
+  return "Não foi possível reenviar o convite. Verifique sua conexão e tente novamente.";
+}
+
 export function useAtualizarUsuario() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -116,7 +140,7 @@ export function mensagemErroAtualizarUsuario(erro: unknown): string {
 export function mensagemErroCriarUsuario(erro: unknown): string {
   if (erro instanceof ApiError && erro.status === 409) return "Esse e-mail já está cadastrado.";
   if (erro instanceof ApiError && erro.status === 422) {
-    return "Confira os dados: a senha precisa de ao menos 8 caracteres.";
+    return "Confira o nome, o e-mail e os dados do usuário.";
   }
   return "Não foi possível criar o usuário. Tente novamente.";
 }

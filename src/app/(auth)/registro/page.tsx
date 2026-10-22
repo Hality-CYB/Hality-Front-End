@@ -7,15 +7,16 @@ import { Alert } from "@/components/alert";
 import { Field, PasswordField } from "@/components/auth-fields";
 import { Button } from "@/components/ui/button";
 import {
-  DocumentoLegalConteudo,
-  TermoConsentimentoConteudo,
-  TextoLegalDialog,
-} from "@/components/texto-legal-dialog";
+  CaixaDeConsentimento,
+  CaixaTermosDeUso,
+  useLeituraDeTermos,
+} from "@/components/caixas-de-termos";
+import { RequisitosSenha } from "@/components/requisitos-senha";
 import { useRegistrar, useRedirectIfAuthenticated } from "@/hooks/use-auth";
 import { useTermosConsentimento } from "@/hooks/use-consentimentos";
 import { ApiError } from "@/lib/api-client";
-import { POLITICA_DE_PRIVACIDADE, TERMOS_DE_USO } from "@/lib/documentos-legais";
-import type { Finalidade, TermoConsentimento } from "@/types/consentimento";
+import { problemaDaSenha } from "@/lib/senha";
+import type { Finalidade } from "@/types/consentimento";
 
 /** Máscara BR: (11) 91234-5678 (ou (11) 1234-5678 pra fixo, 10 dígitos). */
 function formatarTelefone(valor: string): string {
@@ -28,40 +29,6 @@ function formatarTelefone(valor: string): string {
   return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 7)}-${digitos.slice(7)}`;
 }
 
-/** Frase de aceite de cada finalidade; o nome do termo, clicável, vem depois. */
-const FRASE_DE_ACEITE: Record<string, string> = {
-  health_data: "Autorizo o tratamento dos meus dados de saúde para o pré-diagnóstico, conforme o",
-  image_training:
-    "Autorizo o uso das fotos da minha língua para treinar a inteligência artificial, conforme o",
-};
-
-type Leitura =
-  { tipo: "uso" } | { tipo: "privacidade" } | { tipo: "consentimento"; termo: TermoConsentimento };
-
-/** Link dentro do texto de um checkbox: abre o termo sem marcar a caixa. */
-function LinkDoTermo({ children, onAbrir }: { children: string; onAbrir: () => void }) {
-  // <span> e não <button>: o botão não quebra no meio da frase. O preventDefault
-  // impede o clique de chegar ao <label> e marcar a caixa.
-  return (
-    <span
-      role="button"
-      tabIndex={0}
-      onClick={(e) => {
-        e.preventDefault();
-        onAbrir();
-      }}
-      onKeyDown={(e) => {
-        if (e.key !== "Enter" && e.key !== " ") return;
-        e.preventDefault();
-        onAbrir();
-      }}
-      className="text-primary focus-visible:ring-ring/50 rounded-sm font-semibold underline-offset-2 outline-none hover:underline focus-visible:ring-3"
-    >
-      {children}
-    </span>
-  );
-}
-
 export default function RegistroPage() {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
@@ -72,7 +39,7 @@ export default function RegistroPage() {
   // Uma caixa por finalidade (#160 do back), nenhuma vem marcada. Caixa
   // desmarcada é a recusa: no opcional ela vai como `aceito: false`.
   const [decisoes, setDecisoes] = useState<Partial<Record<Finalidade, boolean>>>({});
-  const [lendo, setLendo] = useState<Leitura | null>(null);
+  const leitura = useLeituraDeTermos();
   const [erro, setErro] = useState("");
   const registrar = useRegistrar();
   const termos = useTermosConsentimento();
@@ -94,8 +61,9 @@ export default function RegistroPage() {
       return;
     }
 
-    if (senha.length < 8) {
-      setErro("A senha deve ter pelo menos 8 caracteres.");
+    const problemaSenha = problemaDaSenha(senha);
+    if (problemaSenha) {
+      setErro(problemaSenha);
       return;
     }
 
@@ -172,7 +140,9 @@ export default function RegistroPage() {
           value={senha}
           onChange={setSenha}
           autoComplete="new-password"
+          aria-describedby="requisitos-senha"
         />
+        <RequisitosSenha id="requisitos-senha" senha={senha} />
         <PasswordField
           label="Confirmar senha *"
           value={senha2}
@@ -180,21 +150,11 @@ export default function RegistroPage() {
           autoComplete="new-password"
         />
         <div className="mt-0.5 flex flex-col gap-3">
-          <label className="flex cursor-pointer items-start gap-2.5">
-            <input
-              type="checkbox"
-              checked={aceitaTermos}
-              onChange={(e) => setAceitaTermos(e.target.checked)}
-              className="accent-primary mt-0.75 h-4 w-4 shrink-0"
-            />
-            <span className="text-muted-foreground text-[13px] leading-normal">
-              Li e aceito os{" "}
-              <LinkDoTermo onAbrir={() => setLendo({ tipo: "uso" })}>Termos de Uso</LinkDoTermo> e a{" "}
-              <LinkDoTermo onAbrir={() => setLendo({ tipo: "privacidade" })}>
-                Política de Privacidade
-              </LinkDoTermo>
-            </span>
-          </label>
+          <CaixaTermosDeUso
+            marcada={aceitaTermos}
+            onMudar={setAceitaTermos}
+            onLer={leitura.abrir}
+          />
           {termos.isPending && (
             <p className="text-muted-foreground text-[13px]" role="status">
               Carregando termos…
@@ -209,23 +169,13 @@ export default function RegistroPage() {
             </div>
           )}
           {termos.data?.map((termo) => (
-            <label key={termo.finalidade} className="flex cursor-pointer items-start gap-2.5">
-              <input
-                type="checkbox"
-                checked={decisoes[termo.finalidade] === true}
-                onChange={(e) =>
-                  setDecisoes((d) => ({ ...d, [termo.finalidade]: e.target.checked }))
-                }
-                className="accent-primary mt-0.75 h-4 w-4 shrink-0"
-              />
-              <span className="text-muted-foreground text-[13px] leading-normal">
-                {FRASE_DE_ACEITE[termo.finalidade] ?? "Aceito o"}{" "}
-                <LinkDoTermo onAbrir={() => setLendo({ tipo: "consentimento", termo })}>
-                  {`termo de ${termo.titulo.toLowerCase()}`}
-                </LinkDoTermo>
-                {termo.obrigatorio ? "" : " (opcional)"}
-              </span>
-            </label>
+            <CaixaDeConsentimento
+              key={termo.finalidade}
+              termo={termo}
+              marcada={decisoes[termo.finalidade] === true}
+              onMudar={(aceito) => setDecisoes((d) => ({ ...d, [termo.finalidade]: aceito }))}
+              onLer={leitura.abrir}
+            />
           ))}
         </div>
         {(erro || registrar.isError) && (
@@ -253,33 +203,7 @@ export default function RegistroPage() {
           </Link>
         </p>
       </div>
-      <TextoLegalDialog
-        open={lendo !== null}
-        onOpenChange={(aberto) => !aberto && setLendo(null)}
-        titulo={
-          lendo?.tipo === "uso"
-            ? TERMOS_DE_USO.titulo
-            : lendo?.tipo === "privacidade"
-              ? POLITICA_DE_PRIVACIDADE.titulo
-              : (lendo?.termo.titulo ?? "")
-        }
-        subtitulo={
-          lendo?.tipo === "consentimento"
-            ? `Versão ${lendo.termo.versao.replace(/^v/, "")}${lendo.termo.obrigatorio ? "" : ", opcional"}`
-            : `Última atualização: ${
-                (lendo?.tipo === "privacidade" ? POLITICA_DE_PRIVACIDADE : TERMOS_DE_USO)
-                  .atualizadoEm
-              }`
-        }
-      >
-        {lendo?.tipo === "uso" && <DocumentoLegalConteudo documento={TERMOS_DE_USO} />}
-        {lendo?.tipo === "privacidade" && (
-          <DocumentoLegalConteudo documento={POLITICA_DE_PRIVACIDADE} />
-        )}
-        {lendo?.tipo === "consentimento" && (
-          <TermoConsentimentoConteudo texto={lendo.termo.texto} />
-        )}
-      </TextoLegalDialog>
+      {leitura.dialogo}
     </AuthCard>
   );
 }

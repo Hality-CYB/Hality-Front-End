@@ -39,13 +39,12 @@ const atualizarPerfilSchema = z
   .strict();
 
 /**
- * Usado só por `registrarMock` (auth-service.ts) pra registrar um
- * usuário criado durante o cadastro mockado, senão `GET /users/me` logo
- * depois do registro não acharia ninguém (o usuário nunca existiu em
- * seedUsuarios, só na resposta do registro).
+ * Registra cadastros públicos/administrativos na mesma base do login e do perfil.
+ * A senha explícita do cadastro direto fica só no armazenamento de credenciais mock.
  */
-export function adicionarUsuarioMock(usuario: Usuario): void {
+export function adicionarUsuarioMock(usuario: Usuario, senha?: string): void {
   usuariosMock.push(usuario);
+  if (senha !== undefined) senhasAlteradas.set(usuario.id, senha);
 }
 
 /** Login mockado: como o back, usuário desativado pelo admin não entra. */

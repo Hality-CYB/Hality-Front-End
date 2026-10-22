@@ -2,7 +2,7 @@ import Image from "next/image";
 import type { ReactNode } from "react";
 import cybIcon from "@/assets/images/icon-check-your-breath.png";
 
-/** Porta Design/'s AuthPage — usado por registro/esqueci-senha/redefinir-senha. */
+/** Porta Design/'s AuthPage — moldura das telas públicas de conta (cadastro, senha, convite). */
 export function AuthCard({ children }: { children: ReactNode }) {
   return (
     <div className="bg-background shell:p-8 flex min-h-full flex-col items-center justify-center p-5">

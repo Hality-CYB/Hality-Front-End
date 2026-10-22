@@ -1,7 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { z } from "zod";
 import { config } from "@/lib/config";
-import { usuarioDoRequest } from "@/services/mocks/auth-handlers";
+import { adicionarUsuarioMock, usuarioDoRequest } from "@/services/mocks/auth-handlers";
 import { historicoRevisoesMock } from "@/services/mocks/diagnosticos-handlers";
 import {
   CLASSIFICACAO_ID_POR_NIVEL,
@@ -22,7 +22,7 @@ import {
 import { CATEGORIAS_CONTEUDO, type BackendConteudoAdmin } from "@/types/conteudo-admin";
 import { DESTINOS_CONTEUDO, MIDIA_ACEITA } from "@/types/conteudo";
 import { CODIGO_POR_NIVEL, type Diagnostico } from "@/types/diagnostico";
-import type { Usuario } from "@/types/usuario";
+import { roleSchema, type Usuario } from "@/types/usuario";
 
 /**
  * Espelho das rotas `/admin/*` do back (#94 usuários, #95 vínculos, #96
@@ -30,8 +30,6 @@ import type { Usuario } from "@/types/usuario";
  */
 
 const url = (path: string) => `${config.apiBaseUrl}${path}`;
-const SENHA_TAMANHO_MINIMO = 8;
-const roleSchema = z.enum(["paciente", "profissional", "admin"]);
 
 function exigirAdmin(request: Request): Usuario | Response {
   const usuario = usuarioDoRequest(request);
@@ -62,6 +60,7 @@ function paraAdminUsuario(usuario: Usuario) {
     telefone: usuario.telefone ?? null,
     role: usuario.role,
     ativo: usuario.ativo ?? true,
+    convite_pendente: usuario.convitePendente ?? false,
     created_at: usuario.criadoEm ?? new Date(0).toISOString(),
     profissional:
       usuario.role === "profissional"
@@ -80,8 +79,18 @@ const criarUsuarioSchema = z
     email: z.email(),
     telefone: z.string().max(20).nullable().optional(),
     role: roleSchema,
-    senha: z.string().min(SENHA_TAMANHO_MINIMO),
-    enviar_convite: z.boolean().optional(),
+    senha: z
+      .string()
+      .min(8)
+      .refine(
+        (senha) =>
+          !["hality1234", "senha123", "12345678", "password", "admin123"].includes(
+            senha.trim().toLowerCase(),
+          ),
+      )
+      .nullable()
+      .optional(),
+    enviar_convite: z.boolean().default(true),
     profissional: z
       .object({
         registro_profissional: z.string().max(50).nullable().optional(),
@@ -93,7 +102,8 @@ const criarUsuarioSchema = z
       .optional(),
   })
   .strict()
-  .refine((b) => !b.profissional || b.role === "profissional");
+  .refine((b) => !b.profissional || b.role === "profissional")
+  .refine((b) => b.enviar_convite || b.senha != null);
 
 const atualizarUsuarioSchema = z
   .object({
@@ -364,10 +374,11 @@ export const adminHandlers = [
       email: body.data.email,
       telefone: body.data.telefone ?? null,
       role: body.data.role,
-      ativo: true,
+      ativo: !body.data.enviar_convite,
+      convitePendente: body.data.enviar_convite,
       criadoEm: new Date().toISOString(),
     };
-    usuariosMock.push(novo);
+    adicionarUsuarioMock(novo, body.data.senha ?? undefined);
     if (novo.role === "paciente") {
       pacientesMock.push({
         ...novo,
@@ -408,9 +419,25 @@ export const adminHandlers = [
       ...(body.data.nome !== undefined ? { nome: body.data.nome } : {}),
       ...(body.data.telefone !== undefined ? { telefone: body.data.telefone } : {}),
       ...(body.data.ativo !== undefined ? { ativo: body.data.ativo } : {}),
+      ...(body.data.ativo === false ? { convitePendente: false } : {}),
       ...(body.data.role !== undefined ? { role: body.data.role } : {}),
     });
     return HttpResponse.json(paraAdminUsuario(atualizado!));
+  }),
+
+  http.post(url("/api/v1/admin/usuarios/:id/reenviar-convite"), ({ params, request }) => {
+    const admin = exigirAdmin(request);
+    if (admin instanceof Response) return admin;
+    const usuario = usuariosMock.find((u) => u.id === params.id);
+    if (!usuario) return HttpResponse.json({ detail: "usuário não encontrado" }, { status: 404 });
+    if (usuario.ativo !== false || !usuario.convitePendente) {
+      return HttpResponse.json(
+        { detail: "usuário já ativado ou convite já aceito" },
+        { status: 409 },
+      );
+    }
+    // Somente estado de demonstração; não gera token nem simula entrega de e-mail.
+    return HttpResponse.json(paraAdminUsuario(usuario));
   }),
 
   http.patch(url("/api/v1/admin/profissionais/:id"), async ({ params, request }) => {

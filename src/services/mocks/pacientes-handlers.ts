@@ -142,6 +142,8 @@ export const pacientesHandlers = [
       nome: body.data.nome,
       email: body.data.email,
       role: "paciente",
+      ativo: false,
+      convitePendente: true,
       criadoEm: agora,
       telefone: body.data.telefone ?? "",
       consentimentoDadosSaude: { aceito: false },
@@ -158,6 +160,8 @@ export const pacientesHandlers = [
         paciente_email: novo.email,
         data_vinculo: agora,
         ativo: true,
+        convite_pendente: true,
+        vinculo_id: vinculo.id,
       },
       { status: 201 },
     );

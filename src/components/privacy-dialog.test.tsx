@@ -58,22 +58,19 @@ function renderDialog(onDecidir = vi.fn()) {
   return onDecidir;
 }
 
+const caixaSaude = () => screen.getByRole("checkbox", { name: /dados de saúde/ });
+const caixaTreino = () => screen.getByRole("checkbox", { name: /treinar a inteligência/ });
+
 describe("PrivacyDialog", () => {
   it("mostra o estado vindo do back em cada consentimento", () => {
     renderDialog();
-    expect(screen.getByRole("switch", { name: "Dados de saúde" })).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
-    expect(screen.getByRole("switch", { name: "Treino da IA" })).toHaveAttribute(
-      "aria-checked",
-      "false",
-    );
+    expect(caixaSaude()).toBeChecked();
+    expect(caixaTreino()).not.toBeChecked();
   });
 
   it("aceitar o opcional manda a decisão na versão vigente, sem confirmação", async () => {
     const onDecidir = renderDialog();
-    await userEvent.click(screen.getByRole("switch", { name: "Treino da IA" }));
+    await userEvent.click(caixaTreino());
     expect(onDecidir).toHaveBeenCalledWith({
       finalidade: "image_training",
       versao: "v1",
@@ -83,7 +80,7 @@ describe("PrivacyDialog", () => {
 
   it("revogar dados de saúde pede confirmação antes de mandar", async () => {
     const onDecidir = renderDialog();
-    await userEvent.click(screen.getByRole("switch", { name: "Dados de saúde" }));
+    await userEvent.click(caixaSaude());
     expect(onDecidir).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByRole("button", { name: "Revogar" }));
@@ -94,9 +91,20 @@ describe("PrivacyDialog", () => {
     });
   });
 
-  it("ações que não existem no back aparecem como em breve, sem botão", () => {
+  it("o nome do termo abre o texto, como no cadastro", async () => {
     renderDialog();
-    expect(screen.getAllByText("Em breve")).toHaveLength(4);
+    await userEvent.click(screen.getByRole("button", { name: "termo de treino da ia" }));
+    expect(await screen.findByRole("dialog", { name: "Treino da IA" })).toBeInTheDocument();
+  });
+
+  it("Termos de Uso e Política de Privacidade abrem; o resto ainda é em breve", async () => {
+    renderDialog();
+    expect(screen.getAllByText("Em breve")).toHaveLength(3);
     expect(screen.queryByRole("button", { name: /Excluir minha conta/ })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Política de Privacidade" }));
+    expect(
+      await screen.findByRole("dialog", { name: "Política de Privacidade" }),
+    ).toBeInTheDocument();
   });
 });
