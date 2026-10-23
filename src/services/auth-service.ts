@@ -21,6 +21,13 @@ import {
   validarDecisoesCadastroMock,
 } from "@/services/mocks/consentimentos-handlers";
 import type { DecisaoConsentimento } from "@/types/consentimento";
+import {
+  codigoTrocaGoogleSchema,
+  respostaSessaoGoogleSchema,
+  type TrocaCodigoGoogleInput,
+} from "@/types/auth-google";
+
+const CAMINHO_GOOGLE = "/api/v1/auth/google";
 
 /**
  * Fala direto com o FastAPI (fastapi-users): sem BFF do Next no meio.
@@ -248,7 +255,78 @@ function erroDoLink(erro: unknown, finalidade?: FinalidadeDoLink): ApiError {
   );
 }
 
+/** Nunca devolve o corpo bruto: ele pode conter o codigo temporario enviado. */
+function erroDaTrocaGoogle(erro: unknown): ApiError {
+  const status = erro instanceof ApiError ? erro.status : 0;
+  const detalhe = erro instanceof ApiError ? detalheDoErro(erro) : undefined;
+  let mensagem = "Não foi possível entrar com o Google. Tente novamente.";
+
+  if (erro instanceof TypeError) {
+    mensagem = "Não foi possível conectar ao servidor. Confira sua conexão e tente de novo.";
+  }
+  if (status === 400) {
+    mensagem = "Este acesso com o Google expirou ou já foi utilizado. Comece novamente.";
+  }
+  if (status === 403) {
+    mensagem =
+      detalhe === "conta inativa"
+        ? "Esta conta está inativa. Entre em contato com o suporte."
+        : "O login com Google está disponível apenas para pacientes.";
+  }
+  if (status === 409) {
+    mensagem =
+      typeof detalhe === "string" && detalhe.startsWith("versão do termo desatualizada")
+        ? "Os termos foram atualizados. Leia a versão nova e decida de novo."
+        : "Já existe uma conta com este e-mail. Entre usando e-mail e senha.";
+  }
+  if (status === 422) {
+    mensagem = "Revise as decisões sobre os termos antes de continuar.";
+  }
+  if (status === 429) mensagem = "Muitas tentativas. Aguarde um pouco e tente de novo.";
+  if (status === 503) {
+    mensagem = "O login com Google está indisponível agora. Tente de novo mais tarde.";
+  }
+
+  return new ApiError(
+    status,
+    mensagem,
+    erro instanceof ApiError ? erro.segundosParaTentarDeNovo : undefined,
+  );
+}
+
 export const authService = {
+  /** Navegação completa para que o cookie OAuth acompanhe o fluxo pelo backend. */
+  obterUrlDeAutorizacaoGoogle(): string {
+    return `${config.apiBaseUrl}${CAMINHO_GOOGLE}/authorize`;
+  },
+
+  /** Adapta o login Google à mesma sessão e ao mesmo refresh usados pelo login atual. */
+  async trocarCodigoGoogle(input: TrocaCodigoGoogleInput): Promise<void> {
+    const codigo = codigoTrocaGoogleSchema.safeParse(input.codigo);
+    if (!codigo.success) {
+      throw new ApiError(400, "Este acesso com o Google não é válido. Comece novamente.");
+    }
+
+    try {
+      const resposta = await apiClient.post<unknown>(
+        `${CAMINHO_GOOGLE}/exchange`,
+        {
+          codigo: codigo.data,
+          ...(input.consentimentos ? { consentimentos: input.consentimentos } : {}),
+        },
+        {
+          autenticada: false,
+          credentials: "include",
+          statusEsperado: 200,
+        },
+      );
+      const sessao = respostaSessaoGoogleSchema.parse(resposta);
+      setStoredToken(sessao.access_token);
+    } catch (erro) {
+      throw erroDaTrocaGoogle(erro);
+    }
+  },
+
   async solicitarRecuperacao(email: string): Promise<void> {
     const resultado = usuarioSchema.shape.email.safeParse(email.trim());
     if (!resultado.success) throw new ApiError(422, "Informe um e-mail válido.");

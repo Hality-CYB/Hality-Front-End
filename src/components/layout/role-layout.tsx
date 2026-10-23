@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { usuarioService } from "@/services/usuario-service";
 import { hasActiveSession } from "@/lib/session";
@@ -23,6 +23,7 @@ import type { ReactNode } from "react";
  */
 export function RoleLayout({ role, children }: { role: Role; children: ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const logado = hasActiveSession();
 
   const {
@@ -46,13 +47,17 @@ export function RoleLayout({ role, children }: { role: Role; children: ReactNode
 
   useEffect(() => {
     if (!logado || sessaoInvalida) {
-      router.replace(`/login?redirect=/${role}`);
+      const rotaBase = `/${role}`;
+      const destino =
+        pathname === rotaBase || pathname.startsWith(`${rotaBase}/`) ? pathname : rotaBase;
+
+      router.replace(`/login?redirect=${encodeURIComponent(destino)}`);
       return;
     }
     if (usuario && usuario.role !== role) {
       router.replace(`/${usuario.role}`);
     }
-  }, [logado, sessaoInvalida, usuario, role, router]);
+  }, [logado, sessaoInvalida, usuario, role, router, pathname]);
 
   if (erroDeConexao) {
     return (

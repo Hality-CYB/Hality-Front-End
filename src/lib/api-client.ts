@@ -84,7 +84,9 @@ async function request<T>(path: string, init?: ApiRequestInit, retentativa = fal
     ...requestInit,
     headers,
     ...(!autenticada && {
-      credentials: "omit",
+      // Fluxos públicos normalmente não levam cookie. A troca do código do
+      // Google é a exceção explícita: precisa receber o refresh httpOnly.
+      credentials: requestInit.credentials ?? "omit",
       cache: "no-store",
       referrerPolicy: "no-referrer",
     }),

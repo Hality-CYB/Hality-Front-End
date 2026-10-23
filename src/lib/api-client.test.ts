@@ -61,3 +61,21 @@ it("remove Authorization explícito de chamadas públicas", async () => {
     { autenticada: false, headers: { authorization: "Bearer nao-enviar" } },
   );
 });
+
+it("permite credenciais somente quando uma chamada pública pede explicitamente", async () => {
+  const fetchSpy = vi.spyOn(globalThis, "fetch");
+  server.use(
+    http.post(`${config.apiBaseUrl}/api/v1/auth/google/exchange`, () =>
+      HttpResponse.json({ access_token: "access-google", token_type: "bearer" }),
+    ),
+  );
+  await apiClient.post(
+    "/api/v1/auth/google/exchange",
+    { codigo: "codigo-temporario" },
+    { autenticada: false, credentials: "include" },
+  );
+  expect(fetchSpy).toHaveBeenCalledWith(
+    `${config.apiBaseUrl}/api/v1/auth/google/exchange`,
+    expect.objectContaining({ credentials: "include" }),
+  );
+});

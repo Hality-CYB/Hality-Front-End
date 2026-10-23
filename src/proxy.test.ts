@@ -31,6 +31,9 @@ describe("política de referrer dos links de identidade", () => {
 
   it("executa exclusivamente na raiz, sem alterar login, registro ou assets", () => {
     expect(unstable_doesMiddlewareMatch({ config, url: "https://cyb.test/" })).toBe(true);
+    expect(unstable_doesMiddlewareMatch({ config, url: "https://cyb.test/login/google" })).toBe(
+      true,
+    );
     for (const path of [
       "/login",
       "/registro",
@@ -40,6 +43,17 @@ describe("política de referrer dos links de identidade", () => {
       "/_next/static/script.js",
     ]) {
       expect(unstable_doesMiddlewareMatch({ config, url: `https://cyb.test${path}` })).toBe(false);
+    }
+  });
+
+  it("protege o retorno do Google mesmo depois de limpar a query", () => {
+    for (const path of [
+      "/login/google",
+      "/login/google?code=codigo-temporario&etapa=sessao",
+      "/login/google?erro=cancelado",
+    ]) {
+      const response = proxy(new NextRequest(new URL(path, "https://cyb.test")));
+      expect(response.headers.get("Referrer-Policy")).toBe("no-referrer");
     }
   });
 });
