@@ -50,3 +50,22 @@ describe("cadastro profissional com convite (develop 1a3d9c9)", () => {
     });
   });
 });
+
+describe("contrato do mock de pacientes", () => {
+  it("lista os pacientes vinculados com data de nascimento anulável", async () => {
+    const pagina = await pacienteService.listar();
+
+    expect(pagina.total).toBe(5);
+    expect(pagina.itens).toHaveLength(5);
+    expect(pagina.itens[0]).toHaveProperty("dataNascimento");
+    expect(pagina.itens.every((paciente) => paciente.dataNascimento === null)).toBe(true);
+  });
+
+  it("abre o detalhe de um paciente vinculado", async () => {
+    const paciente = await pacienteService.buscar("paciente-1");
+
+    expect(paciente.nome).toBe("Ana Paula Ferreira");
+    expect(paciente.dataNascimento).toBeNull();
+    expect(paciente.vinculadoEm).toBeTruthy();
+  });
+});
