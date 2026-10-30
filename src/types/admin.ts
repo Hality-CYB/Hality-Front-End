@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Classificacao } from "@/types/classificacao";
 import {
   nivelDaOrdem,
   statusDiagnosticoSchema,
@@ -319,16 +320,19 @@ export const backendAdminResumoSchema = z.object({
   halitose: z.record(z.string(), z.number()).nullable(),
 });
 
-/**
- * Números do painel do admin no período (padrão do back: últimos 30 dias, DEC-05).
- * TODO(backend): a contagem por classificação vem pelo id da tabela, sem
- * dizer qual id é qual nível, então ainda não é usada.
- */
+/** Números do painel do admin no período (padrão do back: últimos 30 dias, DEC-05). */
 export type ResumoAdmin = {
   inicio: string;
   fim: string;
   totalDiagnosticos: number;
   porStatus: Partial<Record<StatusDiagnostico, number>>;
+  /**
+   * Contagem pelo id da classificação no banco, que é a da IA: a revisão do
+   * profissional não muda esse campo. O nível sai de `contagemPorNivel`.
+   */
+  porClassificacaoId: Record<string, number>;
+  /** Ainda processando ou com falha. */
+  semClassificacao: number;
   pendentes: number;
   revisados: number;
 };
@@ -336,12 +340,26 @@ export type ResumoAdmin = {
 export function adaptBackendAdminResumo(
   data: z.infer<typeof backendAdminResumoSchema>,
 ): ResumoAdmin {
+  const { sem_classificacao: semClassificacao = 0, ...porClassificacaoId } =
+    data.diagnosticos.por_classificacao;
   return {
     inicio: data.periodo.inicio,
     fim: data.periodo.fim,
     totalDiagnosticos: data.diagnosticos.total,
     porStatus: data.diagnosticos.por_status,
+    porClassificacaoId,
+    semClassificacao,
     pendentes: data.revisao.pendentes,
     revisados: data.revisao.revisados,
   };
+}
+
+/** Traduz a contagem por id em nível 1-3 pela tabela de `GET /classificacoes`. */
+export function contagemPorNivel(
+  resumo: Pick<ResumoAdmin, "porClassificacaoId">,
+  classificacoes: Classificacao[],
+): { nivel: DiagnosticoNivel; total: number }[] {
+  return [...classificacoes]
+    .sort((a, b) => a.nivel - b.nivel)
+    .map((c) => ({ nivel: c.nivel, total: resumo.porClassificacaoId[String(c.id)] ?? 0 }));
 }

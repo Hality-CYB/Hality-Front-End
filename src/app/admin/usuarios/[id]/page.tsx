@@ -47,6 +47,7 @@ import {
   useUsuarios,
   useReenviarConvite,
 } from "@/hooks/use-usuarios";
+import { useSolicitarRecuperacao } from "@/hooks/use-auth";
 import {
   mensagemErroVinculo,
   useCriarVinculo,
@@ -60,7 +61,7 @@ import { config } from "@/lib/config";
 import type { Vinculo } from "@/types/admin";
 import { formatarData } from "@/lib/datas";
 
-type DialogAberto = "editar" | "profissional" | "vincular" | "bloquear" | null;
+type DialogAberto = "editar" | "profissional" | "vincular" | "bloquear" | "senha" | null;
 
 const classeAcao =
   "border-border flex w-full items-center gap-3.5 border-b p-4 text-left last:border-b-0";
@@ -90,6 +91,7 @@ export default function UsuarioDetailPage({ params }: { params: Promise<{ id: st
   const vincular = useCriarVinculo();
   const encerrar = useEncerrarVinculo();
   const reenviarConvite = useReenviarConvite();
+  const redefinirSenha = useSolicitarRecuperacao();
 
   if (isError) {
     return (
@@ -279,18 +281,32 @@ export default function UsuarioDetailPage({ params }: { params: Promise<{ id: st
                 <ChevronRight className="text-gray-3 h-4 w-4" />
               </button>
             )}
-            {/* TODO(backend): não existe rota para o admin redefinir a senha de outro
-                usuário (`PATCH /admin/usuarios/{id}` recusa `senha`). Falta decidir com o
-                time como a redefinição funciona antes de ligar esta ação. */}
-            <div className={cn(classeAcao, "opacity-60")} aria-disabled>
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#FEF3C7]">
-                <KeyRound className="h-4.5 w-4.5 text-[#F59E0B]" />
-              </div>
-              <div className="flex-1">
-                <div className="font-heading text-sm font-bold">Redefinir senha</div>
-                <div className="text-muted-foreground text-xs">Ainda não disponível</div>
-              </div>
-            </div>
+            {/* O admin não define a senha de ninguém: dispara o mesmo link de
+                recuperação que a pessoa pediria em "Esqueci minha senha". Com convite
+                pendente o caminho é reenviar o convite, que também colhe os consentimentos. */}
+            {!usuario.convitePendente && (
+              <button
+                onClick={() => {
+                  redefinirSenha.reset();
+                  setDialogAberto("senha");
+                }}
+                disabled={bloqueado}
+                className={cn(classeAcao, "disabled:opacity-60")}
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#FEF3C7]">
+                  <KeyRound className="h-4.5 w-4.5 text-[#F59E0B]" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-heading text-sm font-bold">Redefinir senha</div>
+                  <div className="text-muted-foreground text-xs">
+                    {bloqueado
+                      ? "Desbloqueie o usuário para enviar o link"
+                      : "Envia um link de nova senha por e-mail"}
+                  </div>
+                </div>
+                <ChevronRight className="text-gray-3 h-4 w-4" />
+              </button>
+            )}
             {isPaciente && (
               <Link
                 href={`/admin/usuarios/${id}/diagnosticos?voltar=${encodeURIComponent(hrefAtual)}`}
@@ -424,6 +440,49 @@ export default function UsuarioDetailPage({ params }: { params: Promise<{ id: st
             >
               {bloqueado ? "Desbloquear" : "Bloquear"}
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={dialogAberto === "senha"}
+        onOpenChange={(open) => !redefinirSenha.isPending && setDialogAberto(open ? "senha" : null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Redefinir senha</AlertDialogTitle>
+            <AlertDialogDescription>
+              {redefinirSenha.isSuccess ? (
+                <>
+                  O link foi solicitado e chega em <strong>{usuario.email}</strong> em alguns
+                  minutos. A senha atual continua valendo até a pessoa criar uma nova.
+                </>
+              ) : (
+                <>
+                  Um link para criar uma nova senha vai para <strong>{usuario.email}</strong>. A
+                  senha atual continua valendo até a pessoa usar o link.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {redefinirSenha.isError && (
+            <Alert message="Não foi possível enviar o link. Tente novamente." />
+          )}
+          <AlertDialogFooter>
+            {redefinirSenha.isSuccess ? (
+              <AlertDialogCancel>Fechar</AlertDialogCancel>
+            ) : (
+              <>
+                <AlertDialogCancel disabled={redefinirSenha.isPending}>Cancelar</AlertDialogCancel>
+                <Button
+                  disabled={redefinirSenha.isPending}
+                  onClick={() => redefinirSenha.mutate(usuario.email)}
+                >
+                  <Mail aria-hidden className="size-4" />
+                  {redefinirSenha.isPending ? "Enviando…" : "Enviar link"}
+                </Button>
+              </>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
