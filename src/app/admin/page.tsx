@@ -8,9 +8,12 @@ import { DiagnosticoAdminCard } from "@/components/diagnostico-admin-card";
 import { useUsuarios } from "@/hooks/use-usuarios";
 import { useDiagnosticosAdmin } from "@/hooks/use-diagnosticos";
 import { useResumoAdmin } from "@/hooks/use-admin";
+import { useClassificacoes } from "@/hooks/use-classificacoes";
 import { useConteudosAdmin } from "@/hooks/use-conteudos-admin";
 import { useSessaoAtual } from "@/lib/auth/session-context";
+import { nivelBadgeStatus, nivelLabel } from "@/lib/level-format";
 import { roleLabel, roleBadgeStatus } from "@/lib/role-format";
+import { contagemPorNivel } from "@/types/admin";
 import type { Role } from "@/types/usuario";
 
 const PAPEIS: Role[] = ["paciente", "profissional", "admin"];
@@ -55,6 +58,8 @@ export default function AdminHomePage() {
     admin: useUsuarios({ role: "admin", limite: 1 }).data?.total,
   };
   const { data: resumo } = useResumoAdmin();
+  const { data: classificacoes } = useClassificacoes();
+  const porNivel = resumo && classificacoes ? contagemPorNivel(resumo, classificacoes) : null;
   const recentes = useDiagnosticosAdmin({ limite: 3 }).data?.itens ?? [];
   // A fila de revisão é a inteira: o resumo só conta pendentes criados nos 30 dias.
   const pendentes = useDiagnosticosAdmin({ status: "aguardando_revisao", limite: 1 }).data?.total;
@@ -137,6 +142,32 @@ export default function AdminHomePage() {
             ))}
           </div>
         </Card>
+
+        {porNivel && resumo && (
+          <Card className="rounded-lg p-5 shadow-sm ring-0">
+            <div className="mb-4">
+              <h2 className="text-lg">Classificação da IA</h2>
+              <p className="text-muted-foreground text-xs">
+                Diagnósticos dos últimos 30 dias pelo resultado da IA, antes da revisão.
+              </p>
+            </div>
+            <div className="flex flex-col">
+              {porNivel.map(({ nivel, total }) => (
+                <div
+                  key={nivel}
+                  className="border-border flex items-center justify-between border-b py-3"
+                >
+                  <StatusBadge label={nivelLabel(nivel)} status={nivelBadgeStatus(nivel)} />
+                  <span className="font-heading text-sm font-bold">{total}</span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between py-3">
+                <span className="text-muted-foreground text-sm">Sem resultado</span>
+                <span className="font-heading text-sm font-bold">{resumo.semClassificacao}</span>
+              </div>
+            </div>
+          </Card>
+        )}
 
         <Card className="rounded-lg p-5 shadow-sm ring-0">
           <div className="mb-4 flex items-center justify-between">

@@ -29,10 +29,10 @@ afterEach(() => {
   clearStoredToken();
 });
 
-async function renderPagina(pendente = true) {
+async function renderPagina(pendente = true, extra: Partial<typeof usuario> = {}) {
   server.use(
     http.get(url, () =>
-      HttpResponse.json({ ...usuario, convite_pendente: pendente, ativo: !pendente }),
+      HttpResponse.json({ ...usuario, convite_pendente: pendente, ativo: !pendente, ...extra }),
     ),
   );
   const client = new QueryClient({
@@ -142,5 +142,50 @@ describe("reenvio administrativo de convite", () => {
     expect(await screen.findByText("Bloqueado")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Reenviar convite" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Desbloquear usuário" })).toBeInTheDocument();
+  });
+});
+
+describe("redefinição de senha pelo admin", () => {
+  const recuperacao = `${config.apiBaseUrl}/api/v1/auth/password-recovery`;
+
+  it("envia o link de recuperação para o e-mail do usuário após confirmar", async () => {
+    const corpos: unknown[] = [];
+    server.use(
+      http.post(recuperacao, async ({ request }) => {
+        corpos.push(await request.json());
+        return HttpResponse.json(
+          { message: "Se o e-mail estiver cadastrado, enviaremos as instruções." },
+          { status: 202 },
+        );
+      }),
+    );
+    await renderPagina(false);
+    fireEvent.click(screen.getByRole("button", { name: /Redefinir senha/ }));
+    expect(corpos).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "Enviar link" }));
+    expect(await screen.findByText(/O link foi solicitado/)).toBeInTheDocument();
+    expect(corpos).toEqual([{ email: usuario.email }]);
+    expect(screen.queryByRole("button", { name: "Enviar link" })).not.toBeInTheDocument();
+  });
+
+  it("mostra erro e mantém o envio disponível quando a API falha", async () => {
+    server.use(http.post(recuperacao, () => HttpResponse.json({}, { status: 500 })));
+    await renderPagina(false);
+    fireEvent.click(screen.getByRole("button", { name: /Redefinir senha/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Enviar link" }));
+    expect(
+      await screen.findByText("Não foi possível enviar o link. Tente novamente."),
+    ).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Enviar link" })).toBeEnabled());
+  });
+
+  it("não oferece redefinição com convite pendente: o caminho é reenviar o convite", async () => {
+    await renderPagina(true);
+    expect(screen.queryByRole("button", { name: /Redefinir senha/ })).not.toBeInTheDocument();
+  });
+
+  it("desabilita a redefinição para usuário bloqueado", async () => {
+    await renderPagina(false, { ativo: false });
+    expect(screen.getByRole("button", { name: /Redefinir senha/ })).toBeDisabled();
   });
 });
