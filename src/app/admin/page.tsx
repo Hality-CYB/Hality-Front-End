@@ -14,9 +14,11 @@ import { useSessaoAtual } from "@/lib/auth/session-context";
 import { nivelBadgeStatus, nivelLabel } from "@/lib/level-format";
 import { roleLabel, roleBadgeStatus } from "@/lib/role-format";
 import { contagemPorNivel } from "@/types/admin";
+import type { DiagnosticoNivel } from "@/types/diagnostico";
 import type { Role } from "@/types/usuario";
 
 const PAPEIS: Role[] = ["paciente", "profissional", "admin"];
+const NIVEIS: DiagnosticoNivel[] = [1, 2, 3];
 
 const ACOES_RAPIDAS = [
   {
@@ -57,6 +59,11 @@ export default function AdminHomePage() {
     profissional: useUsuarios({ role: "profissional", limite: 1 }).data?.total,
     admin: useUsuarios({ role: "admin", limite: 1 }).data?.total,
   };
+  // Só soma quando as três contagens chegaram, para o total não aparecer parcial.
+  const totalUsuarios = PAPEIS.reduce<number | undefined>((soma, papel) => {
+    const n = porPapel[papel];
+    return soma === undefined || n === undefined ? undefined : soma + n;
+  }, 0);
   const { data: resumo } = useResumoAdmin();
   const { data: classificacoes } = useClassificacoes();
   const porNivel = resumo && classificacoes ? contagemPorNivel(resumo, classificacoes) : null;
@@ -117,33 +124,38 @@ export default function AdminHomePage() {
           ))}
         </div>
 
-        <Card className="rounded-lg p-5 shadow-sm ring-0">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg">Usuários por papel</h2>
-            <Link
-              href="/admin/usuarios"
-              className="font-heading text-primary text-[13px] font-bold"
-            >
-              Ver todos
-            </Link>
-          </div>
-          <div className="flex flex-col">
-            {PAPEIS.map((papel, i) => (
+        <div className="shell:grid shell:grid-cols-2 flex flex-col gap-3.5">
+          <Card className="rounded-lg p-5 shadow-sm ring-0">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg">Usuários por papel</h2>
+                <p className="text-muted-foreground text-xs">Contas cadastradas em cada papel.</p>
+              </div>
               <Link
-                key={papel}
-                href={`/admin/usuarios?role=${papel}`}
-                className={`flex items-center justify-between py-3 ${
-                  i < PAPEIS.length - 1 ? "border-border border-b" : ""
-                }`}
+                href="/admin/usuarios"
+                className="font-heading text-primary shrink-0 text-[13px] font-bold"
               >
-                <StatusBadge label={roleLabel(papel)} status={roleBadgeStatus(papel)} />
-                <span className="font-heading text-sm font-bold">{porPapel[papel] ?? "—"}</span>
+                Ver todos
               </Link>
-            ))}
-          </div>
-        </Card>
+            </div>
+            <div className="flex flex-col">
+              {PAPEIS.map((papel) => (
+                <Link
+                  key={papel}
+                  href={`/admin/usuarios?role=${papel}`}
+                  className="border-border flex items-center justify-between border-b py-3"
+                >
+                  <StatusBadge label={roleLabel(papel)} status={roleBadgeStatus(papel)} />
+                  <span className="font-heading text-sm font-bold">{porPapel[papel] ?? "—"}</span>
+                </Link>
+              ))}
+              <div className="flex items-center justify-between py-3">
+                <span className="text-muted-foreground text-sm">Total</span>
+                <span className="font-heading text-sm font-bold">{totalUsuarios ?? "—"}</span>
+              </div>
+            </div>
+          </Card>
 
-        {porNivel && resumo && (
           <Card className="rounded-lg p-5 shadow-sm ring-0">
             <div className="mb-4">
               <h2 className="text-lg">Classificação da IA</h2>
@@ -152,22 +164,26 @@ export default function AdminHomePage() {
               </p>
             </div>
             <div className="flex flex-col">
-              {porNivel.map(({ nivel, total }) => (
+              {NIVEIS.map((nivel) => (
                 <div
                   key={nivel}
                   className="border-border flex items-center justify-between border-b py-3"
                 >
                   <StatusBadge label={nivelLabel(nivel)} status={nivelBadgeStatus(nivel)} />
-                  <span className="font-heading text-sm font-bold">{total}</span>
+                  <span className="font-heading text-sm font-bold">
+                    {porNivel?.find((n) => n.nivel === nivel)?.total ?? "—"}
+                  </span>
                 </div>
               ))}
               <div className="flex items-center justify-between py-3">
                 <span className="text-muted-foreground text-sm">Sem resultado</span>
-                <span className="font-heading text-sm font-bold">{resumo.semClassificacao}</span>
+                <span className="font-heading text-sm font-bold">
+                  {resumo?.semClassificacao ?? "—"}
+                </span>
               </div>
             </div>
           </Card>
-        )}
+        </div>
 
         <Card className="rounded-lg p-5 shadow-sm ring-0">
           <div className="mb-4 flex items-center justify-between">
