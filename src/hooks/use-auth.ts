@@ -5,9 +5,13 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authService, type RegisterInput } from "@/services/auth-service";
 import { hasActiveSession } from "@/lib/session";
-import type { DefinicaoDeSenha, FinalidadeDoLink } from "@/types/auth";
+import type { DefinicaoDeSenha, FinalidadeDeSenha } from "@/types/auth";
 
-export { ConsentimentoObrigatorioError } from "@/services/auth-service";
+export {
+  ConsentimentoObrigatorioError,
+  EmailNaoConfirmadoError,
+  LinkDeConfirmacaoInvalidoError,
+} from "@/services/auth-service";
 
 export function useSolicitarRecuperacao() {
   return useMutation({
@@ -22,7 +26,7 @@ export function useSolicitarRecuperacao() {
  * o envio, fora das variáveis e do cache da mutation, e um segundo clique
  * reaproveita o envio em andamento.
  */
-export function useDefinirSenhaPeloLink(finalidade: FinalidadeDoLink) {
+export function useDefinirSenhaPeloLink(finalidade: FinalidadeDeSenha) {
   const entradaRef = useRef<DefinicaoDeSenha | null>(null);
   const emAndamentoRef = useRef<Promise<void> | null>(null);
   const mutation = useMutation({
@@ -76,16 +80,28 @@ export function useLogin() {
 }
 
 export function useRegistrar() {
-  const router = useRouter();
-  const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: (input: RegisterInput) => authService.registrar(input),
-    onSuccess: (usuario) => {
-      queryClient.setQueryData(["currentUser"], usuario);
-      router.push(`/${usuario.role}`);
-      router.refresh();
-    },
+  });
+}
+
+export function useReenviarConfirmacao() {
+  return useMutation({
+    mutationFn: (email: string) => authService.reenviarConfirmacao(email),
+    retry: false,
+    networkMode: "always",
+  });
+}
+
+export function useConfirmarEmail() {
+  const router = useRouter();
+
+  return useMutation({
+    mutationFn: (token: string) => authService.confirmarEmail(token),
+    retry: false,
+    networkMode: "always",
+    gcTime: 0,
+    onSuccess: () => router.replace("/login"),
   });
 }
 

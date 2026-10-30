@@ -2,16 +2,25 @@ import React, { type ReactNode } from "react";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useLogin, useRegistrar, useLogout, useDefinirSenhaPeloLink } from "@/hooks/use-auth";
+import {
+  useLogin,
+  useRegistrar,
+  useLogout,
+  useDefinirSenhaPeloLink,
+  useConfirmarEmail,
+  useReenviarConfirmacao,
+} from "@/hooks/use-auth";
 import { authService } from "@/services/auth-service";
 import { clearStoredToken, getStoredToken, setStoredToken } from "@/lib/session";
 
 const mockPush = vi.fn();
 const mockRefresh = vi.fn();
+const mockReplace = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: mockPush,
+    replace: mockReplace,
     refresh: mockRefresh,
   }),
   useSearchParams: () => ({
@@ -25,6 +34,8 @@ vi.mock("@/services/auth-service", () => ({
     registrar: vi.fn(),
     logout: vi.fn(),
     definirSenhaPeloLink: vi.fn(),
+    confirmarEmail: vi.fn(),
+    reenviarConfirmacao: vi.fn(),
   },
 }));
 
@@ -67,7 +78,7 @@ describe("use-auth hooks", () => {
     expect(mockRefresh).toHaveBeenCalled();
   });
 
-  it("useRegistrar chama authService.registrar e redireciona", async () => {
+  it("useRegistrar chama authService.registrar sem redirecionar nem abrir sessão", async () => {
     vi.mocked(authService.registrar).mockResolvedValueOnce({
       id: "2",
       nome: "Carlos",
@@ -90,7 +101,48 @@ describe("use-auth hooks", () => {
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(mockPush).toHaveBeenCalledWith("/profissional");
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(getStoredToken()).toBeNull();
+  });
+
+  it("useConfirmarEmail redireciona direto para /login após confirmar", async () => {
+    vi.mocked(authService.confirmarEmail).mockResolvedValueOnce();
+
+    const { result } = renderHook(() => useConfirmarEmail(), { wrapper: createWrapper() });
+
+    act(() => {
+      result.current.mutate("t".repeat(32));
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(authService.confirmarEmail).toHaveBeenCalledWith("t".repeat(32));
+    expect(mockReplace).toHaveBeenCalledWith("/login");
+  });
+
+  it("useConfirmarEmail não redireciona quando a confirmação falha", async () => {
+    vi.mocked(authService.confirmarEmail).mockRejectedValueOnce(new Error("falhou"));
+
+    const { result } = renderHook(() => useConfirmarEmail(), { wrapper: createWrapper() });
+
+    act(() => {
+      result.current.mutate("t".repeat(32));
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it("useReenviarConfirmacao chama authService.reenviarConfirmacao", async () => {
+    vi.mocked(authService.reenviarConfirmacao).mockResolvedValueOnce();
+
+    const { result } = renderHook(() => useReenviarConfirmacao(), { wrapper: createWrapper() });
+
+    act(() => {
+      result.current.mutate("maria@hality.com");
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(authService.reenviarConfirmacao).toHaveBeenCalledWith("maria@hality.com");
   });
 
   it("useLogout chama authService.logout e redireciona para /login", async () => {

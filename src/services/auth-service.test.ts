@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { authService } from "./auth-service";
+import {
+  authService,
+  EmailNaoConfirmadoError,
+  LinkDeConfirmacaoInvalidoError,
+} from "./auth-service";
 import { getStoredToken, setStoredToken, clearStoredToken } from "@/lib/session";
 
 /**
@@ -79,21 +83,12 @@ describe("authService", () => {
     expect(getStoredToken()).toBeNull();
   });
 
-  it("registrar envia os dados no formato do back e faz auto-login em seguida", async () => {
-    global.fetch = vi
-      .fn()
-      // 1: POST /auth/register
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 201,
-        json: async () => mockBackendUser,
-      } as Response)
-      // 2: POST /auth/login (auto-login)
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({ access_token: "jwt-novo", token_type: "bearer" }),
-      } as Response);
+  it("registrar envia os dados no formato do back e não inicia sessão", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      json: async () => mockBackendUser,
+    } as Response);
 
     const usuario = await authService.registrar({
       nome: "Usuário Teste",
@@ -122,7 +117,8 @@ describe("authService", () => {
       ],
     });
 
-    expect(getStoredToken()).toBe("jwt-novo");
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(getStoredToken()).toBeNull();
     expect(usuario.id).toBe(mockBackendUser.id);
   });
 
@@ -188,5 +184,93 @@ describe("authService", () => {
     await authService.logout();
 
     expect(getStoredToken()).toBeNull();
+  });
+
+  it("login de conta não confirmada lança EmailNaoConfirmadoError e não salva token", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      json: async () => ({ detail: "EMAIL_NOT_VERIFIED" }),
+    } as Response);
+
+    await expect(authService.login("teste@hality.com", "Senha123!")).rejects.toBeInstanceOf(
+      EmailNaoConfirmadoError,
+    );
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(getStoredToken()).toBeNull();
+  });
+
+  describe("confirmação de e-mail", () => {
+    const token = "t".repeat(32);
+
+    function respostaApi(status: number, corpo?: unknown) {
+      return new Response(corpo === undefined ? null : JSON.stringify(corpo), { status });
+    }
+
+    it("confirmarEmail envia o token e não grava sessão", async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce(respostaApi(204));
+
+      await authService.confirmarEmail(token);
+
+      const [url, init] = vi.mocked(global.fetch).mock.calls[0]!;
+      expect(url).toBe("http://localhost:8000/api/v1/auth/email-verification/confirm");
+      expect(JSON.parse(init?.body as string)).toEqual({ token });
+      expect(getStoredToken()).toBeNull();
+    });
+
+    it("confirmarEmail com token inválido do back lança LinkDeConfirmacaoInvalidoError", async () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce(respostaApi(400, { detail: "TOKEN_DE_VERIFICACAO_INVALIDO" }));
+
+      await expect(authService.confirmarEmail(token)).rejects.toBeInstanceOf(
+        LinkDeConfirmacaoInvalidoError,
+      );
+    });
+
+    it("confirmarEmail com token curto não chama o back", async () => {
+      global.fetch = vi.fn();
+
+      await expect(authService.confirmarEmail("curto")).rejects.toBeInstanceOf(
+        LinkDeConfirmacaoInvalidoError,
+      );
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it("confirmarEmail com falha temporária não vaza o token na mensagem", async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce(respostaApi(500, { detail: token }));
+
+      const erro = await authService.confirmarEmail(token).catch((e: Error) => e);
+
+      expect(erro).not.toBeInstanceOf(LinkDeConfirmacaoInvalidoError);
+      expect((erro as Error).message).not.toContain(token);
+    });
+
+    it("reenviarConfirmacao aceita o 202 genérico", async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce(respostaApi(202, { message: "ok" }));
+
+      await expect(authService.reenviarConfirmacao(" Teste@Hality.com ")).resolves.toBeUndefined();
+
+      const [url, init] = vi.mocked(global.fetch).mock.calls[0]!;
+      expect(url).toBe("http://localhost:8000/api/v1/auth/email-verification/resend");
+      expect(JSON.parse(init?.body as string)).toEqual({ email: "Teste@Hality.com" });
+    });
+
+    it("reenviarConfirmacao recusa e-mail inválido sem chamar o back", async () => {
+      global.fetch = vi.fn();
+
+      await expect(authService.reenviarConfirmacao("nao-e-email")).rejects.toThrow(
+        "Informe um e-mail válido.",
+      );
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it("reenviarConfirmacao com 429 pede para aguardar", async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce(respostaApi(429, { detail: "x" }));
+
+      await expect(authService.reenviarConfirmacao("teste@hality.com")).rejects.toThrow(
+        "Muitas tentativas",
+      );
+    });
   });
 });

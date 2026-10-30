@@ -18,7 +18,8 @@ import { useTermosConsentimento } from "@/hooks/use-consentimentos";
 import { useLinkDeAcesso } from "@/hooks/use-link-de-acesso";
 import { ApiError } from "@/lib/api-client";
 import { problemaDaSenha } from "@/lib/senha";
-import type { FinalidadeDoLink } from "@/types/auth";
+import { ConfirmarEmailPorLink } from "@/components/confirmar-email-por-link";
+import type { FinalidadeDeSenha, FinalidadeDoLink } from "@/types/auth";
 import type { Finalidade } from "@/types/consentimento";
 
 /**
@@ -34,6 +35,7 @@ export function EntradaPorLink({
 }) {
   const link = useLinkDeAcesso(finalidade);
   if (!link.finalidade) return children;
+  if (link.finalidade === "confirmacao_email") return <ConfirmarEmailPorLink link={link} />;
   return <DefinirSenhaForm finalidade={link.finalidade} link={link} />;
 }
 
@@ -65,7 +67,7 @@ function DefinirSenhaForm({
   finalidade,
   link,
 }: {
-  finalidade: FinalidadeDoLink;
+  finalidade: FinalidadeDeSenha;
   link: ReturnType<typeof useLinkDeAcesso>;
 }) {
   const convite = finalidade === "convite";

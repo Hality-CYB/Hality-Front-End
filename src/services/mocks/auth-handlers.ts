@@ -13,6 +13,20 @@ export const SENHA_MOCK = "123456";
 /** Mesmo mínimo do back (`SENHA_TAMANHO_MINIMO`). */
 const SENHA_TAMANHO_MINIMO = 8;
 const senhasAlteradas = new Map<string, string>();
+const usuariosComEmailPendente = new Set<string>();
+const PREFIXO_TOKEN_CONFIRMACAO_MOCK = "confirmacao-mock-";
+
+export function tokenDeConfirmacaoMock(usuarioId: string): string {
+  return `${PREFIXO_TOKEN_CONFIRMACAO_MOCK}${usuarioId}`;
+}
+
+export function marcarEmailPendenteMock(usuarioId: string): void {
+  usuariosComEmailPendente.add(usuarioId);
+}
+
+export function emailPendenteDeConfirmacaoMock(usuarioId: string): boolean {
+  return usuariosComEmailPendente.has(usuarioId);
+}
 
 export function senhaMockDe(usuarioId: string): string {
   return senhasAlteradas.get(usuarioId) ?? SENHA_MOCK;
@@ -85,7 +99,40 @@ function paraBackendUser(usuario: Usuario): BackendUser {
   };
 }
 
+const confirmarEmailSchema = z.object({ token: z.string().min(20) }).strict();
+const reenviarConfirmacaoSchema = z.object({ email: z.string().email() }).strict();
+
 export const authHandlers = [
+  http.post(url("/api/v1/auth/email-verification/confirm"), async ({ request }) => {
+    const body = confirmarEmailSchema.safeParse(await request.json());
+    const usuarioId = body.success
+      ? body.data.token.replace(PREFIXO_TOKEN_CONFIRMACAO_MOCK, "")
+      : undefined;
+    if (
+      !body.success ||
+      !body.data.token.startsWith(PREFIXO_TOKEN_CONFIRMACAO_MOCK) ||
+      !usuarioId ||
+      !usuariosComEmailPendente.delete(usuarioId)
+    ) {
+      return HttpResponse.json({ detail: "TOKEN_DE_VERIFICACAO_INVALIDO" }, { status: 400 });
+    }
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.post(url("/api/v1/auth/email-verification/resend"), async ({ request }) => {
+    const body = reenviarConfirmacaoSchema.safeParse(await request.json());
+    if (!body.success) {
+      return HttpResponse.json({ detail: "e-mail inválido" }, { status: 422 });
+    }
+    return HttpResponse.json(
+      {
+        message:
+          "Se o endereço estiver cadastrado e pendente de confirmação, enviaremos um novo link.",
+      },
+      { status: 202 },
+    );
+  }),
+
   // Usado por RoleLayout pra descobrir quem está logado.
   http.get(url("/api/v1/users/me"), ({ request }) => {
     const usuario = usuarioDoRequest(request);

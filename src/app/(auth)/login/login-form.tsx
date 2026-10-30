@@ -6,7 +6,9 @@ import Image from "next/image";
 import { Eye, EyeOff } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Alert } from "@/components/alert";
-import { useLogin, useRedirectIfAuthenticated } from "@/hooks/use-auth";
+import { EmailNaoConfirmadoError, useLogin, useRedirectIfAuthenticated } from "@/hooks/use-auth";
+import { AuthCard } from "@/components/auth-card";
+import { ConfirmacaoEmailPendente } from "@/components/confirmacao-email-pendente";
 import {
   destinoGoogleParaRedirect,
   guardarDestinoLoginGoogle,
@@ -32,6 +34,14 @@ export function LoginForm() {
     event.preventDefault();
     if (!email || !senha) return;
     login.mutate({ email, senha });
+  }
+
+  if (login.error instanceof EmailNaoConfirmadoError) {
+    return (
+      <AuthCard>
+        <ConfirmacaoEmailPendente email={email} onVoltar={login.reset} />
+      </AuthCard>
+    );
   }
 
   return (

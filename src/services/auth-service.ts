@@ -10,12 +10,18 @@ import {
   tokenDoLinkSchema,
   respostaRecuperacaoSchema,
   type DefinicaoDeSenha,
+  type FinalidadeDeSenha,
   type FinalidadeDoLink,
 } from "@/types/auth";
 import { config } from "@/lib/config";
 import { problemaDaSenha } from "@/lib/senha";
 import { setStoredToken, clearStoredToken } from "@/lib/session";
-import { adicionarUsuarioMock, usuarioMockParaLogin } from "@/services/mocks/auth-handlers";
+import {
+  adicionarUsuarioMock,
+  emailPendenteDeConfirmacaoMock,
+  marcarEmailPendenteMock,
+  usuarioMockParaLogin,
+} from "@/services/mocks/auth-handlers";
 import {
   registrarDecisoesMock,
   validarDecisoesCadastroMock,
@@ -28,6 +34,23 @@ import {
 } from "@/types/auth-google";
 
 const CAMINHO_GOOGLE = "/api/v1/auth/google";
+const CAMINHO_VERIFICACAO_EMAIL = "/api/v1/auth/email-verification";
+const EMAIL_NOT_VERIFIED = "EMAIL_NOT_VERIFIED";
+const TOKEN_DE_VERIFICACAO_INVALIDO = "TOKEN_DE_VERIFICACAO_INVALIDO";
+
+export class EmailNaoConfirmadoError extends ApiError {
+  constructor() {
+    super(403, "Confirme seu e-mail para entrar.");
+    this.name = "EmailNaoConfirmadoError";
+  }
+}
+
+export class LinkDeConfirmacaoInvalidoError extends ApiError {
+  constructor() {
+    super(400, "Este link não vale mais. Ele pode ter expirado ou já ter sido usado.");
+    this.name = "LinkDeConfirmacaoInvalidoError";
+  }
+}
 
 /**
  * Fala direto com o FastAPI (fastapi-users): sem BFF do Next no meio.
@@ -83,7 +106,8 @@ async function registrarMock(input: RegisterInput): Promise<Usuario> {
   // Sem isso, GET /api/v1/users/me (chamado por RoleLayout logo após o
   // registro) não encontraria esse usuário — ele nunca existiu em
   // seedUsuarios, só nesse retorno aqui.
-  adicionarUsuarioMock(usuario);
+  adicionarUsuarioMock(usuario, input.senha);
+  marcarEmailPendenteMock(usuario.id);
   registrarDecisoesMock(usuario.id, input.consentimentos);
   return usuario;
 }
@@ -105,6 +129,11 @@ async function obterAccessToken(email: string, senha: string): Promise<string> {
     // Falha de rede (back fora do ar, CORS etc.) — sem isso, o erro cru do
     // fetch ("Failed to fetch") vaza direto pra tela de login.
     throw new ApiError(0, "Não foi possível conectar ao servidor.");
+  }
+
+  if (response.status === 403) {
+    const corpo = await response.json().catch(() => null);
+    if (corpo?.detail === EMAIL_NOT_VERIFIED) throw new EmailNaoConfirmadoError();
   }
 
   if (!response.ok) {
@@ -136,9 +165,7 @@ async function loginReal(
   return { usuario, accessToken };
 }
 
-async function registrarReal(
-  input: RegisterInput,
-): Promise<{ usuario: Usuario; accessToken?: string }> {
+async function registrarReal(input: RegisterInput): Promise<Usuario> {
   const payload = {
     name: input.nome,
     email: input.email.trim().toLowerCase(),
@@ -185,18 +212,7 @@ async function registrarReal(
   }
 
   const backendUser: BackendUser = await response.json();
-  const usuario = adaptBackendUser(backendUser);
-
-  // fastapi-users não loga automaticamente no registro — chama /auth/login
-  // em seguida pra já sair com um access_token utilizável (e o cookie de
-  // refresh setado). Se isso falhar (ex.: verificação de e-mail obrigatória
-  // no futuro), segue só com o usuário criado; a pessoa loga manualmente.
-  try {
-    const accessToken = await obterAccessToken(input.email, input.senha);
-    return { usuario, accessToken };
-  } catch {
-    return { usuario };
-  }
+  return adaptBackendUser(backendUser);
 }
 
 /** O back pediu os consentimentos antes de ativar o convite (`CONSENTIMENTO_OBRIGATORIO`). */
@@ -343,7 +359,10 @@ export const authService = {
   },
 
   /** Define a senha pelo link do e-mail; no convite, envia também os consentimentos. */
-  async definirSenhaPeloLink(finalidade: FinalidadeDoLink, input: DefinicaoDeSenha): Promise<void> {
+  async definirSenhaPeloLink(
+    finalidade: FinalidadeDeSenha,
+    input: DefinicaoDeSenha,
+  ): Promise<void> {
     if (!tokenDoLinkSchema.safeParse(input.token).success) {
       throw new ApiError(400, "Este link não vale mais.");
     }
@@ -371,6 +390,7 @@ export const authService = {
     if (config.apiMocking) {
       const usuario = await loginMock(email, senha);
       if (!usuario) throw new ApiError(401, "E-mail ou senha incorretos.");
+      if (emailPendenteDeConfirmacaoMock(usuario.id)) throw new EmailNaoConfirmadoError();
       setStoredToken(`${MOCK_TOKEN_PREFIX}${usuario.id}`);
       return usuarioSchema.parse(usuario);
     }
@@ -381,15 +401,43 @@ export const authService = {
   },
 
   async registrar(input: RegisterInput): Promise<Usuario> {
-    if (config.apiMocking) {
-      const usuario = await registrarMock(input);
-      setStoredToken(`${MOCK_TOKEN_PREFIX}${usuario.id}`);
-      return usuarioSchema.parse(usuario);
-    }
-
-    const { usuario, accessToken } = await registrarReal(input);
-    if (accessToken) setStoredToken(accessToken);
+    const usuario = config.apiMocking ? await registrarMock(input) : await registrarReal(input);
     return usuarioSchema.parse(usuario);
+  },
+
+  async confirmarEmail(token: string): Promise<void> {
+    if (!tokenDoLinkSchema.safeParse(token).success) throw new LinkDeConfirmacaoInvalidoError();
+    try {
+      await apiClient.post<void>(
+        `${CAMINHO_VERIFICACAO_EMAIL}/confirm`,
+        { token },
+        { autenticada: false, statusEsperado: 204 },
+      );
+    } catch (erro) {
+      if (
+        erro instanceof ApiError &&
+        erro.status === 400 &&
+        detalheDoErro(erro) === TOKEN_DE_VERIFICACAO_INVALIDO
+      ) {
+        throw new LinkDeConfirmacaoInvalidoError();
+      }
+      throw erroDoLink(erro);
+    }
+  },
+
+  async reenviarConfirmacao(email: string): Promise<void> {
+    const resultado = usuarioSchema.shape.email.safeParse(email.trim());
+    if (!resultado.success) throw new ApiError(422, "Informe um e-mail válido.");
+    try {
+      const data = await apiClient.post<unknown>(
+        `${CAMINHO_VERIFICACAO_EMAIL}/resend`,
+        { email: resultado.data },
+        { autenticada: false, statusEsperado: 202 },
+      );
+      respostaRecuperacaoSchema.parse(data);
+    } catch (erro) {
+      throw erroDoLink(erro);
+    }
   },
 
   async logout(): Promise<void> {

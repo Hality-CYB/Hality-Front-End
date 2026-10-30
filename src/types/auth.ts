@@ -3,7 +3,8 @@ import { z } from "zod";
 import type { DecisaoConsentimento } from "@/types/consentimento";
 
 /** Para que serve o link enviado por e-mail (`purpose` do back: invitation | password_reset). */
-export type FinalidadeDoLink = "convite" | "recuperacao";
+export type FinalidadeDeSenha = "convite" | "recuperacao";
+export type FinalidadeDoLink = FinalidadeDeSenha | "confirmacao_email";
 export const tokenDoLinkSchema = z.string().min(20);
 export type DefinicaoDeSenha = {
   token: string;
