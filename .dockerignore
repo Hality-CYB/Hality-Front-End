@@ -1,0 +1,14 @@
+node_modules
+.next
+coverage
+.git
+.github
+.vscode
+.claude
+.env
+.env.*
+!.env.example
+Dockerfile
+.dockerignore
+*.log
+.DS_Store

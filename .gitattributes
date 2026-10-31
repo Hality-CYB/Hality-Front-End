@@ -1,0 +1,5 @@
+# Marca arquivos gerados automaticamente pra ficarem recolhidos por
+# padrão na tela de review do GitHub (e fora da contagem de linguagem do
+# repo) — não pesam visualmente no PR, mas continuam versionados
+# normalmente (o CI usa `npm ci`, que exige o lockfile).
+package-lock.json linguist-generated=true

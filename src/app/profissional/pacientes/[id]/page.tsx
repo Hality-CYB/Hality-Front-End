@@ -1,0 +1,155 @@
+"use client";
+
+import { use, createElement } from "react";
+import Link from "next/link";
+import { ChevronLeft, ChevronRight, Camera, ScanLine } from "lucide-react";
+import { CarregandoPagina, ErroPagina } from "@/components/estado-pagina";
+import { ehNaoEncontrado } from "@/lib/erros";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/status-badge";
+import { ScrollInfinito } from "@/components/scroll-infinito";
+import { EmptyState } from "@/components/empty-state";
+import { LevelChip } from "@/components/level-chip";
+import { AvatarWithRole } from "@/components/avatar-with-role";
+import { usePaciente } from "@/hooks/use-pacientes";
+import { useDiagnosticosProfissionalPaginados } from "@/hooks/use-diagnosticos";
+import { nivelColor, nivelIcon } from "@/lib/level-format";
+import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/status-format";
+import { formatarData, formatarDataSemHorario, idadeEmAnos } from "@/lib/datas";
+
+export default function PacienteDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const { data: paciente, isError, error: erro, refetch } = usePaciente(id);
+  // A lista embutida em /pacientes/{id} não diz se houve revisão; a do profissional diz.
+  const historico = useDiagnosticosProfissionalPaginados({ pacienteId: id, limite: 20 });
+
+  if (isError) {
+    return (
+      <ErroPagina
+        titulo={ehNaoEncontrado(erro) ? "Paciente não encontrado" : "Não foi possível carregar"}
+        descricao={
+          ehNaoEncontrado(erro)
+            ? "Ele pode não estar mais vinculado a você."
+            : "Confira sua conexão e tente de novo."
+        }
+        onTentarDeNovo={ehNaoEncontrado(erro) ? undefined : () => refetch()}
+        voltar={{ href: "/profissional/pacientes", label: "Voltar para pacientes" }}
+      />
+    );
+  }
+  if (!paciente) return <CarregandoPagina />;
+
+  const diagnosticos = historico.data?.pages.flatMap((p) => p.itens) ?? [];
+
+  return (
+    <div className="flex flex-col">
+      <div className="p-5 pb-6" style={{ background: "var(--gradient-brand)" }}>
+        <Link
+          href="/profissional/pacientes"
+          className="font-heading mb-3.5 inline-flex items-center gap-1.5 rounded-[10px] bg-white/15 px-3 py-2 text-[13px] font-semibold text-white"
+        >
+          <ChevronLeft className="h-3.5 w-3.5" /> Pacientes
+        </Link>
+        <div className="flex items-center gap-3.5">
+          <AvatarWithRole nome={paciente.nome} size={56} />
+          <div className="min-w-0">
+            <div className="font-heading truncate text-lg font-extrabold text-white">
+              {paciente.nome}
+            </div>
+            <div className="truncate text-sm text-white/60">{paciente.email}</div>
+            {!paciente.ativo && (
+              <div className="mt-1.5">
+                <StatusBadge label="Aguardando primeiro acesso" status="pending" />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3.5 p-4">
+        <Button asChild>
+          <Link href={`/profissional/avaliacao?paciente=${paciente.id}`}>
+            <Camera className="h-4 w-4" /> Avaliar este paciente
+          </Link>
+        </Button>
+
+        <Card className="rounded-lg p-5 shadow-sm ring-0">
+          <h2 className="mb-3 text-lg">Dados</h2>
+          <div className="flex flex-col gap-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Data de nascimento</span>
+              <span className="font-heading font-semibold">
+                {paciente.dataNascimento
+                  ? `${formatarDataSemHorario(paciente.dataNascimento)} (${idadeEmAnos(paciente.dataNascimento)} anos)`
+                  : "—"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Telefone</span>
+              <span className="font-heading font-semibold">{paciente.telefone || "—"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Vinculado em</span>
+              <span className="font-heading font-semibold">
+                {paciente.vinculadoEm ? formatarData(paciente.vinculadoEm) : "—"}
+              </span>
+            </div>
+          </div>
+        </Card>
+
+        <div>
+          <div className="mb-3 flex items-baseline justify-between">
+            <h2 className="text-lg">Histórico de diagnósticos</h2>
+            <span className="text-muted-foreground text-xs">
+              {historico.data?.pages[0]?.total ?? paciente.totalDiagnosticos} exames
+            </span>
+          </div>
+          <div className="flex flex-col gap-2.5">
+            {!historico.isLoading && diagnosticos.length === 0 && (
+              <EmptyState
+                icon={<ScanLine className="h-7 w-7" />}
+                title="Nenhum diagnóstico ainda"
+              />
+            )}
+            {diagnosticos.map((d) => (
+              <Link
+                key={d.id}
+                href={`/profissional/diagnosticos/${d.id}?voltar=/profissional/pacientes/${paciente.id}`}
+              >
+                <Card className="flex-row items-center gap-3.5 rounded-lg p-4 shadow-sm ring-0">
+                  <div
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+                    style={{ background: `${nivelColor(d.nivel)}18` }}
+                  >
+                    {createElement(nivelIcon(d.nivel), {
+                      className: "h-5 w-5",
+                      style: { color: nivelColor(d.nivel) },
+                    })}
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-heading text-sm font-bold">{formatarData(d.criadoEm)}</div>
+                    <StatusBadge
+                      className="mt-1"
+                      label={d.revisado ? "Revisado" : statusDiagnosticoLabel(d.status)}
+                      status={d.revisado ? "success" : statusDiagnosticoBadgeStatus(d.status)}
+                    />
+                  </div>
+                  {d.nivel !== null && <LevelChip nivel={d.nivel} size="sm" />}
+                  <ChevronRight className="text-gray-3 h-4 w-4" />
+                </Card>
+              </Link>
+            ))}
+          </div>
+          <ScrollInfinito
+            temMais={!!historico.hasNextPage}
+            carregando={historico.isFetchingNextPage}
+            erro={historico.isFetchNextPageError}
+            onCarregarMais={() => historico.fetchNextPage()}
+            className="mt-3"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}

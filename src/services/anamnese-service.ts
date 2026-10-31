@@ -1,0 +1,57 @@
+import { apiClient } from "@/lib/api-client";
+import {
+  adaptBackendQuestionario,
+  backendAnamneseCreatedSchema,
+  backendQuestionarioSchema,
+  mapTipoPerguntaParaBackend,
+  type Anamnese,
+  type QuestionarioAnamnese,
+  type RespostaAnamnese,
+  type TipoPergunta,
+} from "@/types/anamnese";
+
+/**
+ * `valor` chega do wizard sempre como string — aqui é convertido pro tipo
+ * que o back exige por pergunta (RespostaItem.valor: bool | str | int),
+ * já que `_validar_valor` no back rejeita string pra boolean/escala.
+ *
+ * String vazia (pergunta não respondida) é mantida como string: é o jeito
+ * do back detectar "ausente" (`valor == ""`) antes mesmo de olhar o tipo —
+ * convertê-la pra `false`/`0` faria uma pergunta obrigatória não
+ * respondida passar como "respondida".
+ */
+function paraValorBackend(tipo: TipoPergunta, valor: string): boolean | string | number {
+  if (valor === "") return valor;
+  if (tipo === "sim_nao") return valor === "Sim";
+  if (tipo === "escala") return Number(valor);
+  return valor;
+}
+
+export const anamneseService = {
+  async listarPerguntas(): Promise<QuestionarioAnamnese> {
+    const data = await apiClient.get<unknown>("/api/v1/anamneses/questionario");
+    return adaptBackendQuestionario(backendQuestionarioSchema.parse(data));
+  },
+
+  /** Com `pacienteId`, é o profissional preenchendo para um paciente vinculado (`POST /pacientes/{id}/anamneses`). */
+  async criar(input: {
+    versaoQuestionario: string;
+    respostas: RespostaAnamnese[];
+    pacienteId?: string;
+  }): Promise<Anamnese> {
+    const rota = input.pacienteId
+      ? `/api/v1/pacientes/${input.pacienteId}/anamneses`
+      : "/api/v1/anamneses";
+    const data = await apiClient.post<unknown>(rota, {
+      versao_questionario: input.versaoQuestionario,
+      respostas: input.respostas.map((r) => ({
+        pergunta_id: r.perguntaId,
+        enunciado: r.enunciado,
+        tipo: mapTipoPerguntaParaBackend(r.tipo),
+        valor: paraValorBackend(r.tipo, r.valor),
+      })),
+    });
+    const criada = backendAnamneseCreatedSchema.parse(data);
+    return { id: String(criada.id), respostas: input.respostas };
+  },
+};
