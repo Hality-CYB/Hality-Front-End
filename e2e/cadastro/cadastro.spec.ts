@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { TOKEN_STORAGE_KEY } from "../../src/lib/session";
+import { obterLinkEmail } from "../emails";
 
 const API_URL = `http://localhost:${process.env.E2E_API_PORT || "8000"}/api/v1`;
 const SENHA = "HalityE2e123!";
@@ -34,35 +35,57 @@ async function cadastrar(page: Page, email: string) {
   return resposta;
 }
 
-test("cadastro aceita dados de saúde, recusa treino de IA e inicia sessão de paciente", async ({
-  page,
-  context,
-}) => {
-  const email = novoEmail();
-  expect((await cadastrar(page, email)).status()).toBe(201);
-  await expect(page).toHaveURL("/paciente");
-  await expect(page.getByRole("heading", { name: "Pessoa Cadastro" })).toBeVisible();
-  await expect(page.getByRole("link", { name: new RegExp(email) })).toBeVisible();
-  expect(
-    (await context.cookies(`${API_URL}/auth/refresh`)).find((c) => c.name === "refresh_token"),
-  ).toMatchObject({ httpOnly: true });
-  const token = await page.evaluate((key) => localStorage.getItem(key), TOKEN_STORAGE_KEY);
-  expect(token).toBeTruthy();
-  const headers = { Authorization: `Bearer ${token}` };
-  const perfil = await page.request.get(`${API_URL}/users/me`, { headers });
-  expect(perfil.status()).toBe(200);
-  expect(await perfil.json()).toMatchObject({ name: NOME, email });
-  const consentimentos = await page.request.get(`${API_URL}/users/me/consentimentos`, { headers });
-  expect(consentimentos.status()).toBe(200);
-  expect((await consentimentos.json()).consentimentos).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({ finalidade: "health_data", aceito: true, vigente: true }),
-      expect.objectContaining({ finalidade: "image_training", aceito: false }),
-    ]),
-  );
-  await page.reload();
-  await expect(page).toHaveURL("/paciente");
-  await expect(page.getByRole("heading", { name: "Pessoa Cadastro" })).toBeVisible();
+test.describe("cadastro e confirmação de e-mail", () => {
+  test("cadastro aceita dados de saúde, recusa treino de IA e inicia sessão após confirmar e-mail", async ({
+    page,
+    context,
+  }) => {
+    const email = novoEmail();
+    expect((await cadastrar(page, email)).status()).toBe(201);
+    await expect(page.getByRole("heading", { name: "Confirme seu e-mail" })).toBeVisible();
+    await page.getByRole("link", { name: "Ir para o login" }).click();
+    await page.getByLabel("Email", { exact: true }).fill(email);
+    await page.getByLabel("Senha", { exact: true }).fill(SENHA);
+    await page.getByRole("button", { name: "Login", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Confirme seu e-mail" })).toBeVisible();
+    await expect(
+      page.getByText(
+        `Enviamos um link de confirmação para ${email}. Abra o e-mail para ativar sua conta.`,
+      ),
+    ).toBeVisible();
+    expect(await page.evaluate((key) => localStorage.getItem(key), TOKEN_STORAGE_KEY)).toBeNull();
+    const link = await obterLinkEmail({ destinatario: email, finalidade: "email_verification" });
+    await page.goto(link);
+    await expect(page).toHaveURL("/login");
+    await page.getByLabel("Email", { exact: true }).fill(email);
+    await page.getByLabel("Senha", { exact: true }).fill(SENHA);
+    await page.getByRole("button", { name: "Login", exact: true }).click();
+    await expect(page).toHaveURL("/paciente");
+    await expect(page.getByRole("heading", { name: "Pessoa Cadastro" })).toBeVisible();
+    await expect(page.getByRole("link", { name: new RegExp(email) })).toBeVisible();
+    expect(
+      (await context.cookies(`${API_URL}/auth/refresh`)).find((c) => c.name === "refresh_token"),
+    ).toMatchObject({ httpOnly: true });
+    const token = await page.evaluate((key) => localStorage.getItem(key), TOKEN_STORAGE_KEY);
+    expect(token).toBeTruthy();
+    const headers = { Authorization: `Bearer ${token}` };
+    const perfil = await page.request.get(`${API_URL}/users/me`, { headers });
+    expect(perfil.status()).toBe(200);
+    expect(await perfil.json()).toMatchObject({ name: NOME, email });
+    const consentimentos = await page.request.get(`${API_URL}/users/me/consentimentos`, {
+      headers,
+    });
+    expect(consentimentos.status()).toBe(200);
+    expect((await consentimentos.json()).consentimentos).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ finalidade: "health_data", aceito: true, vigente: true }),
+        expect.objectContaining({ finalidade: "image_training", aceito: false }),
+      ]),
+    );
+    await page.reload();
+    await expect(page).toHaveURL("/paciente");
+    await expect(page.getByRole("heading", { name: "Pessoa Cadastro" })).toBeVisible();
+  });
 });
 
 test("cadastro com e-mail duplicado é rejeitado", async ({ page, browser }) => {
