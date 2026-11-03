@@ -60,7 +60,7 @@ URL e e-mails têm padrão para o seed local; troque com `SMOKE_API_URL` e `SMOK
 
 ### E2E com Playwright
 
-Requer Node da `.nvmrc`, Docker com Compose v2+ e portas 3000/8000 livres.
+Requer Node da `.nvmrc`, Docker com Compose v2+ e portas livres (3000/8000 por padrão).
 Usa Chromium headless, build de produção, API real e PostgreSQL 17 descartável.
 Google fica fora; emails usam o adapter `noop` (sem envio) e a IA usa a fixture determinística do back.
 
@@ -82,6 +82,20 @@ npm run test:e2e:report
 # Ao terminar (inclusive se o teste falhar):
 docker compose down --volumes --remove-orphans
 ```
+
+Para rodar ambientes em paralelo na mesma máquina, use um `COMPOSE_PROJECT_NAME`
+exclusivo e portas distintas em cada terminal, antes de subir o Compose e rodar os testes:
+
+```bash
+export E2E_FRONT_PORT=3100
+export E2E_API_PORT=8100
+```
+
+Essas variáveis configuram portas publicadas, URL da API no build, CORS, links de
+identidade e URLs usadas pelo Playwright. Mantenha-as no mesmo terminal durante
+build/testes/limpeza; ao trocar portas, refaça `docker compose up --build --wait`.
+As portas internas dos containers não mudam. Sem as variáveis, inclusive na CI,
+continuam 3000/8000.
 
 O seed destrutivo roda só no banco novo deste Compose. Para reiniciar do zero,
 remova os volumes com o último comando e suba novamente. Não execute o seed

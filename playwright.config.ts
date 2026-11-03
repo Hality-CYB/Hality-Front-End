@@ -15,7 +15,7 @@ export default defineConfig({
     ["junit", { outputFile: "test-results/junit.xml" }],
   ],
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: `http://localhost:${process.env.E2E_FRONT_PORT || "3000"}`,
     headless: true,
     locale: "pt-BR",
     timezoneId: "America/Sao_Paulo",

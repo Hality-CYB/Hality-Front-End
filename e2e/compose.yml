@@ -12,8 +12,8 @@ x-backend: &backend
     POSTGRES_DB: hality_e2e
     SECRET_KEY: hality-e2e-only-synthetic-data-not-for-production
     SEED_PASSWORD: HalityE2e123!
-    CORS_ORIGINS: '["http://localhost:3000"]'
-    IDENTITY_TOKEN_BASE_URL: http://localhost:3000
+    CORS_ORIGINS: '["http://localhost:${E2E_FRONT_PORT:-3000}"]'
+    IDENTITY_TOKEN_BASE_URL: http://localhost:${E2E_FRONT_PORT:-3000}
     EMAIL_PROVIDER: noop
     HALITY_AI_URL: ""
     GOOGLE_CLIENT_ID: ""
@@ -48,7 +48,7 @@ services:
       setup:
         condition: service_completed_successfully
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:${E2E_API_PORT:-8000}:8000"
     healthcheck:
       test:
         - CMD
@@ -71,13 +71,13 @@ services:
     build:
       context: ..
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:8000
+        NEXT_PUBLIC_API_URL: http://localhost:${E2E_API_PORT:-8000}
         # NEXT_PUBLIC_API_MOCKING=disabled já é fixado no build pelo Dockerfile.
     depends_on:
       api:
         condition: service_healthy
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:${E2E_FRONT_PORT:-3000}:3000"
     healthcheck:
       test:
         - CMD

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { TOKEN_STORAGE_KEY } from "../../src/lib/session";
 
-const API_URL = "http://localhost:8000/api/v1";
+const API_URL = `http://localhost:${process.env.E2E_API_PORT || "8000"}/api/v1`;
 const PASSWORD = "HalityE2e123!";
 const accounts = [
   {
