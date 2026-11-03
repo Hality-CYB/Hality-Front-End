@@ -151,7 +151,7 @@ npm run smoke
 
 > No VS Code, instale as extensões recomendadas em `.vscode/extensions.json` (Prettier + ESLint) — o `.vscode/settings.json` já está configurado para formatar automaticamente ao salvar.
 
-Todo Pull Request pra `develop`/`main` roda lint, testes e build automaticamente via GitHub Actions (`.github/workflows/ci-pipeline.yml`) — rode os mesmos comandos localmente antes de abrir o PR pra não ser pego de surpresa. Os testes incluem `src/rotas-legadas.test.ts`, que falha se alguma rota que não existe no back (`/api/v1/usuarios`, `/api/v1/dicas`, `vincular-profissional`, `/api/v1/profissionais`) voltar ao código.
+Todo Pull Request pra `develop`/`main` (e pra `chore/e2e-*`, na pilha de testes E2E) roda lint, testes, build e E2E automaticamente via GitHub Actions (`.github/workflows/ci-pipeline.yml`; E2E em [E2E com Playwright](#e2e-com-playwright)) — rode os mesmos comandos localmente antes de abrir o PR pra não ser pego de surpresa. Os testes incluem `src/rotas-legadas.test.ts`, que falha se alguma rota que não existe no back (`/api/v1/usuarios`, `/api/v1/dicas`, `vincular-profissional`, `/api/v1/profissionais`) voltar ao código.
 
 ## Arquitetura
 
@@ -236,7 +236,9 @@ vitest.setup.ts
 
 - **`.nvmrc`** — versão do Node.js usada no projeto, pra todo mundo (e o CI) rodar a mesma versão.
 
-- **`.github/workflows/ci-pipeline.yml`** — pipeline do GitHub Actions: lint + format check, testes e build, rodando em todo Pull Request pra `develop`/`main`.
+- **`.github/workflows/ci-pipeline.yml`** — pipeline do GitHub Actions: lint + format check, testes, build e E2E, rodando em todo Pull Request pra `develop`/`main` (e `chore/e2e-*`).
+
+- **`playwright.config.ts`** / **`e2e/`** — configuração e specs dos testes E2E com Playwright (ver [E2E com Playwright](#e2e-com-playwright)).
 
 ## Convenções
 
