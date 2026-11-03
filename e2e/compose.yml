@@ -59,13 +59,15 @@ services:
       timeout: 10s
       retries: 30
 
-  # Adapter nativo no-send: processa a outbox sem chamar provedores externos.
+  # Captura privada da outbox, sem chamadas a provedores externos.
   identity-worker:
     <<: *backend
     depends_on:
       api:
         condition: service_healthy
-    command: python -m scripts.identity_worker
+    volumes:
+      - ./capturar-emails.py:/app/capturar-emails.py:ro
+    command: python /app/capturar-emails.py
 
   front:
     build:

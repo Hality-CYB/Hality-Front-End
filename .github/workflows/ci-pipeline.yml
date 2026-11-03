@@ -114,7 +114,7 @@ jobs:
             echo "### E2E - revisões"
             echo "Front-end: $(git rev-parse HEAD)"
             echo "Back-end: $(git -C "$BACKEND_PATH" rev-parse HEAD)"
-            echo "Next production, MSW disabled, PostgreSQL 17, IA determinística, email noop."
+            echo "Next production, MSW disabled, PostgreSQL 17, IA determinística, e-mail capturado localmente."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/setup-node@v4

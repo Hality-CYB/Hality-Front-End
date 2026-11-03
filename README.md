@@ -62,7 +62,7 @@ URL e e-mails têm padrão para o seed local; troque com `SMOKE_API_URL` e `SMOK
 
 Requer Node da `.nvmrc`, Docker com Compose v2+ e portas livres (3000/8000 por padrão).
 Usa Chromium headless, build de produção, API real e PostgreSQL 17 descartável.
-Google fica fora; emails usam o adapter `noop` (sem envio) e a IA usa a fixture determinística do back.
+Google fica fora; emails são capturados localmente sem envio externo e a IA usa a fixture determinística do back.
 
 Depois de `npm ci`, mantenha um clone do back-end público na branch `develop`
 ao lado deste repositório (`../Hality-Back-End`). Caso esteja em outro local,
@@ -117,6 +117,11 @@ Logs ficam em `e2e-container-logs` nas falhas. Retenção: 7 dias.
 São apenas dados sintéticos, mas traces podem conter credenciais/tokens de teste:
 não use contas reais nem publique os artifacts fora da execução.
 Sem retry local; no máximo um na CI, com testes instáveis identificados no relatório.
+
+O worker captura e-mails sintéticos em arquivos privados no container. Testes podem
+usar `obterLinkEmail` de `e2e/emails.ts` para buscar links por destinatário e
+finalidade (`email_verification`, `invitation` ou `password_reset`). Os links são
+credenciais: não os registre nem os inclua em evidências publicadas.
 
 Referências: [Next + Playwright](https://nextjs.org/docs/app/guides/testing/playwright),
 [configuração](https://playwright.dev/docs/test-configuration) e
