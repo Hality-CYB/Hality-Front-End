@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { config } from "@/lib/config";
+import { getStoredToken } from "@/lib/session";
 import { server } from "@/services/mocks/server";
 import RegistroPage from "@/app/(auth)/registro/page";
 
@@ -117,5 +118,31 @@ describe("Cadastro com consentimentos (TASK-208)", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Informe a data de nascimento.");
     expect(enviado).not.toHaveBeenCalled();
+  });
+
+  it("cadastro criado mostra a instrução de confirmação, oferece reenvio e não inicia sessão", async () => {
+    server.use(
+      http.post(url("/api/v1/auth/register"), () =>
+        HttpResponse.json(
+          {
+            id: "f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
+            email: "nova@hality.com",
+            name: "Pessoa Nova",
+            phone: null,
+            role: "patient",
+            is_active: true,
+          },
+          { status: 201 },
+        ),
+      ),
+    );
+    await preencherConta();
+    await userEvent.click(caixaSaude());
+    await userEvent.click(screen.getByRole("button", { name: "Criar conta" }));
+
+    expect(await screen.findByText(/nova@hality.com/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reenviar e-mail de confirmação" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Criar conta" })).not.toBeInTheDocument();
+    expect(getStoredToken()).toBeNull();
   });
 });

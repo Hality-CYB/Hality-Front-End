@@ -11,6 +11,7 @@ import {
   CaixaTermosDeUso,
   useLeituraDeTermos,
 } from "@/components/caixas-de-termos";
+import { ConfirmacaoEmailPendente } from "@/components/confirmacao-email-pendente";
 import { RequisitosSenha } from "@/components/requisitos-senha";
 import { useRegistrar, useRedirectIfAuthenticated } from "@/hooks/use-auth";
 import { useTermosConsentimento } from "@/hooks/use-consentimentos";
@@ -113,6 +114,14 @@ export default function RegistroPage() {
           }
         },
       },
+    );
+  }
+
+  if (registrar.isSuccess) {
+    return (
+      <AuthCard>
+        <ConfirmacaoEmailPendente email={registrar.variables.email} />
+      </AuthCard>
     );
   }
 

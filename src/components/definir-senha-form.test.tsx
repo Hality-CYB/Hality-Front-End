@@ -6,7 +6,7 @@ import { http, HttpResponse } from "msw";
 import { EntradaPorLink } from "@/components/definir-senha-form";
 import { server } from "@/services/mocks/server";
 import { config } from "@/lib/config";
-import type { FinalidadeDoLink } from "@/types/auth";
+import type { FinalidadeDeSenha as FinalidadeDoLink } from "@/types/auth";
 import { clearStoredToken } from "@/lib/session";
 
 vi.mock("next/image", () => ({
