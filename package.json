@@ -14,7 +14,11 @@
     "test:coverage": "vitest run --coverage",
     "smoke": "vitest run --config vitest.smoke.config.mts",
     "test:e2e": "playwright test",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:report": "playwright show-report",
+    "e2e:up": "docker compose -f e2e/compose.yml up --build --wait --wait-timeout 180",
+    "e2e:down": "docker compose -f e2e/compose.yml down --volumes --remove-orphans"
   },
   "engines": {
     "node": ">=20"

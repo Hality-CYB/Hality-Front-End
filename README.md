@@ -72,15 +72,17 @@ git clone --branch develop https://github.com/Hality-CYB/Hality-Back-End.git /tm
 export BACKEND_PATH=/tmp/hality-e2e-backend
 # Nome exclusivo por execução: nunca use o projeto/volume de homologação.
 export COMPOSE_PROJECT_NAME="hality-e2e-$(date +%s)"
-export COMPOSE_FILE=e2e/compose.yml
 
 npx playwright install --with-deps chromium
-docker compose up --build --wait --wait-timeout 180
-npm run test:e2e
-npm run test:e2e:report
+npm run e2e:up
+npm run test:e2e:ui
 # Ao terminar (inclusive se o teste falhar):
-docker compose down --volumes --remove-orphans
+npm run e2e:down
 ```
+
+A interface do Playwright permite selecionar e acompanhar os testes. Para rodar
+no navegador visível sem a interface, use `npm run test:e2e:headed`. Para rodar
+headless, use `npm run test:e2e`; abra o relatório com `npm run test:e2e:report`.
 
 Para rodar ambientes em paralelo na mesma máquina, use um `COMPOSE_PROJECT_NAME`
 exclusivo e portas distintas em cada terminal, antes de subir o Compose e rodar os testes:
@@ -92,7 +94,7 @@ export E2E_API_PORT=8100
 
 Essas variáveis configuram portas publicadas, URL da API no build, CORS, links de
 identidade e URLs usadas pelo Playwright. Mantenha-as no mesmo terminal durante
-build/testes/limpeza; ao trocar portas, refaça `docker compose up --build --wait`.
+build/testes/limpeza; ao trocar portas, refaça `npm run e2e:up`.
 As portas internas dos containers não mudam. Sem as variáveis, inclusive na CI,
 continuam 3000/8000.
 
