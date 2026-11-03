@@ -58,6 +58,66 @@ SMOKE_SENHA=<SEED_PASSWORD do back> npm run smoke
 
 URL e e-mails têm padrão para o seed local; troque com `SMOKE_API_URL` e `SMOKE_EMAIL_ADMIN`/`_PROFISSIONAL`/`_PACIENTE` para rodar em homologação.
 
+### E2E com Playwright
+
+Requer Node da `.nvmrc`, Docker com Compose v2+ e portas livres (3000/8000 por padrão).
+Usa Chromium headless, build de produção, API real e PostgreSQL 17 descartável.
+Google fica fora; emails usam o adapter `noop` (sem envio) e a IA usa a fixture determinística do back.
+
+Depois de `npm ci`, prepare um clone separado do back-end público na branch
+`develop` e mantenha estas variáveis no mesmo terminal:
+
+```bash
+git clone --branch develop https://github.com/Hality-CYB/Hality-Back-End.git /tmp/hality-e2e-backend
+export BACKEND_PATH=/tmp/hality-e2e-backend
+# Nome exclusivo por execução: nunca use o projeto/volume de homologação.
+export COMPOSE_PROJECT_NAME="hality-e2e-$(date +%s)"
+export COMPOSE_FILE=e2e/compose.yml
+
+npx playwright install --with-deps chromium
+docker compose up --build --wait --wait-timeout 180
+npm run test:e2e
+npm run test:e2e:report
+# Ao terminar (inclusive se o teste falhar):
+docker compose down --volumes --remove-orphans
+```
+
+Para rodar ambientes em paralelo na mesma máquina, use um `COMPOSE_PROJECT_NAME`
+exclusivo e portas distintas em cada terminal, antes de subir o Compose e rodar os testes:
+
+```bash
+export E2E_FRONT_PORT=3100
+export E2E_API_PORT=8100
+```
+
+Essas variáveis configuram portas publicadas, URL da API no build, CORS, links de
+identidade e URLs usadas pelo Playwright. Mantenha-as no mesmo terminal durante
+build/testes/limpeza; ao trocar portas, refaça `docker compose up --build --wait`.
+As portas internas dos containers não mudam. Sem as variáveis, inclusive na CI,
+continuam 3000/8000.
+
+O seed destrutivo roda só no banco novo deste Compose. Para reiniciar do zero,
+remova os volumes com o último comando e suba novamente. Não execute o seed
+contra bancos compartilhados. Usuários: `carla.mendes@example.com` (paciente),
+`ana.souza@hality.com` (profissional), `admin@hality.com`; senha sintética
+`HalityE2e123!`. Uma execução usa um worker e contextos isolados por teste.
+
+PRs para develop/main e branches `test/e2e-*` executam E2E após testes e build contra a `develop` atual
+do back-end. O resumo do job **E2E Chromium** registra as revisões testadas,
+contagens de aprovados/falhas/instáveis/ignorados e um link direto para baixar
+o artifact `playwright-report`. Extraia o download e abra com
+`npx playwright show-report <pasta>/playwright-report`.
+Cada teste, inclusive quando passa, inclui screenshot final e trace passo a passo
+no HTML; vídeo fica desligado. O artifact também inclui JUnit e JSON.
+Logs ficam em `e2e-container-logs` nas falhas. Retenção: 7 dias.
+São apenas dados sintéticos, mas traces podem conter credenciais/tokens de teste:
+não use contas reais nem publique os artifacts fora da execução.
+Sem retry local; no máximo um na CI, com testes instáveis identificados no relatório.
+
+Referências: [Next + Playwright](https://nextjs.org/docs/app/guides/testing/playwright),
+[configuração](https://playwright.dev/docs/test-configuration) e
+[artifacts na CI](https://playwright.dev/docs/ci-intro).
+
 ### Outros comandos úteis
 
 ```bash
