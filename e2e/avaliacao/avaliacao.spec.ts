@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { z } from "zod";
 import { TOKEN_STORAGE_KEY } from "../../src/lib/session";
+import { obterLinkEmail } from "../emails";
 
 const api = `http://localhost:${process.env.E2E_API_PORT || "8000"}/api/v1`;
 const senha = "HalityE2e123!";
@@ -86,7 +87,9 @@ test("paciente responde, edita e envia avaliação com foto e consulta o histór
     },
   });
   expect(registro.status()).toBe(201);
-  await page.goto("/login");
+  const link = await obterLinkEmail({ destinatario: email, finalidade: "email_verification" });
+  await page.goto(link);
+  await expect(page).toHaveURL("/login");
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Senha", { exact: true }).fill(senha);
   await page.getByRole("button", { name: "Login", exact: true }).click();
