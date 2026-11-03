@@ -62,7 +62,10 @@ async function criarDiagnostico(request: APIRequestContext) {
       { timeout: 15_000 },
     )
     .toBe("aguardando_revisao");
-  return criado.id;
+  const pronto = await request.get(`${api}/diagnosticos/${criado.id}`, { headers });
+  expect(pronto.ok()).toBeTruthy();
+  const ordemIA: number = (await pronto.json()).classificacao.ordem;
+  return { id: criado.id, ordemIA };
 }
 
 test("revisão profissional corrigida chega ao paciente sem perder o resultado da IA", async ({
@@ -70,7 +73,7 @@ test("revisão profissional corrigida chega ao paciente sem perder o resultado d
   browser,
   request,
 }) => {
-  const id = await criarDiagnostico(request);
+  const { id, ordemIA } = await criarDiagnostico(request);
   await entrar(page, "ana.souza@hality.com");
   await expect(page).toHaveURL("/profissional");
   await page.goto(`/profissional/diagnosticos/${id}`);
@@ -78,14 +81,9 @@ test("revisão profissional corrigida chega ao paciente sem perder o resultado d
   const leituraIA = page.getByText("Resultado da IA", { exact: true });
   await expect(leituraIA).toBeVisible();
   const botoes = page.getByRole("button", { name: /^[123] — / });
-  const original = await leituraIA
-    .locator("../../..")
-    .locator("span.rounded-4xl")
-    .first()
-    .textContent();
   const nomes = ["Hálito Normal", "Halitose Íntima", "Mau Hálito Social"];
-  const indice = nomes.findIndex((nome) => original?.includes(nome));
-  expect(indice).toBeGreaterThanOrEqual(0);
+  const indice = ordemIA - 1;
+  expect(nomes[indice]).toBeDefined();
   const corrigido = (indice + 1) % nomes.length;
   const nomeCorrigido = nomes[corrigido];
   if (!nomeCorrigido) throw new Error("Classificação corrigida inválida");
