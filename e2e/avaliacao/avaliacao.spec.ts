@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { z } from "zod";
 import { TOKEN_STORAGE_KEY } from "../../src/lib/session";
@@ -111,7 +110,14 @@ test("paciente responde, edita e envia avaliação com foto e consulta o histór
   await expect(page.getByRole("heading", { name: "Confirme suas respostas" })).toBeVisible();
   await page.getByRole("button", { name: "Confirmar e continuar" }).click();
   await page.getByRole("button", { name: "Preparar câmera" }).click();
-  await page.getByTestId("input-galeria").setInputFiles(join(__dirname, "foto.png"));
+  await page.getByTestId("input-galeria").setInputFiles({
+    name: "lingua.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAKklEQVR4nGO4U9FEU8QwasGoBaMWjFowasGoBaMWjFowasGoBaMWDBULAJAnWGowDaLoAAAAAElFTkSuQmCC",
+      "base64",
+    ),
+  });
   await expect(page.getByText("Confira a foto", { exact: true })).toBeVisible();
   const posts: string[] = [];
   page.on("request", (req) => {
