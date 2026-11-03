@@ -58,6 +58,50 @@ SMOKE_SENHA=<SEED_PASSWORD do back> npm run smoke
 
 URL e e-mails têm padrão para o seed local; troque com `SMOKE_API_URL` e `SMOKE_EMAIL_ADMIN`/`_PROFISSIONAL`/`_PACIENTE` para rodar em homologação.
 
+### E2E com Playwright
+
+Requer Node da `.nvmrc`, Docker com Compose v2+ e portas 3000/8000 livres.
+Usa Chromium headless, build de produção, API real e PostgreSQL 17 descartável.
+Google fica fora; emails usam o adapter `noop` (sem envio) e a IA usa a fixture determinística do back.
+
+Depois de `npm ci`, prepare um clone separado do back-end público na revisão de
+`e2e/backend-ref` e mantenha estas variáveis no mesmo terminal:
+
+```bash
+git clone https://github.com/Hality-CYB/Hality-Back-End.git /tmp/hality-e2e-backend
+export BACKEND_PATH=/tmp/hality-e2e-backend
+git -C "$BACKEND_PATH" checkout --detach "$(tr -d '\n' < e2e/backend-ref)"
+# Nome exclusivo por execução: nunca use o projeto/volume de homologação.
+export COMPOSE_PROJECT_NAME="hality-e2e-$(date +%s)"
+export COMPOSE_FILE=e2e/compose.yml
+
+npx playwright install --with-deps chromium
+docker compose up --build --wait --wait-timeout 180
+npm run test:e2e
+npm run test:e2e:report
+# Ao terminar (inclusive se o teste falhar):
+docker compose down --volumes --remove-orphans
+```
+
+O seed destrutivo roda só no banco novo deste Compose. Para reiniciar do zero,
+remova os volumes com o último comando e suba novamente. Não execute o seed
+contra bancos compartilhados. Usuários: `carla.mendes@example.com` (paciente),
+`ana.souza@hality.com` (profissional), `admin@hality.com`; senha sintética
+`HalityE2e123!`. Uma execução usa um worker e contextos isolados por teste.
+
+PRs para develop/main executam E2E após testes e build. Nos artifacts do job
+**E2E Chromium**, `playwright-report` contém HTML, JUnit e, nas falhas, trace e
+screenshot com o passo que quebrou. Baixe o artifact e abra com
+`npx playwright show-report <pasta>/playwright-report`.
+Logs ficam em `e2e-container-logs` nas falhas. Retenção: 7 dias.
+São apenas dados sintéticos, mas traces podem conter credenciais/tokens de teste:
+não use contas reais nem publique os artifacts fora da execução.
+Sem retry local; no máximo um na CI, com testes instáveis identificados no relatório.
+
+Referências: [Next + Playwright](https://nextjs.org/docs/app/guides/testing/playwright),
+[configuração](https://playwright.dev/docs/test-configuration) e
+[artifacts na CI](https://playwright.dev/docs/ci-intro).
+
 ### Outros comandos úteis
 
 ```bash
