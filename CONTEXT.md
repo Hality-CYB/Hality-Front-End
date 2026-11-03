@@ -35,6 +35,8 @@ Check Your Breath (CYB) é o app da Hality Diagnóstico do Hálito: usa IA para 
 
 ## Últimas atualizações
 
+- **2026-11-03** - Base dos testes E2E com Playwright (`e2e/`, fora do Vitest): Chromium headless contra build de produção do front, back FastAPI real e PostgreSQL 17 descartável, subidos por `e2e/compose.yml` com migrations e seed sintético (sem Google, e-mail real nem modelo de IA real). Primeiro cenário cobre login, sessão, permissões por perfil e logout dos três papéis. Job de E2E no CI roda nos PRs com 1 retry (testes instáveis aparecem no relatório), 1 worker e artefatos (relatório HTML, JUnit, traces, logs) por 7 dias.
+
 - **2026-10-22** - O número que vem em `confianca_ia` não é confiança: é a escala de halitose do modelo (0 sem halitose, 1 halitose social). As telas passam a mostrar "Escala de halitose: X%" no lugar de "Confiança" (resultado da avaliação, detalhe do diagnóstico e detalhe do admin). O nome do campo no contrato da API continua o mesmo.
 
 <!-- Adicionar uma entrada nova no topo antes de cada push relevante. Formato: data — resumo. -->
