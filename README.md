@@ -103,10 +103,15 @@ contra bancos compartilhados. Usuários: `carla.mendes@example.com` (paciente),
 `HalityE2e123!`. Uma execução usa um worker e contextos isolados por teste.
 
 PRs para develop/main executam E2E após testes e build contra a `develop` atual
-do back-end. O resumo do job registra as revisões efetivamente testadas. Nos artifacts do job
-**E2E Chromium**, `playwright-report` contém HTML, JUnit e, nas falhas, trace e
-screenshot com o passo que quebrou. Baixe o artifact e abra com
+do back-end. O resumo do job **E2E Chromium** registra as revisões testadas,
+contagens de aprovados/falhas/instáveis/ignorados e um link direto para baixar
+o artifact `playwright-report`. Extraia o download e abra com
 `npx playwright show-report <pasta>/playwright-report`.
+Cada teste, inclusive quando passa, inclui screenshot final e trace passo a passo
+no HTML; vídeo fica desligado. O artifact também inclui JUnit e JSON.
+Quando o job falha, um único comentário no PR é criado/atualizado em português
+com o link e os nomes dos testes que falharam. PRs de forks ou tokens sem escrita
+pulam o comentário, mas mantêm o resumo do job.
 Logs ficam em `e2e-container-logs` nas falhas. Retenção: 7 dias.
 São apenas dados sintéticos, mas traces podem conter credenciais/tokens de teste:
 não use contas reais nem publique os artifacts fora da execução.

@@ -83,6 +83,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+      pull-requests: write
     defaults:
       run:
         working-directory: frontend
@@ -122,6 +123,9 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
+      - name: Testar publicação do resumo E2E
+        run: node --test e2e/ci/report.test.mjs
+
       - name: Instalar Chromium e dependências do sistema
         run: npx playwright install --with-deps chromium
 
@@ -131,19 +135,39 @@ jobs:
       - name: Executar fluxos no Chromium headless
         run: npx playwright test
 
-      - name: Coletar logs dos containers em caso de falha
-        if: failure()
-        run: docker compose logs --no-color > container-logs.txt 2>&1
-
       - name: Publicar relatório e evidências Playwright
+        id: playwright-report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
           path: |
             frontend/playwright-report/
-            frontend/test-results/
+            frontend/test-results/junit.xml
+            frontend/test-results/results.json
           retention-days: 7
+
+      - name: Resumir resultados e comentar falhas no PR
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          E2E_ARTIFACT_URL: ${{ steps.playwright-report.outputs.artifact-url }}
+          E2E_JOB_FAILED: ${{ failure() }}
+        with:
+          script: |
+            const { publishReport } = await import(
+              `${process.env.GITHUB_WORKSPACE}/frontend/e2e/ci/report.mjs`
+            );
+            await publishReport({
+              github, context, core,
+              artifactUrl: process.env.E2E_ARTIFACT_URL,
+              reportFile: `${process.env.GITHUB_WORKSPACE}/frontend/test-results/results.json`,
+              jobFailed: process.env.E2E_JOB_FAILED === "true",
+            });
+
+      - name: Coletar logs dos containers em caso de falha
+        if: failure()
+        run: docker compose logs --no-color > container-logs.txt 2>&1
 
       - name: Publicar logs dos containers
         if: failure()
