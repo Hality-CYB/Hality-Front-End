@@ -97,14 +97,10 @@ jobs:
           path: frontend
           persist-credentials: false
 
-      - name: Ler revisão fixada do back-end
-        id: backend
-        run: echo "ref=$(tr -d '\n' < e2e/backend-ref)" >> "$GITHUB_OUTPUT"
-
       - uses: actions/checkout@v4
         with:
           repository: Hality-CYB/Hality-Back-End
-          ref: ${{ steps.backend.outputs.ref }}
+          ref: develop
           path: backend
           persist-credentials: false
 

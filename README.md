@@ -64,13 +64,12 @@ Requer Node da `.nvmrc`, Docker com Compose v2+ e portas livres (3000/8000 por p
 Usa Chromium headless, build de produção, API real e PostgreSQL 17 descartável.
 Google fica fora; emails usam o adapter `noop` (sem envio) e a IA usa a fixture determinística do back.
 
-Depois de `npm ci`, prepare um clone separado do back-end público na revisão de
-`e2e/backend-ref` e mantenha estas variáveis no mesmo terminal:
+Depois de `npm ci`, prepare um clone separado do back-end público na branch
+`develop` e mantenha estas variáveis no mesmo terminal:
 
 ```bash
-git clone https://github.com/Hality-CYB/Hality-Back-End.git /tmp/hality-e2e-backend
+git clone --branch develop https://github.com/Hality-CYB/Hality-Back-End.git /tmp/hality-e2e-backend
 export BACKEND_PATH=/tmp/hality-e2e-backend
-git -C "$BACKEND_PATH" checkout --detach "$(tr -d '\n' < e2e/backend-ref)"
 # Nome exclusivo por execução: nunca use o projeto/volume de homologação.
 export COMPOSE_PROJECT_NAME="hality-e2e-$(date +%s)"
 export COMPOSE_FILE=e2e/compose.yml
@@ -103,7 +102,8 @@ contra bancos compartilhados. Usuários: `carla.mendes@example.com` (paciente),
 `ana.souza@hality.com` (profissional), `admin@hality.com`; senha sintética
 `HalityE2e123!`. Uma execução usa um worker e contextos isolados por teste.
 
-PRs para develop/main executam E2E após testes e build. Nos artifacts do job
+PRs para develop/main executam E2E após testes e build contra a `develop` atual
+do back-end. O resumo do job registra as revisões efetivamente testadas. Nos artifacts do job
 **E2E Chromium**, `playwright-report` contém HTML, JUnit e, nas falhas, trace e
 screenshot com o passo que quebrou. Baixe o artifact e abra com
 `npx playwright show-report <pasta>/playwright-report`.
