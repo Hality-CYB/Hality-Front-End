@@ -1,7 +1,7 @@
 # Somente dados sintéticos. Nunca conecte este ambiente a um banco compartilhado.
 x-backend: &backend
   build:
-    context: ${BACKEND_PATH:?Defina BACKEND_PATH com o checkout da branch develop do back-end}
+    context: ${BACKEND_PATH:-../../Hality-Back-End}
   environment:
     ENVIRONMENT: development
     DEBUG: "false"

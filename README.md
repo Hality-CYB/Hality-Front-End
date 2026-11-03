@@ -64,12 +64,14 @@ Requer Node da `.nvmrc`, Docker com Compose v2+ e portas livres (3000/8000 por p
 Usa Chromium headless, build de produção, API real e PostgreSQL 17 descartável.
 Google fica fora; emails usam o adapter `noop` (sem envio) e a IA usa a fixture determinística do back.
 
-Depois de `npm ci`, prepare um clone separado do back-end público na branch
-`develop` e mantenha estas variáveis no mesmo terminal:
+Depois de `npm ci`, mantenha um clone do back-end público na branch `develop`
+ao lado deste repositório (`../Hality-Back-End`). Caso esteja em outro local,
+defina `BACKEND_PATH` com o caminho absoluto do clone. Mantenha as variáveis no
+mesmo terminal durante toda a execução:
 
 ```bash
-git clone --branch develop https://github.com/Hality-CYB/Hality-Back-End.git /tmp/hality-e2e-backend
-export BACKEND_PATH=/tmp/hality-e2e-backend
+# Opcional, quando o back-end não está em ../Hality-Back-End:
+# export BACKEND_PATH=/caminho/para/Hality-Back-End
 # Nome exclusivo por execução: nunca use o projeto/volume de homologação.
 export COMPOSE_PROJECT_NAME="hality-e2e-$(date +%s)"
 
