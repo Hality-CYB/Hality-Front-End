@@ -102,8 +102,8 @@ contra bancos compartilhados. Usuários: `carla.mendes@example.com` (paciente),
 `ana.souza@hality.com` (profissional), `admin@hality.com`; senha sintética
 `HalityE2e123!`. Uma execução usa um worker e contextos isolados por teste.
 
-PRs para develop/main e branches `test/e2e-*` executam E2E após testes e build contra a `develop` atual
-do back-end. O resumo do job **E2E Chromium** registra as revisões testadas,
+PRs com base em `develop`, `main` ou `test/e2e-*` (PRs empilhados) executam E2E após testes e build
+contra a `develop` atual do back-end. O resumo do job **E2E Chromium** registra as revisões testadas,
 contagens de aprovados/falhas/instáveis/ignorados e um link direto para baixar
 o artifact `playwright-report`. Extraia o download e abra com
 `npx playwright show-report <pasta>/playwright-report`.
