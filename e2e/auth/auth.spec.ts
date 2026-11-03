@@ -38,7 +38,8 @@ async function login(page: Page, email: string) {
 
 for (const account of accounts) {
   test.describe(account.role, () => {
-    test("login real, sessão persistente, RBAC e logout", async ({ page, context }) => {
+    test("login real, sessão persistente, RBAC e logout", async ({ page, context, request }) => {
+      let refreshToken = "";
       await test.step("Login abre a home e carrega dados da API real", async () => {
         await page.goto("/login");
         const homeResponse = page.waitForResponse(
@@ -55,6 +56,7 @@ for (const account of accounts) {
           (cookie) => cookie.name === "refresh_token",
         );
         expect(refreshCookie).toMatchObject({ httpOnly: true });
+        refreshToken = refreshCookie!.value;
       });
 
       await test.step("Reload mantém a sessão", async () => {
@@ -101,6 +103,10 @@ for (const account of accounts) {
         );
         await expect(page.getByRole("button", { name: "Login", exact: true })).toBeVisible();
         expect((await page.request.get(API_URL + "/users/me")).status()).toBe(401);
+        const replay = await request.post(API_URL + "/auth/refresh", {
+          headers: { Cookie: `refresh_token=${refreshToken}` },
+        });
+        expect(replay.status()).toBe(401);
       });
     });
 
