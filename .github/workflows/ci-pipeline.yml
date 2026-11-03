@@ -152,7 +152,7 @@ jobs:
         uses: actions/github-script@v7
         env:
           E2E_ARTIFACT_URL: ${{ steps.playwright-report.outputs.artifact-url }}
-          E2E_JOB_FAILED: ${{ failure() }}
+          E2E_JOB_STATUS: ${{ job.status }}
         with:
           script: |
             const { publishReport } = await import(
@@ -162,7 +162,7 @@ jobs:
               github, context, core,
               artifactUrl: process.env.E2E_ARTIFACT_URL,
               reportFile: `${process.env.GITHUB_WORKSPACE}/frontend/test-results/results.json`,
-              jobFailed: process.env.E2E_JOB_FAILED === "true",
+              jobFailed: process.env.E2E_JOB_STATUS === "failure",
             });
 
       - name: Coletar logs dos containers em caso de falha
