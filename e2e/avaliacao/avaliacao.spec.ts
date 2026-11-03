@@ -158,7 +158,12 @@ test("paciente responde, edita e envia avaliação com foto e consulta o histór
       z.object({
         id: z.number(),
         versao_questionario: z.string(),
-        respostas: z.array(z.object({ pergunta_id: z.string(), resposta: z.string() })),
+        respostas: z.array(
+          z.object({
+            pergunta_id: z.string(),
+            valor: z.union([z.boolean(), z.string(), z.number()]),
+          }),
+        ),
       }),
     )
     .parse(await anamnesesResponse.json());
@@ -168,13 +173,13 @@ test("paciente responde, edita e envia avaliação com foto e consulta o histór
   expect(salva).toMatchObject({ id: anamnese.id, versao_questionario: questionario.versao });
   const respostaEditada =
     ultima.tipo === "boolean"
-      ? "Não"
+      ? false
       : ultima.tipo === "single_choice"
         ? ultima.opcoes?.[1]
         : ultima.tipo === "text"
           ? "Resposta editada"
-          : String((ultima.escala_min ?? 1) + 1);
-  expect(salva.respostas.find((r) => r.pergunta_id === ultima.id)?.resposta).toBe(respostaEditada);
+          : (ultima.escala_min ?? 1) + 1;
+  expect(salva.respostas.find((r) => r.pergunta_id === ultima.id)?.valor).toBe(respostaEditada);
   const diagnosticosResponse = await request.get(`${api}/diagnosticos`, { headers });
   expect(diagnosticosResponse.status()).toBe(200);
   const diagnosticos = z
