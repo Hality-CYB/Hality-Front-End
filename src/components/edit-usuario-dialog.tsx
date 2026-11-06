@@ -32,18 +32,19 @@ export function EditUsuarioDialog({
   const [nome, setNome] = useState(usuario.nome);
   const [telefone, setTelefone] = useState(usuario.telefone ?? "");
 
-  function handleOpenChange(next: boolean) {
-    if (next) {
+  const [abertoAntes, setAbertoAntes] = useState(open);
+  if (open !== abertoAntes) {
+    setAbertoAntes(open);
+    if (open) {
       setNome(usuario.nome);
       setTelefone(usuario.telefone ?? "");
     }
-    onOpenChange(next);
   }
 
   const podeSalvar = nome.trim().length >= 2 && !salvando;
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{titulo}</DialogTitle>
