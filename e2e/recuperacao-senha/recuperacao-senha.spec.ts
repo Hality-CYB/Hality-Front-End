@@ -9,7 +9,8 @@ import { criarPacienteConfirmado } from "../helpers/pacientes";
 
 const mensagemRecuperacao =
   "Se o e-mail estiver cadastrado, você vai receber um link para criar uma nova senha. Confira também a caixa de spam.";
-const respostaRecuperacaoSchema = z.object({ message: z.string() });
+// Campos extras também podem revelar se uma conta existe; não os descarte na comparação.
+const respostaRecuperacaoSchema = z.strictObject({ message: z.string() });
 const senhaNova = "NovaSenha123!";
 const senhaAlternativa = "OutraSenha456!";
 
