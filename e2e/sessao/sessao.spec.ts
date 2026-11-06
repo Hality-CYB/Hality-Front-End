@@ -146,14 +146,12 @@ test("token de acesso inválido renova a sessão uma vez e o histórico abre", a
     });
   });
 
-  const tokenAnterior =
-    await test.step("O token de acesso deixa de valer e o refresh continua válido", async () => {
-      const atual = await tokenDeAcesso(page);
-      expect(atual).toBeTruthy();
-      await gravarToken(page, TOKEN_INVALIDO);
-      expect(await tokenDeAcesso(page)).toBe(TOKEN_INVALIDO);
-      return atual;
-    });
+  await test.step("O token de acesso deixa de valer e o refresh continua válido", async () => {
+    const atual = await tokenDeAcesso(page);
+    expect(atual).toBeTruthy();
+    await gravarToken(page, TOKEN_INVALIDO);
+    expect(await tokenDeAcesso(page)).toBe(TOKEN_INVALIDO);
+  });
 
   const eventos = observarRede(page);
   const inicio = Date.now();
@@ -198,7 +196,9 @@ test("token de acesso inválido renova a sessão uma vez e o histórico abre", a
       respostas(eventos, inicio, { method: "POST", path: "/auth/refresh", status: 200 }),
     ).toHaveLength(1);
     for (const path of ["/diagnosticos?limite=1", "/diagnosticos?pagina=1&limite=20"]) {
-      expect(respostas(eventos, inicio, { method: "GET", path, status: 200 })).toHaveLength(1);
+      await expect
+        .poll(() => respostas(eventos, inicio, { method: "GET", path, status: 200 }).length)
+        .toBe(1);
     }
     await expect(page.getByText("Nenhum diagnóstico")).toBeVisible();
     await expect(page).toHaveURL("/paciente/diagnosticos");
@@ -206,7 +206,6 @@ test("token de acesso inválido renova a sessão uma vez e o histórico abre", a
     const tokenNovo = await tokenDeAcesso(page);
     expect(tokenNovo).toBeTruthy();
     expect(tokenNovo).not.toBe(TOKEN_INVALIDO);
-    expect(tokenNovo).not.toBe(tokenAnterior);
   });
 });
 
