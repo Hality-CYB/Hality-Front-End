@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import { ScrollInfinito } from "@/components/scroll-infinito";
 import { EmptyState } from "@/components/empty-state";
+import { ErroPagina } from "@/components/estado-pagina";
 import { LevelChip } from "@/components/level-chip";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { usePacientesPaginados } from "@/hooks/use-pacientes";
@@ -18,6 +19,16 @@ export default function PacientesPage() {
   const buscaAdiada = useDeferredValue(busca);
   const lista = usePacientesPaginados({ busca: buscaAdiada, limite: 20 });
   const pacientes = lista.data?.pages.flatMap((p) => p.itens) ?? [];
+
+  if (lista.isError && !lista.data) {
+    return (
+      <ErroPagina
+        titulo="Não foi possível carregar os pacientes"
+        descricao="Confira sua conexão e tente de novo."
+        onTentarDeNovo={() => lista.refetch()}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col">
