@@ -167,6 +167,8 @@ export function AvaliacaoWizard({
   const [foto, setFoto] = useState<FotoCapturada | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [tipoErro, setTipoErro] = useState<TipoErro>("rede");
+  // a IA falhou ou não classificou: só nesse caso a tela leva de volta às orientações
+  const [falhaAnalise, setFalhaAnalise] = useState(false);
   // O que já foi criado no back: uma nova tentativa continua daqui em vez de duplicar.
   const [anamneseId, setAnamneseId] = useState<string | null>(null);
   const [diagnosticoId, setDiagnosticoId] = useState<string | null>(null);
@@ -267,6 +269,12 @@ export function AvaliacaoWizard({
     setStep(4);
   }
 
+  // volta pras orientações pra tirar outra foto, as respostas da anamnese continuam guardadas
+  function verOrientacoes() {
+    tirarNovamente();
+    setStep(3);
+  }
+
   async function confirmarAnamneseECaptura() {
     if (!foto) return;
     setErro(null);
@@ -313,7 +321,9 @@ export function AvaliacaoWizard({
       }
       const diagnostico = await diagnosticoService.aguardarResultado(idDiagnostico);
       if (diagnostico.status === "falha" || diagnostico.nivel === null) {
-        throw new FalhaNaAnalise("Não foi possível analisar a imagem. Tente enviar outra foto.");
+        throw new FalhaNaAnalise(
+          "Tivemos um problema ao analisar a imagem. Veja as orientações de captura e tente de novo.",
+        );
       }
       setResultado({
         id: diagnostico.id,
@@ -327,6 +337,7 @@ export function AvaliacaoWizard({
     } catch (e) {
       const tipo = tipoDoErro(e);
       setTipoErro(tipo);
+      setFalhaAnalise(e instanceof FalhaNaAnalise);
       setErro(
         tipo !== "consentimento"
           ? mensagemDeErro(e)
@@ -702,11 +713,16 @@ export function AvaliacaoWizard({
         {/* 6 — Processando */}
         {step === 6 && !resultado && erro && (
           <div className="shell:mx-auto shell:w-full shell:max-w-135 flex flex-col gap-4 pt-5">
-            <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-start gap-2.5 rounded-2xl border px-4 py-3">
+            <div
+              role="alert"
+              className="border-destructive/30 bg-destructive/10 text-destructive flex items-start gap-2.5 rounded-2xl border px-4 py-3"
+            >
               <TriangleAlert className="h-4.5 w-4.5 shrink-0" />
               <div>
                 <div className="font-heading mb-0.5 text-[13px] font-bold">
-                  Não foi possível concluir a análise
+                  {falhaAnalise
+                    ? "Não conseguimos analisar a imagem"
+                    : "Não foi possível concluir a análise"}
                 </div>
                 <p className="text-xs leading-relaxed">{erro}</p>
               </div>
@@ -722,7 +738,13 @@ export function AvaliacaoWizard({
                 Ir para Privacidade
               </Button>
             )}
-            {tipoErro !== "consentimento" && (
+            {falhaAnalise && (
+              // o texto é longo, então pode quebrar linha no celular
+              <Button size="lg" className="whitespace-normal" onClick={verOrientacoes}>
+                <Camera className="h-4 w-4" /> Ver orientações e tirar outra foto
+              </Button>
+            )}
+            {tipoErro !== "consentimento" && !falhaAnalise && (
               <Button
                 size={tipoErro === "foto" ? "lg" : "default"}
                 variant={tipoErro === "foto" ? "default" : "secondary"}
