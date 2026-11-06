@@ -66,11 +66,12 @@ async function encerrarVinculosDoPaciente(request: APIRequestContext, id: string
 }
 
 function pedidoClinico(url: string) {
+  const { pathname, searchParams } = new URL(url);
   return (
-    url.includes("/api/v1/anamneses") ||
-    url.includes("/api/v1/diagnosticos") ||
-    url.includes("/imagens/") ||
-    url.includes("assinatura=")
+    /\/anamneses(?:\/|$)/.test(pathname) ||
+    /\/api\/v1\/(?:profissional\/)?diagnosticos(?:\/|$)/.test(pathname) ||
+    /\/imagens(?:\/|$)/.test(pathname) ||
+    searchParams.has("assinatura")
   );
 }
 
