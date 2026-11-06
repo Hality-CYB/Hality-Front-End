@@ -128,6 +128,7 @@ for (const viewport of viewports) {
         request,
       }) => {
         test.setTimeout(60_000);
+        await page.clock.install();
         const email = await test.step("chega à captura com a câmera ao vivo", async () => {
           const emailDoPaciente = await chegarNaCaptura({ page, request });
           await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
@@ -146,6 +147,8 @@ for (const viewport of viewports) {
         const envios = contarEnvios(page);
 
         await test.step("conta 3, 2, 1 com galeria e voltar bloqueados", async () => {
+          // Pausa só após a câmera ficar pronta, sem disputar cada segundo com a CI.
+          await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
           await page.getByRole("button", { name: "Capturar foto" }).click();
           const contagem = page.getByTestId("contagem-captura");
           await expect(contagem).toHaveText("3");
@@ -154,8 +157,11 @@ for (const viewport of viewports) {
             page.getByRole("button", { name: viewport.rotuloGaleria, exact: true }),
           ).toBeDisabled();
           await expect(page.getByRole("button", { name: "Voltar" })).toBeDisabled();
+          await page.clock.runFor(1000);
           await expect(contagem).toHaveText("2");
+          await page.clock.runFor(1000);
           await expect(contagem).toHaveText("1");
+          await page.clock.resume();
         });
 
         await test.step("mostra a prévia da foto capturada", async () => {

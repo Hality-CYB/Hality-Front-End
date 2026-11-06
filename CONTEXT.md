@@ -35,6 +35,8 @@ Check Your Breath (CYB) é o app da Hality Diagnóstico do Hálito: usa IA para 
 
 ## Últimas atualizações
 
+- **2026-11-06** - Revisão do E2E de câmera: relógio controlado durante a contagem 3, 2, 1, evitando falhas por lentidão da CI entre as asserções; tempo normal retomado antes da captura.
+
 - **2026-11-06** - Revisão do E2E de vínculo e privacidade: a verificação de requisições clínicas também cobre o diagnóstico do profissional e identifica rotas e assinaturas pela URL estruturada, sem bloquear o endpoint administrativo de metadados.
 
 - **2026-11-06** - Revisão do E2E de conteúdo: a aba de orientações aguarda um card ou a mensagem de lista vazia antes de verificar ausências, incluindo respostas sem conteúdo.
