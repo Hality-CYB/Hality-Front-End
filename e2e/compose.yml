@@ -40,8 +40,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    # O back pode ter mais de uma cabeça de migração em develop.
-    command: sh -c "alembic upgrade heads && python -m scripts.seed"
+    command: sh -c "alembic upgrade head && python -m scripts.seed"
 
   api:
     <<: *backend
