@@ -21,7 +21,7 @@ import {
 } from "@/services/mocks/mock-db";
 import { CATEGORIAS_CONTEUDO, type BackendConteudoAdmin } from "@/types/conteudo-admin";
 import { DESTINOS_CONTEUDO, MIDIA_ACEITA } from "@/types/conteudo";
-import { CODIGO_POR_NIVEL, type Diagnostico } from "@/types/diagnostico";
+import { CODIGO_POR_NIVEL, type Diagnostico, type DiagnosticoNivel } from "@/types/diagnostico";
 import { roleSchema, type Usuario } from "@/types/usuario";
 
 /**
@@ -191,6 +191,62 @@ function paraAdminDiagnosticoItem(d: Diagnostico) {
     automatica: automaticaDe(d),
     revisao: revisaoDe(d),
     qtd_imagens: 1,
+  };
+}
+
+// --- Rótulo Hality do dataset (#177) ---
+
+type RotuloMock = {
+  id: number;
+  diagnosticoId: string;
+  version: number;
+  nivel: DiagnosticoNivel;
+  autorNome: string;
+  criadoEm: string;
+};
+
+// só na memória, some quando recarrega a página (como o resto do mock)
+const rotulosMock: RotuloMock[] = [];
+const NIVEIS: DiagnosticoNivel[] = [1, 2, 3];
+
+const criarRotuloSchema = z.object({
+  classificacao: z.string().min(1).max(50),
+  version: z.number().int().min(0),
+});
+
+function paraRotuloItem(r: RotuloMock) {
+  return {
+    id: r.id,
+    diagnostico_id: idNumerico(r.diagnosticoId),
+    version: r.version,
+    classificacao: classificacaoResumo(r.nivel)!,
+    autor: { papel: "admin" as const, nome: r.autorNome },
+    criado_em: r.criadoEm,
+  };
+}
+
+// versões do diagnóstico da mais nova pra mais antiga
+function rotulosDoDiagnostico(diagnosticoId: string) {
+  return rotulosMock
+    .filter((r) => r.diagnosticoId === diagnosticoId)
+    .sort((a, b) => b.version - a.version);
+}
+
+// igual ao RotuloDatasetInfo do back: Hality vale mais que o profissional, que vale mais que a IA
+function rotuloDatasetDe(d: Diagnostico) {
+  const [atual, ...historico] = rotulosDoDiagnostico(d.id);
+  const revisado = revisaoDe(d).status === "concluida";
+  const temRotuloHumano = !!atual || revisado;
+  return {
+    atual: atual ? paraRotuloItem(atual) : null,
+    historico: historico.map(paraRotuloItem),
+    fonte_efetiva: atual
+      ? ("hality" as const)
+      : revisado
+        ? ("profissional" as const)
+        : ("ia" as const),
+    exportavel: temRotuloHumano,
+    motivo: temRotuloHumano ? null : "sem_rotulo_humano",
   };
 }
 
@@ -574,9 +630,42 @@ export const adminHandlers = [
         observacoes: r.observacao,
       })),
       dataset: { disponivel: false, motivo: "exportacao_fora_do_escopo" },
+      rotulo_dataset: rotuloDatasetDe(d),
       imagem: { disponivel: false, motivo: "politica_de_acesso_pendente" },
       anamnese_id: d.anamneseId ? idNumerico(d.anamneseId) : null,
     });
+  }),
+
+  // Cada rótulo cria uma versão nova (a anterior fica no histórico), com as mesmas respostas do back.
+  http.post(url("/api/v1/admin/diagnosticos/:id/rotulos-dataset"), async ({ params, request }) => {
+    const admin = exigirAdmin(request);
+    if (admin instanceof Response) return admin;
+    const d = diagnosticosMock.find((x) => idNumerico(x.id) === Number(params.id));
+    if (!d) return HttpResponse.json({ detail: "diagnóstico não encontrado" }, { status: 404 });
+    const body = criarRotuloSchema.safeParse(await request.json());
+    if (!body.success) return HttpResponse.json({ detail: "dados inválidos" }, { status: 422 });
+    const nivel = NIVEIS.find((n) => CODIGO_POR_NIVEL[n] === body.data.classificacao);
+    if (!nivel) return HttpResponse.json({ detail: "classificação inválida" }, { status: 422 });
+
+    const versaoAtual = rotulosDoDiagnostico(d.id)[0]?.version ?? 0;
+    const rotulavel = d.status === "concluido" && d.nivel !== null;
+    if (!rotulavel || body.data.version !== versaoAtual) {
+      return HttpResponse.json(
+        { detail: "a versão do rótulo está desatualizada ou o diagnóstico não pode ser rotulado" },
+        { status: 409 },
+      );
+    }
+
+    const novo: RotuloMock = {
+      id: rotulosMock.length + 1,
+      diagnosticoId: d.id,
+      version: versaoAtual + 1,
+      nivel,
+      autorNome: admin.nome,
+      criadoEm: new Date().toISOString(),
+    };
+    rotulosMock.push(novo);
+    return HttpResponse.json(paraRotuloItem(novo), { status: 201 });
   }),
 
   // Paginada e filtrada como na #144 do back (parâmetros em inglês).
