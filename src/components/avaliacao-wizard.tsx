@@ -322,7 +322,7 @@ export function AvaliacaoWizard({
       const diagnostico = await diagnosticoService.aguardarResultado(idDiagnostico);
       if (diagnostico.status === "falha" || diagnostico.nivel === null) {
         throw new FalhaNaAnalise(
-          "Tivemos um problema ao analisar a imagem. Veja as orientações de captura e tente de novo.",
+          "Ocorreu um problema ao analisar a imagem. Certifique-se de seguir as orientações de captura da imagem e tente novamente.",
         );
       }
       setResultado({
