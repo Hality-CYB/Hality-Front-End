@@ -13,6 +13,7 @@ import { useHome } from "@/hooks/use-home";
 import { nivelColor, nivelIcon } from "@/lib/level-format";
 import { useSessaoAtual } from "@/lib/auth/session-context";
 import { formatarData } from "@/lib/datas";
+import { nomeDaSaudacao } from "@/lib/nome-format";
 
 export default function PacienteHomePage() {
   const { nome } = useSessaoAtual();
@@ -31,7 +32,7 @@ export default function PacienteHomePage() {
       >
         <div className="relative mb-5">
           <p className="mb-0.5 text-[13px] text-white/55">Olá,</p>
-          <h1 className="text-2xl text-white">{nome.split(" ").slice(0, 2).join(" ")}</h1>
+          <h1 className="text-2xl text-white">{nomeDaSaudacao(nome)}</h1>
         </div>
 
         <Link

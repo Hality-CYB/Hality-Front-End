@@ -144,6 +144,7 @@ test.describe("convite e ativação de conta", () => {
 
       await test.step("Admin deixa de ver o convite pendente", async () => {
         await page.reload();
+        await expect(page.getByRole("button", { name: "Redefinir senha" })).toBeVisible();
         await expect(page.getByRole("heading", { name: "Convite pendente" })).toHaveCount(0);
         await expect(page.getByRole("button", { name: "Reenviar convite" })).toHaveCount(0);
       });
