@@ -297,11 +297,13 @@ for (const estado of ["falha", "processando"] as const) {
       if (estado === "falha") {
         await test.step("Falha apresenta mensagem e oferece substituir a foto", async () => {
           await expect(
-            page.getByText("Não foi possível analisar a imagem. Tente enviar outra foto."),
+            page.getByText(
+              "Ocorreu um problema ao analisar a imagem. Certifique-se de seguir as orientações de captura da imagem e tente novamente.",
+            ),
           ).toBeVisible();
           await expect(page.getByRole("button", { name: "Tentar de novo" })).toHaveCount(0);
-          await page.getByRole("button", { name: "Enviar outra foto" }).click();
-          await expect(page.getByText("Posicione sua língua", { exact: true })).toBeVisible();
+          await page.getByRole("button", { name: "Ver orientações e tirar outra foto" }).click();
+          await expect(page.getByText("Orientações para a captura")).toBeVisible();
           const dados = await registros({ request, headers });
           expect(dados.anamneses).toHaveLength(1);
           expect(dados.diagnosticos.total).toBe(1);
