@@ -90,7 +90,9 @@ describe("AvaliacaoWizard: falha na análise da imagem", () => {
 
     const aviso = await screen.findByRole("alert");
     expect(aviso).toHaveTextContent(TEXTO_FALHA);
-    expect(aviso).toHaveTextContent("Ocorreu um problema ao analisar a imagem. Certifique-se de seguir as orientações de captura da imagem e tente novamente.");
+    expect(aviso).toHaveTextContent(
+      "Ocorreu um problema ao analisar a imagem. Certifique-se de seguir as orientações de captura da imagem e tente novamente.",
+    );
     expect(screen.getByRole("button", { name: BOTAO_ORIENTACOES })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Enviar outra foto" })).not.toBeInTheDocument();
   });
