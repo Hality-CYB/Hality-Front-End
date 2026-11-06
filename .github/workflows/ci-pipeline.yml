@@ -104,7 +104,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: Hality-CYB/Hality-Back-End
-          ref: develop
+          # Back da mesma branch alvo: main com main (gate do deploy), develop no resto.
+          ref: ${{ (github.base_ref || github.ref_name) == 'main' && 'main' || 'develop' }}
           path: backend
           persist-credentials: false
 
@@ -172,7 +173,7 @@ jobs:
   deploy:
     name: Deploy frontend
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [lint, test, build]
+    needs: [lint, test, build, e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:

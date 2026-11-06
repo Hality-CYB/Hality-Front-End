@@ -107,7 +107,8 @@ contra bancos compartilhados. Usuários: `carla.mendes@example.com` (paciente),
 `HalityE2e123!`. Uma execução usa um worker e contextos isolados por teste.
 
 PRs com base em `develop`, `main` ou `chore/e2e-*` (PRs empilhados) executam E2E após testes e build
-contra a `develop` atual do back-end. O resumo do job **E2E Chromium** registra as revisões testadas,
+contra o back-end da mesma branch alvo: `main` em PRs e pushes pra `main`, `develop` nos demais.
+No push na `main`, o deploy só roda se o E2E passar. O resumo do job **E2E Chromium** registra as revisões testadas,
 contagens de aprovados/falhas/instáveis/ignorados e um link direto para baixar
 o artifact `playwright-report`. Extraia o download e abra com
 `npx playwright show-report <pasta>/playwright-report`.
@@ -160,7 +161,7 @@ npm run smoke
 
 > No VS Code, instale as extensões recomendadas em `.vscode/extensions.json` (Prettier + ESLint) — o `.vscode/settings.json` já está configurado para formatar automaticamente ao salvar.
 
-Todo Pull Request pra `develop`/`main` (e pra `chore/e2e-*`, na pilha de testes E2E) roda lint, testes, build e E2E automaticamente via GitHub Actions (`.github/workflows/ci-pipeline.yml`; E2E em [E2E com Playwright](#e2e-com-playwright)) — rode os mesmos comandos localmente antes de abrir o PR pra não ser pego de surpresa. Os testes incluem `src/rotas-legadas.test.ts`, que falha se alguma rota que não existe no back (`/api/v1/usuarios`, `/api/v1/dicas`, `vincular-profissional`, `/api/v1/profissionais`) voltar ao código.
+Todo Pull Request pra `develop`/`main` (e pra `chore/e2e-*`, na pilha de testes E2E) roda lint, testes, build e E2E automaticamente via GitHub Actions; push na `main` roda os mesmos jobs e, com todos verdes, faz o deploy (`.github/workflows/ci-pipeline.yml`; E2E em [E2E com Playwright](#e2e-com-playwright)) — rode os mesmos comandos localmente antes de abrir o PR pra não ser pego de surpresa. Os testes incluem `src/rotas-legadas.test.ts`, que falha se alguma rota que não existe no back (`/api/v1/usuarios`, `/api/v1/dicas`, `vincular-profissional`, `/api/v1/profissionais`) voltar ao código.
 
 ## Arquitetura
 
@@ -245,7 +246,7 @@ vitest.setup.ts
 
 - **`.nvmrc`** — versão do Node.js usada no projeto, pra todo mundo (e o CI) rodar a mesma versão.
 
-- **`.github/workflows/ci-pipeline.yml`** — pipeline do GitHub Actions: lint + format check, testes, build e E2E, rodando em todo Pull Request pra `develop`/`main` (e `chore/e2e-*`).
+- **`.github/workflows/ci-pipeline.yml`** — pipeline do GitHub Actions: lint + format check, testes, build e E2E, rodando em todo Pull Request pra `develop`/`main` (e `chore/e2e-*`); no push na `main`, também o deploy, condicionado a todos esses jobs.
 
 - **`playwright.config.ts`** / **`e2e/`** — configuração e specs dos testes E2E com Playwright (ver [E2E com Playwright](#e2e-com-playwright)).
 
