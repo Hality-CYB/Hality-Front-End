@@ -45,7 +45,7 @@ Todas estão em `.env.example`, só com valores de exemplo. Nunca versione crede
 | `SMOKE_*`                 | Credenciais do `npm run smoke` (abaixo)         | Usuários do seed do back                                                    |
 
 - **Mock só com `enabled` explícito.** Sem a variável, o app não cai em dados falsos: CI, homologação e produção rodam sempre sem mock (o build da CI define `disabled`). Use `enabled` só em desenvolvimento local sem back. No mock, as senhas são `123456` e os e-mails estão em `src/services/mocks/seed-data.ts`.
-- **Login com Google (OAuth)** ainda não está integrado e não usa nenhuma variável. Quando for, o client id público entra como `NEXT_PUBLIC_GOOGLE_CLIENT_ID` e o segredo fica só no back.
+- **Login com Google (OAuth)** está integrado para pacientes. O front não tem variável própria: o botão usa `NEXT_PUBLIC_API_URL` e aponta para `{NEXT_PUBLIC_API_URL}/api/v1/auth/google/authorize`. O retorno cai em `/login/google`. Client id, segredo e URL de redirect ficam só no back.
 
 ### Smoke contra o back real
 
@@ -57,6 +57,76 @@ SMOKE_SENHA=<SEED_PASSWORD do back> npm run smoke
 ```
 
 URL e e-mails têm padrão para o seed local; troque com `SMOKE_API_URL` e `SMOKE_EMAIL_ADMIN`/`_PROFISSIONAL`/`_PACIENTE` para rodar em homologação.
+
+### E2E com Playwright
+
+Requer Node da `.nvmrc`, Docker com Compose v2+ e portas livres (3000/8000 por padrão).
+Usa Chromium headless, build de produção, API real e PostgreSQL 17 descartável.
+Google fica fora; emails são capturados localmente sem envio externo e a IA usa a fixture determinística do back.
+
+Depois de `npm ci`, mantenha um clone do back-end público na branch `develop`
+ao lado deste repositório (`../Hality-Back-End`). Caso esteja em outro local,
+defina `BACKEND_PATH` com o caminho absoluto do clone. Mantenha as variáveis no
+mesmo terminal durante toda a execução:
+
+```bash
+# Opcional, quando o back-end não está em ../Hality-Back-End:
+# export BACKEND_PATH=/caminho/para/Hality-Back-End
+# Nome exclusivo por execução: nunca use o projeto/volume de homologação.
+export COMPOSE_PROJECT_NAME="hality-e2e-$(date +%s)"
+
+npx playwright install --with-deps chromium
+npm run e2e:up
+npm run test:e2e:ui
+# Ao terminar (inclusive se o teste falhar):
+npm run e2e:down
+```
+
+A interface do Playwright permite selecionar e acompanhar os testes. Para rodar
+no navegador visível sem a interface, use `npm run test:e2e:headed`. Para rodar
+headless, use `npm run test:e2e`; abra o relatório com `npm run test:e2e:report`.
+
+Para rodar ambientes em paralelo na mesma máquina, use um `COMPOSE_PROJECT_NAME`
+exclusivo e portas distintas em cada terminal, antes de subir o Compose e rodar os testes:
+
+```bash
+export E2E_FRONT_PORT=3100
+export E2E_API_PORT=8100
+```
+
+Essas variáveis configuram portas publicadas, URL da API no build, CORS, links de
+identidade e URLs usadas pelo Playwright. Mantenha-as no mesmo terminal durante
+build/testes/limpeza; ao trocar portas, refaça `npm run e2e:up`.
+As portas internas dos containers não mudam. Sem as variáveis, inclusive na CI,
+continuam 3000/8000.
+
+O seed destrutivo roda só no banco novo deste Compose. Para reiniciar do zero,
+remova os volumes com o último comando e suba novamente. Não execute o seed
+contra bancos compartilhados. Usuários: `carla.mendes@example.com` (paciente),
+`ana.souza@hality.com` (profissional), `admin@hality.com`; senha sintética
+`HalityE2e123!`. Uma execução usa um worker e contextos isolados por teste.
+
+PRs com base em `develop`, `main` ou `chore/e2e-*` (PRs empilhados) executam E2E após testes e build
+contra o back-end da mesma branch alvo: `main` em PRs e pushes pra `main`, `develop` nos demais.
+No push na `main`, o deploy só roda se o E2E passar. O resumo do job **E2E Chromium** registra as revisões testadas,
+contagens de aprovados/falhas/instáveis/ignorados e um link direto para baixar
+o artifact `playwright-report`. Extraia o download e abra com
+`npx playwright show-report <pasta>/playwright-report`.
+Cada teste, inclusive quando passa, inclui screenshot final e trace passo a passo
+no HTML; vídeo fica desligado. O artifact também inclui JUnit e JSON.
+Logs ficam em `e2e-container-logs` nas falhas. Retenção: 7 dias.
+São apenas dados sintéticos, mas traces podem conter credenciais/tokens de teste:
+não use contas reais nem publique os artifacts fora da execução.
+Sem retry local; no máximo um na CI, com testes instáveis identificados no relatório.
+
+O worker captura e-mails sintéticos em arquivos privados no container. Testes podem
+usar `obterLinkEmail` de `e2e/emails.ts` para buscar links por destinatário e
+finalidade (`email_verification`, `invitation` ou `password_reset`). Os links são
+credenciais: não os registre nem os inclua em evidências publicadas.
+
+Referências: [Next + Playwright](https://nextjs.org/docs/app/guides/testing/playwright),
+[configuração](https://playwright.dev/docs/test-configuration) e
+[artifacts na CI](https://playwright.dev/docs/ci-intro).
 
 ### Outros comandos úteis
 
@@ -91,7 +161,7 @@ npm run smoke
 
 > No VS Code, instale as extensões recomendadas em `.vscode/extensions.json` (Prettier + ESLint) — o `.vscode/settings.json` já está configurado para formatar automaticamente ao salvar.
 
-Todo Pull Request pra `develop`/`main` roda lint, testes e build automaticamente via GitHub Actions (`.github/workflows/ci-pipeline.yml`) — rode os mesmos comandos localmente antes de abrir o PR pra não ser pego de surpresa. Os testes incluem `src/rotas-legadas.test.ts`, que falha se alguma rota que não existe no back (`/api/v1/usuarios`, `/api/v1/dicas`, `vincular-profissional`, `/api/v1/profissionais`) voltar ao código.
+Todo Pull Request pra `develop`/`main` (e pra `chore/e2e-*`, na pilha de testes E2E) roda lint, testes, build e E2E automaticamente via GitHub Actions; push na `main` roda os mesmos jobs e, com todos verdes, faz o deploy (`.github/workflows/ci-pipeline.yml`; E2E em [E2E com Playwright](#e2e-com-playwright)) — rode os mesmos comandos localmente antes de abrir o PR pra não ser pego de surpresa. Os testes incluem `src/rotas-legadas.test.ts`, que falha se alguma rota que não existe no back (`/api/v1/usuarios`, `/api/v1/dicas`, `vincular-profissional`, `/api/v1/profissionais`) voltar ao código.
 
 ## Arquitetura
 
@@ -176,7 +246,9 @@ vitest.setup.ts
 
 - **`.nvmrc`** — versão do Node.js usada no projeto, pra todo mundo (e o CI) rodar a mesma versão.
 
-- **`.github/workflows/ci-pipeline.yml`** — pipeline do GitHub Actions: lint + format check, testes e build, rodando em todo Pull Request pra `develop`/`main`.
+- **`.github/workflows/ci-pipeline.yml`** — pipeline do GitHub Actions: lint + format check, testes, build e E2E, rodando em todo Pull Request pra `develop`/`main` (e `chore/e2e-*`); no push na `main`, também o deploy, condicionado a todos esses jobs.
+
+- **`playwright.config.ts`** / **`e2e/`** — configuração e specs dos testes E2E com Playwright (ver [E2E com Playwright](#e2e-com-playwright)).
 
 ## Convenções
 

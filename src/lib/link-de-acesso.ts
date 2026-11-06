@@ -9,10 +9,11 @@ export type EstadoLinkDeAcesso = {
 const FINALIDADE_DO_BACK: Record<string, FinalidadeDoLink> = {
   invitation: "convite",
   password_reset: "recuperacao",
+  email_verification: "confirmacao_email",
 };
 
 /**
- * Lê `?purpose=invitation|password_reset&token=...` (contrato da #157 do back)
+ * Lê `?purpose=invitation|password_reset|email_verification&token=...` (contrato da #157 do back)
  * sem decodificar o token. Parâmetro repetido ou desconhecido invalida o link,
  * em vez de adivinhar o fluxo.
  */

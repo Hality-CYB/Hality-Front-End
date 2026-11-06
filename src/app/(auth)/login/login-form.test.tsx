@@ -4,7 +4,10 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LoginForm } from "@/app/(auth)/login/login-form";
 import { config } from "@/lib/config";
-import { clearStoredToken } from "@/lib/session";
+import { clearStoredToken, getStoredToken } from "@/lib/session";
+import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
+import { server } from "@/services/mocks/server";
 
 let searchParams = new URLSearchParams();
 
@@ -81,5 +84,24 @@ describe("login com Google", () => {
     render(<LoginForm />, { wrapper: Wrapper });
 
     expect(screen.queryByRole("link", { name: /Continuar com Google/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("login de conta não confirmada", () => {
+  it("mostra instrução de confirmação e reenvio, sem abrir área autenticada", async () => {
+    server.use(
+      http.post(`${config.apiBaseUrl}/api/v1/auth/login`, () =>
+        HttpResponse.json({ detail: "EMAIL_NOT_VERIFIED" }, { status: 403 }),
+      ),
+    );
+    render(<LoginForm />, { wrapper: Wrapper });
+
+    await userEvent.type(screen.getByRole("textbox", { name: "Email" }), "pessoa@example.com");
+    await userEvent.type(screen.getByLabelText("Senha"), "SenhaSegura1");
+    await userEvent.click(screen.getByRole("button", { name: "Login" }));
+
+    expect(await screen.findByText(/pessoa@example.com/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reenviar e-mail de confirmação" })).toBeEnabled();
+    expect(getStoredToken()).toBeNull();
   });
 });
