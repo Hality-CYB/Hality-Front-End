@@ -79,6 +79,16 @@ async function abrirOrientacoes(paciente: Page, diagnosticoId: number) {
   await paciente.goto(`/paciente/diagnosticos/${diagnosticoId}`);
   const { conteudos } = backendDiagnosticoDetailSchema.parse(await (await resposta).json());
   await paciente.getByRole("button", { name: "Orientações", exact: true }).click();
+  const primeira = conteudos?.[0];
+  if (primeira) {
+    await expect(
+      paciente.getByRole("button", { name: primeira.titulo, exact: false }),
+    ).toBeVisible();
+  } else {
+    await expect(
+      paciente.getByRole("heading", { name: "Nenhuma orientação cadastrada" }),
+    ).toBeVisible();
+  }
   return (conteudos ?? []).map((conteudo) => conteudo.titulo);
 }
 
@@ -236,8 +246,6 @@ test("orientação com imagem aparece só para o paciente da classificação esc
   await test.step("paciente B, de outra classificação, não vê a orientação", async () => {
     const titulos = await abrirOrientacoes(paginaPacienteB, dadosPacienteB.id);
     expect(titulos).not.toContain(titulo);
-    const primeira = titulos[0];
-    if (primeira) await expect(paginaPacienteB.getByText(primeira, { exact: true })).toBeVisible();
     await expect(paginaPacienteB.getByText(titulo, { exact: true })).toHaveCount(0);
   });
 });
