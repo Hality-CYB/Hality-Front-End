@@ -45,6 +45,7 @@ function paraBackendListItemPaciente(paciente: Paciente) {
     nome: paciente.nome,
     email: paciente.email,
     telefone: paciente.telefone || null,
+    data_nascimento: paciente.dataNascimento ?? null,
     ativo: paciente.ativo ?? true,
     total_diagnosticos: diags.length,
     ultimo_diagnostico_em: ultimo?.criadoEm ?? null,
