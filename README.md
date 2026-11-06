@@ -45,7 +45,7 @@ Todas estão em `.env.example`, só com valores de exemplo. Nunca versione crede
 | `SMOKE_*`                 | Credenciais do `npm run smoke` (abaixo)         | Usuários do seed do back                                                    |
 
 - **Mock só com `enabled` explícito.** Sem a variável, o app não cai em dados falsos: CI, homologação e produção rodam sempre sem mock (o build da CI define `disabled`). Use `enabled` só em desenvolvimento local sem back. No mock, as senhas são `123456` e os e-mails estão em `src/services/mocks/seed-data.ts`.
-- **Login com Google (OAuth)** ainda não está integrado e não usa nenhuma variável. Quando for, o client id público entra como `NEXT_PUBLIC_GOOGLE_CLIENT_ID` e o segredo fica só no back.
+- **Login com Google (OAuth)** está integrado para pacientes. O front não tem variável própria: o botão usa `NEXT_PUBLIC_API_URL` e aponta para `{NEXT_PUBLIC_API_URL}/api/v1/auth/google/authorize`. O retorno cai em `/login/google`. Client id, segredo e URL de redirect ficam só no back.
 
 ### Smoke contra o back real
 
