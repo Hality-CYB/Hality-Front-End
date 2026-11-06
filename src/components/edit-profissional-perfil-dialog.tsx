@@ -38,15 +38,16 @@ export function EditProfissionalPerfilDialog({
 }: EditProfissionalPerfilDialogProps) {
   const [valores, setValores] = useState<PerfilProfissional>(initial);
 
-  function handleOpenChange(next: boolean) {
-    if (next) setValores(initial);
-    onOpenChange(next);
+  const [abertoAntes, setAbertoAntes] = useState(open);
+  if (open !== abertoAntes) {
+    setAbertoAntes(open);
+    if (open) setValores(initial);
   }
 
   const podeSalvar = valores.nome.trim().length >= 2 && !salvando;
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Editar perfil</DialogTitle>
