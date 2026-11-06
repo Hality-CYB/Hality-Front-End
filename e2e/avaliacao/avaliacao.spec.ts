@@ -1,98 +1,25 @@
 import { randomUUID } from "node:crypto";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { z } from "zod";
 import { TOKEN_STORAGE_KEY } from "../../src/lib/session";
-import { obterLinkEmail } from "../emails";
-
-const api = `http://localhost:${process.env.E2E_API_PORT || "8000"}/api/v1`;
-const senha = "HalityE2e123!";
-const questionarioSchema = z.object({
-  versao: z.string().min(1),
-  perguntas: z
-    .array(
-      z.object({
-        id: z.string(),
-        enunciado: z.string(),
-        tipo: z.enum(["boolean", "single_choice", "text", "scale"]),
-        obrigatoria: z.boolean(),
-        opcoes: z.array(z.string()).nullable(),
-        escala_min: z.number().nullable(),
-      }),
-    )
-    .min(1),
-});
-type Pergunta = z.infer<typeof questionarioSchema>["perguntas"][number];
-
-async function responder(page: Page, pergunta: Pergunta, editar = false) {
-  await expect(page.getByText(pergunta.enunciado, { exact: true })).toBeVisible();
-  if (pergunta.obrigatoria)
-    await expect(page.getByText("Obrigatória", { exact: true })).toBeVisible();
-  switch (pergunta.tipo) {
-    case "boolean":
-      await page.getByRole("button", { name: editar ? "Não" : "Sim", exact: true }).click();
-      break;
-    case "single_choice": {
-      const opcoes = pergunta.opcoes ?? [];
-      expect(opcoes.length).toBeGreaterThan(editar ? 1 : 0);
-      await page.getByRole("button", { name: opcoes[editar ? 1 : 0], exact: true }).click();
-      break;
-    }
-    case "text":
-      if (pergunta.obrigatoria && !editar)
-        await expect(page.getByRole("button", { name: "Próximo" })).toBeDisabled();
-      await page
-        .getByPlaceholder("Digite sua resposta...")
-        .fill(editar ? "Resposta editada" : "Resposta de teste");
-      await page.getByRole("button", { name: "Próximo" }).click();
-      break;
-    case "scale":
-      if (pergunta.obrigatoria && !editar)
-        await expect(page.getByRole("button", { name: "Próximo" })).toBeDisabled();
-      await page
-        .getByRole("button", {
-          name: String((pergunta.escala_min ?? 1) + (editar ? 1 : 0)),
-          exact: true,
-        })
-        .click();
-      await page.getByRole("button", { name: "Próximo" }).click();
-  }
-}
+import { entrar } from "../helpers/auth";
+import { API_URL as api } from "../helpers/config";
+import { imagemLingua } from "../helpers/imagem";
+import { criarPacienteConfirmado } from "../helpers/pacientes";
+import { questionarioSchema, responderPergunta } from "../helpers/questionario";
 
 test("paciente responde, edita e envia avaliação com foto e consulta o histórico", async ({
   page,
   request,
 }) => {
   test.setTimeout(60_000);
-  const termosResponse = await request.get(`${api}/consentimentos/termos`);
-  expect(termosResponse.ok()).toBeTruthy();
-  const termos = z
-    .object({
-      itens: z.array(
-        z.object({ finalidade: z.string(), versao: z.string(), obrigatorio: z.boolean() }),
-      ),
-    })
-    .parse(await termosResponse.json());
-  const email = `avaliacao-${randomUUID()}@example.com`;
-  const registro = await request.post(`${api}/auth/register`, {
-    data: {
-      name: "Paciente Avaliação",
-      email,
-      password: senha,
-      data_nascimento: "1990-01-01",
-      consentimentos: termos.itens.map((termo) => ({
-        finalidade: termo.finalidade,
-        versao: termo.versao,
-        aceito: termo.obrigatorio,
-      })),
-    },
+  const { email } = await criarPacienteConfirmado({
+    request,
+    page,
+    nome: "Paciente Avaliação",
+    email: `avaliacao-${randomUUID()}@example.com`,
   });
-  expect(registro.status()).toBe(201);
-  const link = await obterLinkEmail({ destinatario: email, finalidade: "email_verification" });
-  await page.goto(link);
-  await expect(page).toHaveURL("/login");
-  await page.getByLabel("Email", { exact: true }).fill(email);
-  await page.getByLabel("Senha", { exact: true }).fill(senha);
-  await page.getByRole("button", { name: "Login", exact: true }).click();
+  await entrar({ page, email });
   await expect(page).toHaveURL("/paciente");
   const catalogo = page.waitForResponse(
     (r) => r.url() === `${api}/anamneses/questionario` && r.request().method() === "GET",
@@ -100,7 +27,7 @@ test("paciente responde, edita e envia avaliação com foto e consulta o histór
   await page.goto("/paciente/avaliacao");
   const questionario = questionarioSchema.parse(await (await catalogo).json());
   await page.getByRole("button", { name: "Começar diagnóstico" }).click();
-  for (const pergunta of questionario.perguntas) await responder(page, pergunta);
+  for (const pergunta of questionario.perguntas) await responderPergunta({ page, pergunta });
   await expect(page.getByRole("heading", { name: "Confirme suas respostas" })).toBeVisible();
   const ultima = questionario.perguntas.at(-1);
   if (!ultima) throw new Error("Questionário vazio");
@@ -109,17 +36,14 @@ test("paciente responde, edita e envia avaliação com foto e consulta o histór
     .locator("../..")
     .getByRole("button", { name: "Editar", exact: true })
     .click();
-  await responder(page, ultima, true);
+  await responderPergunta({ page, pergunta: ultima, editar: true });
   await expect(page.getByRole("heading", { name: "Confirme suas respostas" })).toBeVisible();
   await page.getByRole("button", { name: "Confirmar e continuar" }).click();
   await page.getByRole("button", { name: "Preparar câmera" }).click();
   await page.getByTestId("input-galeria").setInputFiles({
     name: "lingua.png",
     mimeType: "image/png",
-    buffer: Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAKklEQVR4nGO4U9FEU8QwasGoBaMWjFowasGoBaMWjFowasGoBaMWDBULAJAnWGowDaLoAAAAAElFTkSuQmCC",
-      "base64",
-    ),
+    buffer: imagemLingua,
   });
   await expect(page.getByText("Confira a foto", { exact: true })).toBeVisible();
   const posts: string[] = [];

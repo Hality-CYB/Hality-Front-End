@@ -1,8 +1,8 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { TOKEN_STORAGE_KEY } from "../../src/lib/session";
+import { entrar } from "../helpers/auth";
+import { API_URL } from "../helpers/config";
 
-const API_URL = `http://localhost:${process.env.E2E_API_PORT || "8000"}/api/v1`;
-const PASSWORD = "HalityE2e123!";
 const accounts = [
   {
     role: "paciente",
@@ -30,12 +30,6 @@ const accounts = [
   },
 ];
 
-async function login(page: Page, email: string) {
-  await page.getByLabel("Email", { exact: true }).fill(email);
-  await page.getByLabel("Senha", { exact: true }).fill(PASSWORD);
-  await page.getByRole("button", { name: "Login", exact: true }).click();
-}
-
 for (const account of accounts) {
   test.describe(account.role, () => {
     test("login real, sessão persistente, RBAC e logout", async ({ page, context, request }) => {
@@ -47,7 +41,7 @@ for (const account of accounts) {
             response.url().startsWith(API_URL + account.homeApi) &&
             response.request().method() === "GET",
         );
-        await login(page, account.email);
+        await entrar({ page, email: account.email });
         await expect(page).toHaveURL(`/${account.role}`);
         await expect(page.getByRole("heading", { name: account.greeting })).toBeVisible();
         expect((await homeResponse).status()).toBe(200);
@@ -114,7 +108,7 @@ for (const account of accounts) {
       const destination = `/${account.role}/perfil`;
       await page.goto(destination);
       await expect(page).toHaveURL(`/login?redirect=${encodeURIComponent(destination)}`);
-      await login(page, account.email);
+      await entrar({ page, email: account.email });
       await expect(page).toHaveURL(destination);
       await expect(page.getByRole("button", { name: "Sair da conta" })).toBeVisible();
       await page.reload();

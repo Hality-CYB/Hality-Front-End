@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { TOKEN_STORAGE_KEY } from "../../src/lib/session";
 import { obterLinkEmail } from "../emails";
+import { entrar } from "../helpers/auth";
+import { API_URL, SENHA } from "../helpers/config";
 
-const API_URL = `http://localhost:${process.env.E2E_API_PORT || "8000"}/api/v1`;
-const SENHA = "HalityE2e123!";
 const NOME = "Pessoa Cadastro E2e";
 
 function novoEmail() {
@@ -44,9 +44,7 @@ test.describe("cadastro e confirmação de e-mail", () => {
     expect((await cadastrar(page, email)).status()).toBe(201);
     await expect(page.getByRole("heading", { name: "Confirme seu e-mail" })).toBeVisible();
     await page.getByRole("link", { name: "Ir para o login" }).click();
-    await page.getByLabel("Email", { exact: true }).fill(email);
-    await page.getByLabel("Senha", { exact: true }).fill(SENHA);
-    await page.getByRole("button", { name: "Login", exact: true }).click();
+    await entrar({ page, email });
     await expect(page.getByRole("heading", { name: "Confirme seu e-mail" })).toBeVisible();
     await expect(
       page.getByText(
@@ -57,9 +55,7 @@ test.describe("cadastro e confirmação de e-mail", () => {
     const link = await obterLinkEmail({ destinatario: email, finalidade: "email_verification" });
     await page.goto(link);
     await expect(page).toHaveURL("/login");
-    await page.getByLabel("Email", { exact: true }).fill(email);
-    await page.getByLabel("Senha", { exact: true }).fill(SENHA);
-    await page.getByRole("button", { name: "Login", exact: true }).click();
+    await entrar({ page, email });
     await expect(page).toHaveURL("/paciente");
     await expect(page.getByRole("heading", { name: "Pessoa Cadastro" })).toBeVisible();
     await expect(page.getByRole("link", { name: new RegExp(email) })).toBeVisible();
