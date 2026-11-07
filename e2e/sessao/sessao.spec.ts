@@ -154,22 +154,35 @@ test("token de acesso inválido renova a sessão uma vez e o histórico abre", a
   });
 
   const eventos = observarRede(page);
+  let liberarRefresh!: () => void;
+  const leiturasRecusadas = new Promise<void>((resolve) => {
+    liberarRefresh = resolve;
+  });
+  // Mantém a renovação em andamento enquanto as duas leituras recebem o 401 real.
+  await page.route(`${API_URL}/auth/refresh`, async (route) => {
+    await leiturasRecusadas;
+    await route.continue();
+  });
   const inicio = Date.now();
   await test.step("Abrir o histórico dispara várias leituras recusadas ao mesmo tempo", async () => {
     await page.getByRole("link", { name: "Ver todos" }).click();
-    await expect
-      .poll(
-        () =>
-          eventos.filter(
-            (evento) =>
-              evento.instante >= inicio &&
-              evento.fase === "resposta" &&
-              evento.method === "GET" &&
-              evento.path.startsWith("/diagnosticos") &&
-              evento.status === 401,
-          ).length,
-      )
-      .toBe(2);
+    try {
+      await expect
+        .poll(
+          () =>
+            eventos.filter(
+              (evento) =>
+                evento.instante >= inicio &&
+                evento.fase === "resposta" &&
+                evento.method === "GET" &&
+                evento.path.startsWith("/diagnosticos") &&
+                evento.status === 401,
+            ).length,
+        )
+        .toBe(2);
+    } finally {
+      liberarRefresh();
+    }
     await expect
       .poll(
         () =>
@@ -187,7 +200,7 @@ test("token de acesso inválido renova a sessão uma vez e o histórico abre", a
       const pedido = pedidos(eventos, inicio, "GET", path)[0];
       expect(pedido).toBeDefined();
       if (!pedido) return;
-      expect(pedido.instante).toBeLessThan(fimDoRefresh.instante);
+      expect(eventos.indexOf(pedido)).toBeLessThan(eventos.indexOf(fimDoRefresh));
     }
   });
 
@@ -203,6 +216,7 @@ test("token de acesso inválido renova a sessão uma vez e o histórico abre", a
     await expect(page.getByText("Nenhum diagnóstico")).toBeVisible();
     await expect(page).toHaveURL("/paciente/diagnosticos");
     await expect(page.getByRole("button", { name: "Login", exact: true })).toHaveCount(0);
+    expect(pedidos(eventos, inicio, "POST", "/auth/refresh")).toHaveLength(1);
     const tokenNovo = await tokenDeAcesso(page);
     expect(tokenNovo).toBeTruthy();
     expect(tokenNovo).not.toBe(TOKEN_INVALIDO);
