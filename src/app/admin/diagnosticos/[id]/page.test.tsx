@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
@@ -92,7 +92,7 @@ describe("Detalhe do diagnóstico do admin", () => {
     server.use(http.get(url, () => HttpResponse.json(detalhe({ status: "concluido", revisao }))));
     await renderPagina();
 
-    expect(await screen.findByText("Resultado do profissional")).toBeInTheDocument();
+    expect(await screen.findByText("Resultado revisado")).toBeInTheDocument();
     expect(screen.getByText("Mau Hálito Social")).toBeInTheDocument();
     expect(screen.getByText(/IA: Halitose Íntima/)).toBeInTheDocument();
     expect(screen.getByText("Dra. Beatriz")).toBeInTheDocument();
@@ -158,5 +158,131 @@ describe("Detalhe do diagnóstico do admin", () => {
     await userEvent.click(screen.getByRole("button", { name: "Tentar de novo" }));
 
     expect(await screen.findByText("Ana Paula Ferreira")).toBeInTheDocument();
+  });
+});
+
+describe("Reclassificação pelo admin", () => {
+  const revisado = {
+    automatica: { classificacao: INTIMA, escala_saburra: null, confianca_ia: 0.87 },
+    status: "concluido",
+    revisao: {
+      status: "concluida",
+      profissional_revisor_id: "prof-1",
+      profissional_revisor_nome: "Dra. Ana Souza",
+      data_revisao: "2026-08-13T12:00:00Z",
+      classificacao: INTIMA,
+      observacoes: null,
+    },
+    reclassificacao: { version: 1, revisada_por_profissional: true },
+  };
+  const resposta = {
+    revisao: {
+      id: 2,
+      version: 2,
+      classificacao: SOCIAL,
+      profissional_id: "admin-1",
+      profissional_nome: "Admin",
+      observacao: null,
+      criado_em: "2026-08-14T12:00:00Z",
+    },
+    version: 2,
+  };
+
+  async function escolherEContinuar() {
+    fireEvent.click(await screen.findByRole("button", { name: "Reclassificar" }));
+    fireEvent.click(await screen.findByRole("radio", { name: "Mau Hálito Social" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+  }
+
+  it("avisa que o profissional já revisou e será avisado, e só envia depois de confirmar", async () => {
+    const patch = vi.fn();
+    let corpo: unknown;
+    server.use(
+      http.get(url, () => HttpResponse.json(detalhe(revisado))),
+      http.patch(`${url}/revisao`, async ({ request }) => {
+        patch();
+        corpo = await request.json();
+        return HttpResponse.json(resposta);
+      }),
+    );
+    await renderPagina();
+
+    await escolherEContinuar();
+
+    expect(await screen.findByText(/Dra\. Ana Souza já revisou este diagnóstico/)).toBeVisible();
+    expect(screen.getByText(/recebe um e-mail avisando da mudança/)).toBeVisible();
+    expect(patch).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar reclassificação" }));
+
+    expect(await screen.findByText(/Reclassificação salva/)).toBeVisible();
+    expect(corpo).toEqual({
+      classificacao: "mau_halito_social",
+      observacao: null,
+      version: 1,
+    });
+  });
+
+  it("sem revisão de profissional, a confirmação não fala em avisar ninguém além do paciente", async () => {
+    server.use(
+      http.get(url, () =>
+        HttpResponse.json(
+          detalhe({ reclassificacao: { version: 0, revisada_por_profissional: false } }),
+        ),
+      ),
+    );
+    await renderPagina();
+
+    await escolherEContinuar();
+
+    expect(await screen.findByText(/Nenhum profissional revisou/)).toBeVisible();
+    expect(screen.queryByText(/já revisou este diagnóstico/)).not.toBeInTheDocument();
+  });
+
+  it("não deixa continuar com a classificação que já está valendo", async () => {
+    server.use(http.get(url, () => HttpResponse.json(detalhe(revisado))));
+    await renderPagina();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Reclassificar" }));
+
+    expect(await screen.findByRole("radio", { name: "Halitose Íntima (atual)" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Continuar" })).toBeDisabled();
+  });
+
+  it("409: pede para recarregar em vez de sobrescrever a revisão nova", async () => {
+    server.use(
+      http.get(url, () => HttpResponse.json(detalhe(revisado))),
+      http.patch(`${url}/revisao`, () =>
+        HttpResponse.json({ detail: "conflito" }, { status: 409 }),
+      ),
+    );
+    await renderPagina();
+
+    await escolherEContinuar();
+    fireEvent.click(await screen.findByRole("button", { name: "Confirmar reclassificação" }));
+
+    expect(await screen.findByText(/O diagnóstico mudou enquanto você editava/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Recarregar" })).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Confirmar reclassificação" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("não oferece reclassificar diagnóstico que falhou", async () => {
+    server.use(
+      http.get(url, () =>
+        HttpResponse.json(
+          detalhe({
+            status: "falha",
+            automatica: { classificacao: null, escala_saburra: null, confianca_ia: null },
+            reclassificacao: { version: 0, revisada_por_profissional: false },
+          }),
+        ),
+      ),
+    );
+    await renderPagina();
+
+    await screen.findByText("Diagnóstico #101");
+    expect(screen.queryByRole("button", { name: "Reclassificar" })).not.toBeInTheDocument();
   });
 });
