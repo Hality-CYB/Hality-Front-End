@@ -1,6 +1,6 @@
 "use client";
 
-import { createElement, use } from "react";
+import { createElement, use, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -18,7 +18,12 @@ import { StatusBadge } from "@/components/status-badge";
 import { LevelChip } from "@/components/level-chip";
 import { Alert } from "@/components/alert";
 import { AvatarWithRole } from "@/components/avatar-with-role";
-import { useDiagnosticoAdmin } from "@/hooks/use-diagnosticos";
+import { ReclassificarDiagnostico } from "@/components/reclassificar-diagnostico";
+import {
+  erroDaReclassificacao,
+  useDiagnosticoAdmin,
+  useReclassificarDiagnostico,
+} from "@/hooks/use-diagnosticos";
 import { ApiError } from "@/lib/api-client";
 import { nivelColor, nivelIcon, nivelLabel } from "@/lib/level-format";
 import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/status-format";
@@ -46,6 +51,8 @@ export default function DiagnosticoDetailAdminPage({
   const voltarHref = searchParams.get("voltar") ?? "/admin/diagnosticos";
 
   const { data: diagnostico, isError, error, refetch } = useDiagnosticoAdmin(id);
+  const reclassificar = useReclassificarDiagnostico();
+  const [reclassificado, setReclassificado] = useState(false);
 
   // se deu erro, mostra o aviso de cada caso
   if (isError) {
@@ -75,12 +82,18 @@ export default function DiagnosticoDetailAdminPage({
   if (!diagnostico) return <CarregandoPagina />;
 
   const d = diagnostico;
+  const versaoDaRevisao = d.reclassificacao?.versao ?? 0;
   const hrefAtual = `/admin/diagnosticos/${id}?voltar=${encodeURIComponent(voltarHref)}`;
-  const tituloResultado = !d.revisao.revisado
-    ? "Classificação da IA"
-    : d.nivelCorrigido
-      ? "Resultado do profissional"
-      : "Resultado confirmado na revisão";
+  const revisado = d.revisao.revisado;
+  const podeReclassificar =
+    d.reclassificacao !== null && (d.status === "concluido" || d.status === "aguardando_revisao");
+  const detalhesIA = [
+    d.confiancaIA !== null && `Escala de halitose ${d.confiancaIA}%`,
+    d.escalaSaburra !== null && `Saburra ${d.escalaSaburra}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const anteriores = d.historico.length > 1 ? [...d.historico].reverse() : [];
 
   return (
     <div className="flex flex-col">
@@ -106,28 +119,62 @@ export default function DiagnosticoDetailAdminPage({
         />
       </div>
 
-      <div className="shell:grid shell:grid-cols-2 shell:items-start flex flex-col gap-3.5 p-4">
-        <div className="flex flex-col gap-3.5">
-          <Link href={`/admin/usuarios/${d.pacienteId}?voltar=${encodeURIComponent(hrefAtual)}`}>
-            <Card className="flex-row items-center gap-3 rounded-lg p-4 shadow-sm ring-0">
-              <AvatarWithRole nome={d.pacienteNome} size={40} />
-              <div className="min-w-0 flex-1">
-                <div className="text-muted-foreground text-xs">Paciente</div>
-                <div className="font-heading truncate text-sm font-bold">{d.pacienteNome}</div>
-              </div>
-              <ChevronRight className="text-gray-3 h-4 w-4" />
-            </Card>
-          </Link>
+      {/* No celular o paciente vem primeiro; no desktop ele abre a coluna lateral. */}
+      <div className="shell:grid shell:grid-cols-[minmax(0,1fr)_300px] shell:grid-rows-[auto_auto_auto_1fr] shell:items-start flex flex-col gap-3.5 p-4">
+        <Link
+          href={`/admin/usuarios/${d.pacienteId}?voltar=${encodeURIComponent(hrefAtual)}`}
+          className="shell:col-start-2 shell:row-start-1"
+        >
+          <Card className="flex-row items-center gap-3 rounded-lg p-4 shadow-sm ring-0">
+            <AvatarWithRole nome={d.pacienteNome} size={40} />
+            <div className="min-w-0 flex-1">
+              <div className="text-muted-foreground text-xs">Paciente</div>
+              <div className="font-heading truncate text-sm font-bold">{d.pacienteNome}</div>
+            </div>
+            <ChevronRight className="text-gray-3 h-4 w-4" />
+          </Card>
+        </Link>
 
-          <Card className="rounded-lg p-5 shadow-sm ring-0">
-            <div className="mb-3 flex items-start justify-between gap-2">
-              <div className="font-heading text-sm font-extrabold">{tituloResultado}</div>
-              {d.nivelCorrigido && d.nivelIA !== null && (
-                <span className="bg-background text-muted-foreground flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px]">
-                  <Sparkles className="h-3 w-3" /> IA: {nivelLabel(d.nivelIA)}
-                </span>
+        <div className="shell:col-start-1 shell:row-span-4 shell:row-start-1 flex min-w-0 flex-col gap-3.5">
+          <Card className="gap-0 rounded-lg p-5 shadow-sm ring-0">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="font-heading text-sm font-extrabold">
+                {revisado ? "Resultado revisado" : "Classificação da IA"}
+              </div>
+              {podeReclassificar && d.reclassificacao && (
+                <ReclassificarDiagnostico
+                  nivelAtual={d.revisao.nivel ?? d.nivelIA}
+                  profissionalNome={d.revisao.revisorNome}
+                  revisadaPorProfissional={d.reclassificacao.revisadaPorProfissional}
+                  salvando={reclassificar.isPending}
+                  erro={
+                    reclassificar.isError
+                      ? erroDaReclassificacao(reclassificar.error).mensagem
+                      : null
+                  }
+                  desatualizado={
+                    reclassificar.isError &&
+                    erroDaReclassificacao(reclassificar.error).desatualizado
+                  }
+                  concluido={reclassificado}
+                  onConfirmar={({ nivel, observacoes }) =>
+                    reclassificar.mutate(
+                      { id, nivel, observacoes, versao: versaoDaRevisao },
+                      { onSuccess: () => setReclassificado(true) },
+                    )
+                  }
+                  onRecarregar={() => {
+                    reclassificar.reset();
+                    refetch();
+                  }}
+                  onLimparErro={() => {
+                    reclassificar.reset();
+                    setReclassificado(false);
+                  }}
+                />
               )}
             </div>
+
             {d.erro && <Alert type="error" message={d.erro} />}
             {d.nivel !== null ? (
               <div className="flex items-center gap-3.5">
@@ -140,56 +187,64 @@ export default function DiagnosticoDetailAdminPage({
                     style: { color: nivelColor(d.nivel) },
                   })}
                 </div>
-                <div className="flex flex-col gap-1">
+                <div className="flex min-w-0 flex-col gap-1">
                   <LevelChip nivel={d.nivel} size="lg" />
-                  <span className="text-muted-foreground text-xs">
-                    {d.confiancaIA !== null && `Escala de halitose ${d.confiancaIA}%`}
-                    {d.confiancaIA !== null && d.escalaSaburra !== null && " · "}
-                    {d.escalaSaburra !== null && `Saburra ${d.escalaSaburra}`}
-                  </span>
+                  {!revisado && detalhesIA && (
+                    <span className="text-muted-foreground text-xs">{detalhesIA}</span>
+                  )}
                 </div>
               </div>
             ) : (
               !d.erro && <p className="text-muted-foreground text-sm">Ainda sem classificação.</p>
             )}
-          </Card>
 
-          <Card className="rounded-lg p-5 shadow-sm ring-0">
-            <div className="font-heading mb-3 flex items-center gap-2 text-sm font-extrabold">
-              <BadgeCheck className="text-primary h-4 w-4" /> Revisão profissional
-            </div>
-            {d.revisao.revisado ? (
-              <div className="flex flex-col gap-1.5 text-[13px]">
-                <div className="flex justify-between gap-3">
-                  <span className="text-muted-foreground">Revisado por</span>
-                  <span className="font-heading font-semibold">{d.revisao.revisorNome ?? "—"}</span>
-                </div>
-                {d.revisao.revisadoEm && (
-                  <div className="flex justify-between gap-3">
-                    <span className="text-muted-foreground">Em</span>
-                    <span className="font-heading font-semibold">
-                      {formatarData(d.revisao.revisadoEm)}
+            {reclassificado && (
+              <div className="mt-4">
+                <Alert type="success" message="Reclassificação salva. O paciente será avisado." />
+              </div>
+            )}
+
+            <div className="border-border mt-4 flex flex-col gap-2 border-t pt-4 text-[13px]">
+              {revisado ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <BadgeCheck className="text-primary h-4 w-4 shrink-0" />
+                    <span>
+                      Revisado por{" "}
+                      <span className="font-heading font-semibold">
+                        {d.revisao.revisorNome ?? "—"}
+                      </span>
+                      {d.revisao.revisadoEm && ` em ${formatarData(d.revisao.revisadoEm)}`}
                     </span>
                   </div>
-                )}
-                {d.revisao.observacoes && (
-                  <p className="bg-background mt-1 rounded-[10px] px-3 py-2">
-                    {d.revisao.observacoes}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-sm">Aguardando revisão.</p>
-            )}
+                  {d.revisao.observacoes && (
+                    <p className="bg-background rounded-[10px] px-3 py-2">
+                      {d.revisao.observacoes}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-muted-foreground">Aguardando revisão.</p>
+              )}
+              {revisado && d.nivelIA !== null && (
+                <div className="text-muted-foreground flex items-start gap-1.5 text-xs">
+                  <Sparkles className="mt-px h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    IA: {nivelLabel(d.nivelIA)}
+                    {detalhesIA && ` · ${detalhesIA}`}
+                  </span>
+                </div>
+              )}
+            </div>
           </Card>
 
-          {d.historico.length > 1 && (
-            <Card className="rounded-lg p-5 shadow-sm ring-0">
+          {anteriores.length > 0 && (
+            <Card className="gap-0 rounded-lg p-5 shadow-sm ring-0">
               <div className="font-heading mb-3 flex items-center gap-2 text-sm font-extrabold">
                 <History className="text-muted-foreground h-4 w-4" /> Histórico de revisões
               </div>
               <ol className="flex flex-col gap-2.5">
-                {[...d.historico].reverse().map((r, i) => (
+                {anteriores.map((r, i) => (
                   <li
                     key={`${r.revisadoEm}-${i}`}
                     className="border-border flex items-start justify-between gap-3 border-b pb-2.5 text-[13px] last:border-b-0 last:pb-0"
@@ -198,6 +253,7 @@ export default function DiagnosticoDetailAdminPage({
                       <div className="font-heading font-semibold">{r.revisorNome ?? "—"}</div>
                       <div className="text-muted-foreground text-xs">
                         {r.revisadoEm && formatarData(r.revisadoEm)}
+                        {i === 0 && " · atual"}
                       </div>
                       {r.observacoes && <p className="mt-1">{r.observacoes}</p>}
                     </div>
@@ -209,43 +265,41 @@ export default function DiagnosticoDetailAdminPage({
           )}
         </div>
 
-        <div className="flex flex-col gap-3.5">
-          <Card className="rounded-lg p-5 shadow-sm ring-0">
-            <div className="font-heading mb-2 flex items-center gap-2 text-sm font-extrabold">
-              <Lock className="text-muted-foreground h-4 w-4" /> Dados clínicos
+        <Card className="shell:col-start-2 shell:row-start-2 gap-0 rounded-lg p-5 shadow-sm ring-0">
+          <div className="font-heading mb-2 flex items-center gap-2 text-sm font-extrabold">
+            <Lock className="text-muted-foreground h-4 w-4" /> Dados clínicos
+          </div>
+          <p className="text-muted-foreground mb-3 text-[13px] leading-relaxed">
+            As respostas da anamnese e as fotos não ficam visíveis para o administrador.
+          </p>
+          <div className="flex flex-col gap-1.5 text-[13px]">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Anamnese</span>
+              <span className="font-heading font-semibold">
+                {d.anamneseId ? `#${d.anamneseId}` : "—"}
+              </span>
             </div>
-            <p className="text-muted-foreground mb-3 text-[13px] leading-relaxed">
-              As respostas da anamnese e as fotos não ficam visíveis para o administrador.
-            </p>
-            <div className="flex flex-col gap-1.5 text-[13px]">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Anamnese</span>
-                <span className="font-heading font-semibold">
-                  {d.anamneseId ? `#${d.anamneseId}` : "—"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Imagens</span>
-                <span className="font-heading font-semibold">{d.qtdImagens}</span>
-              </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Imagens</span>
+              <span className="font-heading font-semibold">{d.qtdImagens}</span>
             </div>
-          </Card>
+          </div>
+        </Card>
 
-          <Card className="rounded-lg p-5 shadow-sm ring-0">
-            <div className="font-heading mb-2 flex items-center gap-2 text-sm font-extrabold">
+        <Card className="shell:col-start-2 shell:row-start-3 gap-0 rounded-lg p-5 shadow-sm ring-0">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div className="font-heading flex items-center gap-2 text-sm font-extrabold">
               <Database className="text-muted-foreground h-4 w-4" /> Dataset
             </div>
-            <div className="mb-1">
-              <StatusBadge
-                label={d.dataset.disponivel ? "Disponível" : "Indisponível"}
-                status={d.dataset.disponivel ? "success" : "neutral"}
-              />
-            </div>
-            <p className="text-muted-foreground text-[13px]">
-              {MOTIVO_DATASET[d.dataset.motivo] ?? d.dataset.motivo}
-            </p>
-          </Card>
-        </div>
+            <StatusBadge
+              label={d.dataset.disponivel ? "Disponível" : "Indisponível"}
+              status={d.dataset.disponivel ? "success" : "neutral"}
+            />
+          </div>
+          <p className="text-muted-foreground text-[13px]">
+            {MOTIVO_DATASET[d.dataset.motivo] ?? d.dataset.motivo}
+          </p>
+        </Card>
       </div>
     </div>
   );
