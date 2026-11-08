@@ -58,6 +58,10 @@ export default function DiagnosticosAdminPage() {
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [baixando, setBaixando] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
+  const [elegibilidade, setElegibilidade] = useState<
+    Record<string, { exportavel: boolean; fonteEfetiva: "hality" | "profissional" | "ia" }>
+  >({});
+  const [idsElegibilidadeCarregados, setIdsElegibilidadeCarregados] = useState("");
   const downloadUrl = useRef<string | null>(null);
 
   useEffect(() => {
@@ -77,7 +81,41 @@ export default function DiagnosticosAdminPage() {
     semClassificacao: semClassificacao || undefined,
     limite: 20,
   });
-  const diagnosticos = lista.data?.pages.flatMap((p) => p.itens) ?? [];
+  const diagnosticos = useMemo(
+    () => lista.data?.pages.flatMap((p) => p.itens) ?? [],
+    [lista.data?.pages],
+  );
+  const idsCarregados = useMemo(() => diagnosticos.map((d) => d.id).join(","), [diagnosticos]);
+
+  useEffect(() => {
+    if (!modoSelecao || diagnosticos.length === 0) return;
+    let cancelado = false;
+    Promise.all(diagnosticos.map((d) => diagnosticoService.buscarAdmin(d.id)))
+      .then((detalhes) => {
+        if (cancelado) return;
+        setElegibilidade(
+          Object.fromEntries(
+            detalhes.map((detalhe) => [
+              detalhe.id,
+              {
+                exportavel: detalhe.rotuloDataset?.exportavel ?? false,
+                fonteEfetiva: detalhe.rotuloDataset?.fonteEfetiva ?? "ia",
+              },
+            ]),
+          ),
+        );
+      })
+      .catch(() => {
+        if (!cancelado) setMensagem("Não foi possível verificar a elegibilidade dos diagnósticos.");
+      })
+      .finally(() => {
+        if (!cancelado) setIdsElegibilidadeCarregados(idsCarregados);
+      });
+    return () => {
+      cancelado = true;
+    };
+    // idsCarregados representa somente os registros apresentados nesta consulta.
+  }, [modoSelecao, diagnosticos, idsCarregados]);
   // cor do quadrado de sem classificação
   const corSem = nivelColor(null);
 
@@ -92,8 +130,13 @@ export default function DiagnosticosAdminPage() {
   };
 
   const selecionadosElegiveis = diagnosticos.filter(
-    (d) => selecionados.has(d.id) && d.exportavel && d.fonteRotulo !== "ia",
+    (d) =>
+      selecionados.has(d.id) &&
+      elegibilidade[d.id]?.exportavel &&
+      elegibilidade[d.id]?.fonteEfetiva !== "ia",
   );
+  const carregandoElegibilidade =
+    modoSelecao && diagnosticos.length > 0 && idsElegibilidadeCarregados !== idsCarregados;
 
   function limparSelecaoAntesDeMudarFiltro() {
     if (selecionados.size > 0) {
@@ -165,7 +208,9 @@ export default function DiagnosticosAdminPage() {
             size="sm"
             variant={modoSelecao ? "secondary" : "primary"}
             onClick={() => {
-              setModoSelecao((atual) => !atual);
+              const proximo = !modoSelecao;
+              setModoSelecao(proximo);
+              if (!proximo) setSelecionados(new Set());
               setMensagem(null);
             }}
           >
@@ -318,29 +363,19 @@ export default function DiagnosticosAdminPage() {
         )}
         <div className="cyb-grid diag-list-card flex flex-col gap-2.5">
           {diagnosticos.map((d) => (
-            <div key={d.id} className="flex items-center gap-2">
-              {modoSelecao && (
-                <label
-                  className="flex shrink-0 items-center p-1"
-                  title={`Selecionar ${d.pacienteNome}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selecionados.has(d.id)}
-                    disabled={!d.exportavel || d.fonteRotulo === "ia"}
-                    onChange={() => alternarSelecao(d.id)}
-                    aria-label={`Selecionar diagnóstico de ${d.pacienteNome}, ${d.id}`}
-                    className="h-4 w-4 accent-[var(--primary)]"
-                  />
-                </label>
-              )}
-              <div className="min-w-0 flex-1">
-                <DiagnosticoAdminCard
-                  diagnostico={d}
-                  href={`/admin/diagnosticos/${d.id}?voltar=/admin/diagnosticos`}
-                />
-              </div>
-            </div>
+            <DiagnosticoAdminCard
+              key={d.id}
+              diagnostico={d}
+              href={`/admin/diagnosticos/${d.id}?voltar=/admin/diagnosticos`}
+              selecionando={modoSelecao}
+              selecionado={selecionados.has(d.id)}
+              selecaoDesabilitada={
+                carregandoElegibilidade ||
+                !elegibilidade[d.id]?.exportavel ||
+                elegibilidade[d.id]?.fonteEfetiva === "ia"
+              }
+              onAlternarSelecao={() => alternarSelecao(d.id)}
+            />
           ))}
         </div>
         <ScrollInfinito

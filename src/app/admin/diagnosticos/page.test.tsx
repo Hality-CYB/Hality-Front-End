@@ -34,6 +34,30 @@ function item(
   };
 }
 
+function itemElegivel(id: number, nome: string) {
+  return {
+    ...item(id, nome, "concluido", NORMAL),
+    rotulo_dataset: {
+      fonte_efetiva: "profissional",
+      exportavel: true,
+      motivo: null,
+    },
+  };
+}
+
+function detalheElegivel(id: number, nome: string) {
+  return {
+    ...itemElegivel(id, nome),
+    historico_revisoes: [],
+    dataset: { disponivel: false, motivo: "exportacao_fora_do_escopo" },
+    rotulo_dataset: { fonte_efetiva: "profissional", exportavel: true, motivo: null },
+    imagem: { disponivel: false, motivo: "politica_de_acesso_pendente" },
+    reclassificacao: { version: 1, revisada_por_profissional: true },
+    erro: null,
+    anamnese_id: null,
+  };
+}
+
 const INTIMA = { codigo: "halitose_intima", nome_exibicao: "Halitose Íntima", ordem: 2 };
 const NORMAL = { codigo: "halito_normal", nome_exibicao: "Hálito Normal", ordem: 1 };
 
@@ -186,5 +210,83 @@ describe("Fila de diagnósticos do admin", () => {
       await screen.findByText("Você não tem permissão para ver os diagnósticos."),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Tentar de novo" })).not.toBeInTheDocument();
+  });
+
+  it("seleciona somente diagnósticos elegíveis dentro do card", async () => {
+    server.use(
+      http.get(url, () => HttpResponse.json(resposta([itemElegivel(101, "Ana Paula Ferreira")]))),
+      http.get(`${url}/101`, () => HttpResponse.json(detalheElegivel(101, "Ana Paula Ferreira"))),
+    );
+    renderPagina();
+
+    await screen.findByText("Ana Paula Ferreira");
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
+
+    const checkbox = screen.getByRole("checkbox", {
+      name: "Selecionar diagnóstico de Ana Paula Ferreira, 101",
+    });
+    expect(checkbox.closest(".diag-list-card")).not.toBeNull();
+    await userEvent.click(checkbox);
+    expect(screen.getByText("1 selecionado(s)")).toBeInTheDocument();
+  });
+
+  it("mantém a seleção e mostra erro quando o export falha", async () => {
+    server.use(
+      http.get(url, () => HttpResponse.json(resposta([itemElegivel(101, "Ana Paula Ferreira")]))),
+      http.get(`${url}/101`, () => HttpResponse.json(detalheElegivel(101, "Ana Paula Ferreira"))),
+      http.post(`${config.apiBaseUrl}/api/v1/admin/datasets/exports`, () =>
+        HttpResponse.json({ detail: "storage" }, { status: 500 }),
+      ),
+    );
+    renderPagina();
+
+    await screen.findByText("Ana Paula Ferreira");
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
+    await userEvent.click(
+      screen.getByRole("checkbox", {
+        name: "Selecionar diagnóstico de Ana Paula Ferreira, 101",
+      }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Exportar dataset" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Não foi possível gerar o arquivo. Tente novamente.",
+    );
+    expect(screen.getByText("1 selecionado(s)")).toBeInTheDocument();
+  });
+
+  it("baixa o ZIP e revoga o Object URL após sucesso", async () => {
+    const createObjectURL = vi.fn(() => "blob:dataset");
+    const revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    server.use(
+      http.get(url, () => HttpResponse.json(resposta([itemElegivel(101, "Ana Paula Ferreira")]))),
+      http.get(`${url}/101`, () => HttpResponse.json(detalheElegivel(101, "Ana Paula Ferreira"))),
+      http.post(
+        `${config.apiBaseUrl}/api/v1/admin/datasets/exports`,
+        () =>
+          new HttpResponse(new Uint8Array([80, 75, 3, 4]), {
+            status: 200,
+            headers: { "Content-Type": "application/zip" },
+          }),
+      ),
+    );
+    renderPagina();
+
+    await screen.findByText("Ana Paula Ferreira");
+    vi.spyOn(URL, "createObjectURL").mockImplementation(createObjectURL);
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(revokeObjectURL);
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
+    await userEvent.click(
+      screen.getByRole("checkbox", {
+        name: "Selecionar diagnóstico de Ana Paula Ferreira, 101",
+      }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Exportar dataset" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("1 diagnóstico(s) baixado(s).");
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:dataset");
+    expect(click).toHaveBeenCalledOnce();
   });
 });

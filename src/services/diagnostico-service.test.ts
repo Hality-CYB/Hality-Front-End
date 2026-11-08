@@ -123,6 +123,42 @@ describe("diagnosticoService.criar", () => {
     });
   });
 
+  describe("diagnosticoService.exportarDataset", () => {
+    it("serializa IDs e retorna ZIP como Blob", async () => {
+      let corpo: unknown;
+      server.use(
+        http.post(url("/api/v1/admin/datasets/exports"), async ({ request }) => {
+          corpo = await request.json();
+          return new HttpResponse(new Uint8Array([80, 75, 3, 4]), {
+            status: 200,
+            headers: {
+              "Content-Type": "application/zip",
+              "Content-Disposition": 'attachment; filename="hality-dataset-20261108.zip"',
+            },
+          });
+        }),
+      );
+
+      const blob = await diagnosticoService.exportarDataset(["12", "13"]);
+
+      expect(corpo).toEqual({ diagnostico_ids: [12, 13] });
+      expect(blob).toBeInstanceOf(Blob);
+      expect(blob.type).toBe("application/zip");
+    });
+
+    it("rejeita resposta que não seja ZIP", async () => {
+      server.use(
+        http.post(url("/api/v1/admin/datasets/exports"), () =>
+          HttpResponse.json({ detail: "erro" }, { status: 200 }),
+        ),
+      );
+
+      await expect(diagnosticoService.exportarDataset(["12"])).rejects.toMatchObject({
+        status: 200,
+      });
+    });
+  });
+
   it("propaga o erro do back (ex.: 422 anamnese já usada) como ApiError", async () => {
     server.use(
       http.post(url("/api/v1/diagnosticos"), () =>

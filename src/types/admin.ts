@@ -235,12 +235,9 @@ function adaptItemAdmin(item: z.infer<typeof backendAdminDiagnosticoItemSchema>)
     ...niveisDoDiagnostico(item.automatica, revisao),
     revisao,
     qtdImagens: item.qtd_imagens,
-    exportavel:
-      item.rotulo_dataset?.exportavel ??
-      (item.status === "concluido" && item.qtd_imagens > 0 && revisao.revisado),
-    fonteRotulo: item.rotulo_dataset?.fonte_efetiva ?? (revisao.revisado ? "profissional" : "ia"),
-    motivoExportacao:
-      item.rotulo_dataset?.motivo ?? (revisao.revisado ? null : "sem_rotulo_humano"),
+    exportavel: item.rotulo_dataset?.exportavel ?? false,
+    fonteRotulo: item.rotulo_dataset?.fonte_efetiva ?? "ia",
+    motivoExportacao: item.rotulo_dataset?.motivo ?? "elegibilidade_nao_informada",
   };
 }
 
@@ -251,6 +248,11 @@ export function adaptBackendAdminDiagnosticoList(
 }
 
 const indisponivelSchema = z.object({ disponivel: z.boolean(), motivo: z.string() });
+const rotuloDatasetElegibilidadeSchema = z.object({
+  fonte_efetiva: z.enum(["hality", "profissional", "ia"]),
+  exportavel: z.boolean(),
+  motivo: z.string().nullable(),
+});
 
 export const backendAdminDiagnosticoDetalheSchema = z.object({
   id: z.number(),
@@ -271,6 +273,7 @@ export const backendAdminDiagnosticoDetalheSchema = z.object({
     }),
   ),
   dataset: indisponivelSchema,
+  rotulo_dataset: rotuloDatasetElegibilidadeSchema.optional(),
   imagem: indisponivelSchema,
   /** Opcional só para o mock, que não acompanha mais os contratos novos. */
   reclassificacao: z
@@ -291,6 +294,11 @@ export type DiagnosticoAdminDetalhe = Omit<DiagnosticoAdminResumo, "qtdImagens">
   historico: Omit<RevisaoAdmin, "revisado">[];
   imagem: { disponivel: boolean; motivo: string };
   dataset: { disponivel: boolean; motivo: string };
+  rotuloDataset: {
+    fonteEfetiva: "hality" | "profissional" | "ia";
+    exportavel: boolean;
+    motivo: string | null;
+  } | null;
   /** Versão da revisão e se o último revisor foi um profissional. */
   reclassificacao: { versao: number; revisadaPorProfissional: boolean } | null;
   anamneseId: string | null;
@@ -323,6 +331,13 @@ export function adaptBackendAdminDiagnosticoDetalhe(
     })),
     imagem: data.imagem,
     dataset: data.dataset,
+    rotuloDataset: data.rotulo_dataset
+      ? {
+          fonteEfetiva: data.rotulo_dataset.fonte_efetiva,
+          exportavel: data.rotulo_dataset.exportavel,
+          motivo: data.rotulo_dataset.motivo,
+        }
+      : null,
     reclassificacao: data.reclassificacao
       ? {
           versao: data.reclassificacao.version,
