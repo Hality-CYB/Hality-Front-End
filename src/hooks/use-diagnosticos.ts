@@ -7,6 +7,7 @@ import {
   type FiltroDiagnosticosAdmin,
   type FiltroDiagnosticosProfissional,
 } from "@/services/diagnostico-service";
+import { ApiError } from "@/lib/api-client";
 import type { DiagnosticoNivel, DiagnosticoProfissional } from "@/types/diagnostico";
 
 export function useDiagnosticos(filtro: FiltroDiagnosticos = {}) {
@@ -134,6 +135,49 @@ export function useCriarRotuloDataset() {
       queryClient.invalidateQueries({ queryKey: ["diagnosticos", "admin", "paginado"] });
     },
   });
+}
+
+export function useReclassificarDiagnostico() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...input
+    }: {
+      id: string;
+      nivel: DiagnosticoNivel;
+      observacoes?: string;
+      versao: number;
+    }) => diagnosticoService.reclassificarAdmin(id, input),
+    // No 409 também recarrega: a versão que a tela tinha ficou velha.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["diagnosticos", "admin"] }),
+  });
+}
+
+/** Texto de cada erro da reclassificação; só o 409 pede para recarregar. */
+export function erroDaReclassificacao(erro: unknown): { mensagem: string; desatualizado: boolean } {
+  if (erro instanceof ApiError) {
+    if (erro.status === 403) {
+      return { mensagem: "Você não tem permissão para reclassificar.", desatualizado: false };
+    }
+    if (erro.status === 404) {
+      return {
+        mensagem: "Diagnóstico não encontrado. Ele pode ter sido removido.",
+        desatualizado: false,
+      };
+    }
+    if (erro.status === 409) {
+      return {
+        mensagem:
+          "O diagnóstico mudou enquanto você editava. Recarregue para ver a revisão atual e decidir de novo.",
+        desatualizado: true,
+      };
+    }
+  }
+  return {
+    mensagem: "Não foi possível salvar agora. Tente de novo em instantes.",
+    desatualizado: false,
+  };
 }
 
 export function useDiagnosticoAdmin(id: string) {

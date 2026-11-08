@@ -1,0 +1,95 @@
+# Somente dados sintéticos. Nunca conecte este ambiente a um banco compartilhado.
+x-backend: &backend
+  build:
+    context: ${BACKEND_PATH:-../../Hality-Back-End}
+  environment:
+    ENVIRONMENT: development
+    DEBUG: "false"
+    POSTGRES_HOST: db
+    POSTGRES_PORT: "5432"
+    POSTGRES_USER: hality_e2e
+    POSTGRES_PASSWORD: hality_e2e_disposable
+    POSTGRES_DB: hality_e2e
+    SECRET_KEY: hality-e2e-only-synthetic-data-not-for-production
+    SEED_PASSWORD: HalityE2e123!
+    CORS_ORIGINS: '["http://localhost:${E2E_FRONT_PORT:-3000}"]'
+    IDENTITY_TOKEN_BASE_URL: http://localhost:${E2E_FRONT_PORT:-3000}
+    EMAIL_PROVIDER: noop
+    HALITY_AI_URL: ""
+    GOOGLE_CLIENT_ID: ""
+    GOOGLE_CLIENT_SECRET: ""
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: hality_e2e
+      POSTGRES_PASSWORD: hality_e2e_disposable
+      POSTGRES_DB: hality_e2e
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hality_e2e -d hality_e2e"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # O seed destrutivo roda uma única vez, antes da API, num volume novo.
+  setup:
+    <<: *backend
+    depends_on:
+      db:
+        condition: service_healthy
+    # O back pode ter mais de uma cabeça de migração em develop.
+    command: sh -c "alembic upgrade heads && python -m scripts.seed"
+
+  api:
+    <<: *backend
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${E2E_API_PORT:-8000}:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/db', timeout=5)"
+      interval: 2s
+      timeout: 10s
+      retries: 30
+
+  # Captura privada da outbox, sem chamadas a provedores externos.
+  identity-worker:
+    <<: *backend
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - ./capturar-emails.py:/app/capturar-emails.py:ro
+    command: python /app/capturar-emails.py
+
+  front:
+    build:
+      context: ..
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:${E2E_API_PORT:-8000}
+        # NEXT_PUBLIC_API_MOCKING=disabled já é fixado no build pelo Dockerfile.
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${E2E_FRONT_PORT:-3000}:3000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/login').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 2s
+      timeout: 10s
+      retries: 30
+
+volumes:
+  postgres-data:
