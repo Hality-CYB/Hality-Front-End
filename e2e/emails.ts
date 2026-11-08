@@ -5,7 +5,8 @@ import { z } from "zod";
 
 const executar = promisify(execFile);
 const linkSchema = z.url();
-type Finalidade = "email_verification" | "invitation" | "password_reset";
+type Finalidade =
+  "email_verification" | "invitation" | "password_reset" | "diagnostic_review_override";
 
 /** Retorna o link mais recente para o destinatário e finalidade, sem registrar o token. */
 export async function obterLinkEmail({

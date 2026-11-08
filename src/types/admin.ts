@@ -255,6 +255,10 @@ export const backendAdminDiagnosticoDetalheSchema = z.object({
   ),
   dataset: indisponivelSchema,
   imagem: indisponivelSchema,
+  /** Opcional só para o mock, que não acompanha mais os contratos novos. */
+  reclassificacao: z
+    .object({ version: z.number(), revisada_por_profissional: z.boolean() })
+    .optional(),
   anamnese_id: z.number().nullable(),
   qtd_imagens: z.number(),
 });
@@ -270,6 +274,8 @@ export type DiagnosticoAdminDetalhe = Omit<DiagnosticoAdminResumo, "qtdImagens">
   historico: Omit<RevisaoAdmin, "revisado">[];
   imagem: { disponivel: boolean; motivo: string };
   dataset: { disponivel: boolean; motivo: string };
+  /** Versão da revisão e se o último revisor foi um profissional. */
+  reclassificacao: { versao: number; revisadaPorProfissional: boolean } | null;
   anamneseId: string | null;
   qtdImagens: number;
 };
@@ -300,6 +306,12 @@ export function adaptBackendAdminDiagnosticoDetalhe(
     })),
     imagem: data.imagem,
     dataset: data.dataset,
+    reclassificacao: data.reclassificacao
+      ? {
+          versao: data.reclassificacao.version,
+          revisadaPorProfissional: data.reclassificacao.revisada_por_profissional,
+        }
+      : null,
     anamneseId: data.anamnese_id === null ? null : String(data.anamnese_id),
     qtdImagens: data.qtd_imagens,
   };

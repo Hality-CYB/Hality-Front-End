@@ -155,4 +155,17 @@ export const diagnosticoService = {
       versao: resposta.version,
     };
   },
+
+  /** Reclassificação pelo admin: mesmo contrato da revisão, sem depender de vínculo. */
+  async reclassificarAdmin(
+    id: string,
+    input: { nivel: DiagnosticoNivel; observacoes?: string; versao: number },
+  ): Promise<void> {
+    const data = await apiClient.patch<unknown>(`/api/v1/admin/diagnosticos/${id}/revisao`, {
+      classificacao: CODIGO_POR_NIVEL[input.nivel],
+      observacao: input.observacoes?.trim() || null,
+      version: input.versao,
+    });
+    backendRevisaoProfissionalResponseSchema.parse(data);
+  },
 };
