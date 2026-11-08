@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Beaker, Clock } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Beaker, Clock, Download, LoaderCircle } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -13,6 +13,7 @@ import { useDiagnosticosAdmin, useDiagnosticosAdminPaginados } from "@/hooks/use
 import { ApiError } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { nivelColor } from "@/lib/level-format";
+import { diagnosticoService } from "@/services/diagnostico-service";
 import {
   PERIODS,
   periodLabel,
@@ -46,12 +47,6 @@ function useTotal(filtro: Parameters<typeof useDiagnosticosAdmin>[0]) {
   return useDiagnosticosAdmin({ ...filtro, limite: 1 }).data?.total;
 }
 
-/*
- * TODO(backend): a busca por nome de paciente/profissional que existia aqui
- * saiu — `/admin/diagnosticos` não filtra por nome. A seleção para "Exportar
- * dataset" também saiu: o back marca o dataset como indisponível
- * (DEC-04/DEC-07) e não há rota de exportação.
- */
 export default function DiagnosticosAdminPage() {
   const [filtroStatus, setFiltroStatus] = useState<StatusDiagnostico | "todos">("todos");
   const [filtroNivel, setFiltroNivel] = useState<DiagnosticoNivel | null>(null);
@@ -59,6 +54,17 @@ export default function DiagnosticosAdminPage() {
   const [period, setPeriod] = useState<Period>("Todos");
   const [customRange, setCustomRange] = useState<CustomRange | null>(null);
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
+  const [modoSelecao, setModoSelecao] = useState(false);
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const [baixando, setBaixando] = useState(false);
+  const [mensagem, setMensagem] = useState<string | null>(null);
+  const downloadUrl = useRef<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (downloadUrl.current) URL.revokeObjectURL(downloadUrl.current);
+    };
+  }, []);
 
   const filtroPeriodo = useMemo(
     () => periodoParaFiltro(period, customRange),
@@ -72,7 +78,6 @@ export default function DiagnosticosAdminPage() {
     limite: 20,
   });
   const diagnosticos = lista.data?.pages.flatMap((p) => p.itens) ?? [];
-
   // cor do quadrado de sem classificação
   const corSem = nivelColor(null);
 
@@ -86,15 +91,95 @@ export default function DiagnosticosAdminPage() {
     sem: useTotal({ ...filtroPeriodo, semClassificacao: true }),
   };
 
+  const selecionadosElegiveis = diagnosticos.filter(
+    (d) => selecionados.has(d.id) && d.exportavel && d.fonteRotulo !== "ia",
+  );
+
+  function limparSelecaoAntesDeMudarFiltro() {
+    if (selecionados.size > 0) {
+      setSelecionados(new Set());
+      setMensagem("A seleção foi limpa porque os filtros foram alterados.");
+    }
+  }
+
+  function alternarSelecao(id: string) {
+    setSelecionados((atual) => {
+      const proxima = new Set(atual);
+      if (proxima.has(id)) proxima.delete(id);
+      else proxima.add(id);
+      return proxima;
+    });
+    setMensagem(null);
+  }
+
+  async function exportar() {
+    if (baixando || selecionadosElegiveis.length === 0) return;
+    setBaixando(true);
+    setMensagem("Preparando o download do dataset…");
+    try {
+      const blob = await diagnosticoService.exportarDataset(selecionadosElegiveis.map((d) => d.id));
+      const url = URL.createObjectURL(blob);
+      downloadUrl.current = url;
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `hality-dataset-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}.zip`;
+      link.click();
+      URL.revokeObjectURL(url);
+      downloadUrl.current = null;
+      setSelecionados(new Set());
+      setModoSelecao(false);
+      setMensagem(`${selecionadosElegiveis.length} diagnóstico(s) baixado(s).`);
+    } catch (erro) {
+      if (erro instanceof ApiError) {
+        const mensagens: Record<number, string> = {
+          401: "Sua sessão expirou. Entre novamente para baixar o dataset.",
+          403: "Você não tem permissão para exportar o dataset.",
+          409: "A elegibilidade mudou. A fila foi atualizada; revise a seleção.",
+          413: "A seleção excede o limite de exportação.",
+          500: "Não foi possível gerar o arquivo. Tente novamente.",
+        };
+        setMensagem(
+          mensagens[erro.status] ??
+            (erro.status >= 500
+              ? "Erro temporário ao gerar o arquivo. Tente novamente."
+              : "Não foi possível exportar o dataset."),
+        );
+        if (erro.status === 409) {
+          await lista.refetch();
+        }
+      } else {
+        setMensagem("Não foi possível exportar o dataset. Tente novamente.");
+      }
+    } finally {
+      setBaixando(false);
+    }
+  }
+
   return (
     <div className="flex flex-col">
       <div className="p-5 pb-6" style={{ background: "var(--gradient-brand)" }}>
-        <h1 className="mb-3 text-xl text-white">Diagnósticos</h1>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h1 className="text-xl text-white">Diagnósticos</h1>
+          <Button
+            type="button"
+            size="sm"
+            variant={modoSelecao ? "secondary" : "primary"}
+            onClick={() => {
+              setModoSelecao((atual) => !atual);
+              setMensagem(null);
+            }}
+          >
+            {modoSelecao ? "Cancelar seleção" : "Selecionar"}
+          </Button>
+        </div>
         <div className="no-scrollbar mb-2 flex gap-2 overflow-x-auto">
           {FILTROS_STATUS.map((f) => (
             <button
               key={f.valor}
-              onClick={() => setFiltroStatus(f.valor)}
+              onClick={() => {
+                limparSelecaoAntesDeMudarFiltro();
+                setFiltroStatus(f.valor);
+              }}
               className={cn(
                 "font-heading shrink-0 rounded-4xl px-3.5 py-1.5 text-xs font-bold whitespace-nowrap",
                 filtroStatus === f.valor
@@ -110,7 +195,10 @@ export default function DiagnosticosAdminPage() {
           {PERIODS.map((p) => (
             <button
               key={p}
-              onClick={() => setPeriod(p)}
+              onClick={() => {
+                limparSelecaoAntesDeMudarFiltro();
+                setPeriod(p);
+              }}
               className={cn(
                 "font-heading shrink-0 rounded-4xl border-[1.5px] px-3 py-1.5 text-[11px] font-semibold whitespace-nowrap text-white",
                 period === p ? "border-white bg-white/20" : "border-white/30",
@@ -136,6 +224,7 @@ export default function DiagnosticosAdminPage() {
         onOpenChange={setCustomDialogOpen}
         initial={customRange}
         onApply={(range) => {
+          limparSelecaoAntesDeMudarFiltro();
           setCustomRange(range);
           setPeriod("custom");
           setCustomDialogOpen(false);
@@ -143,6 +232,12 @@ export default function DiagnosticosAdminPage() {
       />
 
       <div className="flex flex-col gap-2.5 p-4">
+        <div className="sr-only" aria-live="polite">
+          {mensagem}
+        </div>
+        {mensagem && (
+          <Alert type={mensagem.includes("baixado") ? "success" : "error"} message={mensagem} />
+        )}
         <Card className="rounded-lg p-5 shadow-sm ring-0">
           <h2 className="text-lg">Análise geral</h2>
           <p className="text-muted-foreground mb-4 text-[13px]">
@@ -158,6 +253,7 @@ export default function DiagnosticosAdminPage() {
                   type="button"
                   aria-pressed={ativo}
                   onClick={() => {
+                    limparSelecaoAntesDeMudarFiltro();
                     setFiltroNivel(ativo ? null : nivel);
                     setSemClassificacao(false);
                   }}
@@ -175,6 +271,7 @@ export default function DiagnosticosAdminPage() {
               type="button"
               aria-pressed={semClassificacao}
               onClick={() => {
+                limparSelecaoAntesDeMudarFiltro();
                 setSemClassificacao(!semClassificacao);
                 setFiltroNivel(null);
               }}
@@ -221,11 +318,29 @@ export default function DiagnosticosAdminPage() {
         )}
         <div className="cyb-grid diag-list-card flex flex-col gap-2.5">
           {diagnosticos.map((d) => (
-            <DiagnosticoAdminCard
-              key={d.id}
-              diagnostico={d}
-              href={`/admin/diagnosticos/${d.id}?voltar=/admin/diagnosticos`}
-            />
+            <div key={d.id} className="flex items-center gap-2">
+              {modoSelecao && (
+                <label
+                  className="flex shrink-0 items-center p-1"
+                  title={`Selecionar ${d.pacienteNome}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selecionados.has(d.id)}
+                    disabled={!d.exportavel || d.fonteRotulo === "ia"}
+                    onChange={() => alternarSelecao(d.id)}
+                    aria-label={`Selecionar diagnóstico de ${d.pacienteNome}, ${d.id}`}
+                    className="h-4 w-4 accent-[var(--primary)]"
+                  />
+                </label>
+              )}
+              <div className="min-w-0 flex-1">
+                <DiagnosticoAdminCard
+                  diagnostico={d}
+                  href={`/admin/diagnosticos/${d.id}?voltar=/admin/diagnosticos`}
+                />
+              </div>
+            </div>
           ))}
         </div>
         <ScrollInfinito
@@ -235,6 +350,23 @@ export default function DiagnosticosAdminPage() {
           onCarregarMais={() => lista.fetchNextPage()}
         />
       </div>
+      {modoSelecao && (
+        <div className="sticky bottom-0 flex items-center justify-between gap-3 border-t bg-white px-4 py-3">
+          <span className="text-muted-foreground text-sm" aria-live="polite">
+            {selecionados.size} selecionado(s)
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="success"
+            disabled={baixando || selecionadosElegiveis.length === 0}
+            onClick={exportar}
+          >
+            {baixando ? <LoaderCircle className="animate-spin" /> : <Download />}
+            {baixando ? "Baixando…" : "Exportar dataset"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
