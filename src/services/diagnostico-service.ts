@@ -22,11 +22,14 @@ import {
 import {
   adaptBackendAdminDiagnosticoDetalhe,
   adaptBackendAdminDiagnosticoList,
+  adaptBackendRotuloDataset,
   backendAdminDiagnosticoDetalheSchema,
   backendAdminDiagnosticoListSchema,
+  backendRotuloDatasetItemSchema,
   type DiagnosticoAdminDetalhe,
   type DiagnosticoAdminResumo,
   type Pagina,
+  type RotuloDataset,
 } from "@/types/admin";
 
 export type FiltroDiagnosticos = {
@@ -77,6 +80,21 @@ export const diagnosticoService = {
   async buscarAdmin(id: string): Promise<DiagnosticoAdminDetalhe> {
     const data = await apiClient.get<unknown>(`/api/v1/admin/diagnosticos/${id}`);
     return adaptBackendAdminDiagnosticoDetalhe(backendAdminDiagnosticoDetalheSchema.parse(data));
+  },
+
+  // rótulo Hality do dataset (#177 do back), só admin
+  // cada chamada cria uma versão nova e a anterior vai pro histórico
+  // versao é a que a tela conhecia (0 se ainda não tinha rótulo), se outra pessoa rotulou antes o back responde 409
+  async criarRotuloDataset(
+    id: string,
+    input: { nivel: DiagnosticoNivel; versao: number },
+  ): Promise<RotuloDataset> {
+    const data = await apiClient.post<unknown>(
+      `/api/v1/admin/diagnosticos/${id}/rotulos-dataset`,
+      { classificacao: CODIGO_POR_NIVEL[input.nivel], version: input.versao },
+      { statusEsperado: 201 },
+    );
+    return adaptBackendRotuloDataset(backendRotuloDatasetItemSchema.parse(data));
   },
 
   /** Diagnósticos do próprio paciente logado. */

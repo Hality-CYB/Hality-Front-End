@@ -121,6 +121,22 @@ export function useDiagnosticosAdminPaginados(
   });
 }
 
+// rotular o dataset só muda o detalhe e as listas do admin
+// não mexe no que o paciente ou o profissional veem, então essas telas não são recarregadas
+export function useCriarRotuloDataset() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...input }: { id: string; nivel: DiagnosticoNivel; versao: number }) =>
+      diagnosticoService.criarRotuloDataset(id, input),
+    // no 409 a tela também recarrega, porque a versão que ela tinha ficou velha
+    onSettled: (_dados, _erro, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ["diagnosticos", "admin", id] });
+      queryClient.invalidateQueries({ queryKey: ["diagnosticos", "admin", "lista"] });
+      queryClient.invalidateQueries({ queryKey: ["diagnosticos", "admin", "paginado"] });
+    },
+  });
+}
+
 export function useReclassificarDiagnostico() {
   const queryClient = useQueryClient();
   return useMutation({

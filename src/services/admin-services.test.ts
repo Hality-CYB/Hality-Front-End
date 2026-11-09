@@ -431,6 +431,13 @@ describe("diagnosticoService (admin)", () => {
             },
           ],
           dataset: { disponivel: false, motivo: "exportacao_fora_do_escopo" },
+          rotulo_dataset: {
+            atual: null,
+            historico: [],
+            fonte_efetiva: "profissional",
+            exportavel: true,
+            motivo: null,
+          },
           imagem: { disponivel: false, motivo: "politica_de_acesso_pendente" },
           anamnese_id: null,
         }),
