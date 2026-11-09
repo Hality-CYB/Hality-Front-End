@@ -395,6 +395,9 @@ export function adaptBackendAdminDiagnosticoDetalhe(
     imagem: data.imagem,
     dataset: data.dataset,
     rotuloDataset: adaptRotuloDatasetInfo(data.rotulo_dataset),
+    exportavel: data.rotulo_dataset.exportavel,
+    fonteRotulo: data.rotulo_dataset.fonte_efetiva,
+    motivoExportacao: data.rotulo_dataset.motivo ?? null,
     reclassificacao: data.reclassificacao
       ? {
           versao: data.reclassificacao.version,

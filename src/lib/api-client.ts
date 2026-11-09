@@ -137,7 +137,7 @@ async function request<T>(path: string, init?: ApiRequestInit, retentativa = fal
   }
 
   if (contentTypeEsperado) {
-    const contentType = response.headers.get("Content-Type")?.split(";")[0].trim();
+    const contentType = response.headers.get("Content-Type")?.split(";")[0]?.trim();
     if (contentType !== contentTypeEsperado) {
       throw new ApiError(response.status, "O servidor não retornou um arquivo ZIP válido.");
     }
