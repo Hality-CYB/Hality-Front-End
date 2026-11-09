@@ -629,3 +629,142 @@ describe("diagnosticoService.revisar", () => {
     });
   });
 });
+
+describe("diagnosticoService.criarRotuloDataset", () => {
+  const caminho = "/api/v1/admin/diagnosticos/42/rotulos-dataset";
+  const rotuloBackend = {
+    id: 7,
+    diagnostico_id: 42,
+    version: 1,
+    classificacao: { codigo: "mau_halito_social", nome_exibicao: "Mau Hálito Social", ordem: 3 },
+    autor: { papel: "admin", nome: "Ana Admin" },
+    criado_em: "2026-10-02T10:00:00",
+  };
+
+  it("manda o código da classificação e a versão conhecida, e devolve o rótulo adaptado", async () => {
+    let corpo: unknown;
+    server.use(
+      http.post(url(caminho), async ({ request }) => {
+        corpo = await request.json();
+        return HttpResponse.json(rotuloBackend, { status: 201 });
+      }),
+    );
+
+    const resultado = await diagnosticoService.criarRotuloDataset("42", { nivel: 3, versao: 0 });
+
+    expect(corpo).toEqual({ classificacao: "mau_halito_social", version: 0 });
+    expect(resultado).toEqual({
+      id: "7",
+      versao: 1,
+      codigo: "mau_halito_social",
+      nomeExibicao: "Mau Hálito Social",
+      nivel: 3,
+      autorNome: "Ana Admin",
+      criadoEm: "2026-10-02T10:00:00",
+    });
+  });
+
+  it.each([403, 404, 409, 422, 500])("o erro %i chega como ApiError", async (status) => {
+    server.use(http.post(url(caminho), () => new HttpResponse(null, { status })));
+
+    await expect(
+      diagnosticoService.criarRotuloDataset("42", { nivel: 1, versao: 0 }),
+    ).rejects.toMatchObject({ status });
+  });
+
+  it("sucesso com status diferente de 201 é tratado como resposta inesperada", async () => {
+    server.use(http.post(url(caminho), () => HttpResponse.json(rotuloBackend, { status: 200 })));
+
+    await expect(
+      diagnosticoService.criarRotuloDataset("42", { nivel: 3, versao: 0 }),
+    ).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("resposta fora do contrato vira ZodError", async () => {
+    server.use(http.post(url(caminho), () => HttpResponse.json({ id: 7 }, { status: 201 })));
+
+    await expect(
+      diagnosticoService.criarRotuloDataset("42", { nivel: 3, versao: 0 }),
+    ).rejects.toBeInstanceOf(ZodError);
+  });
+});
+
+describe("diagnosticoService.buscarAdmin: rótulo do dataset", () => {
+  const classificacao = { codigo: "halitose_intima", nome_exibicao: "Halitose Íntima", ordem: 2 };
+  const item = (version: number, nome: string) => ({
+    id: version,
+    diagnostico_id: 42,
+    version,
+    classificacao,
+    autor: { papel: "admin", nome },
+    criado_em: `2026-10-0${version}T10:00:00`,
+  });
+  const detalheBackend = (rotulo: unknown) => ({
+    id: 42,
+    paciente_id: "paciente-1",
+    paciente: { id: "paciente-1", nome: "Ana Paula Ferreira" },
+    data: "2026-10-01T12:00:00Z",
+    status: "concluido",
+    erro: null,
+    automatica: { classificacao, escala_saburra: null, confianca_ia: 0.9 },
+    revisao: {
+      status: "pendente",
+      profissional_revisor_id: null,
+      profissional_revisor_nome: null,
+      data_revisao: null,
+      classificacao: null,
+      observacoes: null,
+    },
+    historico_revisoes: [],
+    dataset: { disponivel: false, motivo: "exportacao_fora_do_escopo" },
+    rotulo_dataset: rotulo,
+    imagem: { disponivel: false, motivo: "politica_de_acesso_pendente" },
+    anamnese_id: 42,
+    qtd_imagens: 1,
+  });
+
+  it("lê o rótulo atual, o histórico e a fonte que vale", async () => {
+    server.use(
+      http.get(url("/api/v1/admin/diagnosticos/42"), () =>
+        HttpResponse.json(
+          detalheBackend({
+            atual: item(2, "Ana Admin"),
+            historico: [item(1, "Bruno Admin")],
+            fonte_efetiva: "hality",
+            exportavel: true,
+            motivo: null,
+          }),
+        ),
+      ),
+    );
+
+    const { rotuloDataset } = await diagnosticoService.buscarAdmin("42");
+
+    expect(rotuloDataset.fonteEfetiva).toBe("hality");
+    expect(rotuloDataset.exportavel).toBe(true);
+    expect(rotuloDataset.atual).toMatchObject({ versao: 2, nivel: 2, autorNome: "Ana Admin" });
+    expect(rotuloDataset.historico.map((r) => r.versao)).toEqual([1]);
+  });
+
+  it("sem rótulo Hality: atual nulo e a fonte cai pra IA", async () => {
+    server.use(
+      http.get(url("/api/v1/admin/diagnosticos/42"), () =>
+        HttpResponse.json(
+          detalheBackend({
+            atual: null,
+            historico: [],
+            fonte_efetiva: "ia",
+            exportavel: false,
+            motivo: "sem_rotulo_humano",
+          }),
+        ),
+      ),
+    );
+
+    const { rotuloDataset } = await diagnosticoService.buscarAdmin("42");
+
+    expect(rotuloDataset.atual).toBeNull();
+    expect(rotuloDataset.fonteEfetiva).toBe("ia");
+    expect(rotuloDataset.motivo).toBe("sem_rotulo_humano");
+  });
+});

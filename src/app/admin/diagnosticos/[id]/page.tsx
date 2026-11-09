@@ -19,6 +19,7 @@ import { LevelChip } from "@/components/level-chip";
 import { Alert } from "@/components/alert";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { ReclassificarDiagnostico } from "@/components/reclassificar-diagnostico";
+import { RotuloDatasetSecao } from "@/components/rotulo-dataset-secao";
 import {
   erroDaReclassificacao,
   useDiagnosticoAdmin,
@@ -299,6 +300,7 @@ export default function DiagnosticoDetailAdminPage({
           <p className="text-muted-foreground text-[13px]">
             {MOTIVO_DATASET[d.dataset.motivo] ?? d.dataset.motivo}
           </p>
+          <RotuloDatasetSecao diagnostico={d} onRecarregar={() => refetch()} />
         </Card>
       </div>
     </div>

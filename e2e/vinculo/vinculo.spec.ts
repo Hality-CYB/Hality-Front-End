@@ -253,8 +253,8 @@ test.describe("vínculo e privacidade", () => {
         const corpo = detalheAdminSchema.parse(JSON.parse(texto));
         expect(corpo.imagem.disponivel).toBe(false);
         await expect(page.getByText(FRASE_PRIVACIDADE)).toBeVisible();
-        await expect(page.getByText("Classificação da IA")).toBeVisible();
-        await expect(page.getByText(classificacao, { exact: true })).toBeVisible();
+        await expect(page.getByText("Classificação da IA", { exact: true })).toBeVisible();
+        await expect(page.getByText(classificacao, { exact: true }).first()).toBeVisible();
         await expect(page.getByText("Aguardando revisão.")).toBeVisible();
         await expect(page.getByText(`#${corpo.anamnese_id}`, { exact: true })).toBeVisible();
         await expect(page.getByText("Imagens", { exact: true }).locator("..")).toContainText(
