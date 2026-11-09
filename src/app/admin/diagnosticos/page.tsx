@@ -62,6 +62,7 @@ export default function DiagnosticosAdminPage() {
     Record<string, { exportavel: boolean; fonteEfetiva: "hality" | "profissional" | "ia" }>
   >({});
   const [idsElegibilidadeCarregados, setIdsElegibilidadeCarregados] = useState("");
+  const [versaoElegibilidade, setVersaoElegibilidade] = useState(0);
   const downloadUrl = useRef<string | null>(null);
 
   useEffect(() => {
@@ -115,7 +116,7 @@ export default function DiagnosticosAdminPage() {
       cancelado = true;
     };
     // idsCarregados representa somente os registros apresentados nesta consulta.
-  }, [modoSelecao, diagnosticos, idsCarregados]);
+  }, [modoSelecao, diagnosticos, idsCarregados, versaoElegibilidade]);
   // cor do quadrado de sem classificação
   const corSem = nivelColor(null);
 
@@ -188,6 +189,9 @@ export default function DiagnosticosAdminPage() {
               : "Não foi possível exportar o dataset."),
         );
         if (erro.status === 409) {
+          setElegibilidade({});
+          setIdsElegibilidadeCarregados("");
+          setVersaoElegibilidade((versao) => versao + 1);
           await lista.refetch();
         }
       } else {
