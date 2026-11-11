@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { DecisaoConsentimento } from "@/types/consentimento";
 
 /** Etapa indicada pelo callback do back ao devolver o navegador ao frontend. */
-export const etapaGoogleSchema = z.enum(["sessao", "consentimento"]);
+export const etapaGoogleSchema = z.enum(["sessao", "consentimento", "vinculo"]);
 export type EtapaGoogle = z.infer<typeof etapaGoogleSchema>;
 
 /** Erros públicos que o callback pode informar sem expor dados do provedor. */
@@ -31,5 +31,6 @@ export const respostaSessaoGoogleSchema = z.object({
 
 export type TrocaCodigoGoogleInput = {
   codigo: string;
+  senha?: string;
   consentimentos?: DecisaoConsentimento[];
 };

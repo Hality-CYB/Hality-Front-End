@@ -6,6 +6,7 @@ import {
 } from "@/types/auth-google";
 
 export type RetornoGoogle =
+  | { status: "vinculo"; codigo: string; etapa: "vinculo" }
   | { status: "sessao"; codigo: string; etapa: "sessao" }
   | { status: "consentimento"; codigo: string; etapa: "consentimento" }
   | { status: "erro"; erro: ErroCallbackGoogle }
@@ -39,6 +40,7 @@ export function lerRetornoGoogle(url: URL): RetornoGoogle {
   const etapa = etapaGoogleSchema.safeParse(etapas[0]);
   if (!codigo.success || !etapa.success) return { status: "invalido" };
 
+  if (etapa.data === "vinculo") return { status: "vinculo", codigo: codigo.data, etapa: "vinculo" };
   return etapa.data === "sessao"
     ? { status: "sessao", codigo: codigo.data, etapa: etapa.data }
     : { status: "consentimento", codigo: codigo.data, etapa: etapa.data };

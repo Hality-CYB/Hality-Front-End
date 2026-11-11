@@ -60,6 +60,7 @@ export function useAuthGoogle() {
   const retornoRef = useRef<RetornoGoogle | null>(null);
   const codigoRef = useRef<string | null>(null);
   const consentimentosRef = useRef<DecisaoConsentimento[] | undefined>(undefined);
+  const senhaRef = useRef<string | undefined>(undefined);
   const trocaRef = useRef<Promise<void> | null>(null);
   const [estado, setEstado] = useState<EstadoAuthGoogle>(ESTADO_INICIAL);
 
@@ -70,6 +71,7 @@ export function useAuthGoogle() {
       await authService.trocarCodigoGoogle({
         codigo,
         consentimentos: consentimentosRef.current,
+        senha: senhaRef.current,
       });
     },
     retry: false,
@@ -84,7 +86,11 @@ export function useAuthGoogle() {
     if (!retornoRef.current) {
       const url = new URL(window.location.href);
       retornoRef.current = lerRetornoGoogle(url);
-      if (retornoRef.current.status === "sessao" || retornoRef.current.status === "consentimento") {
+      if (
+        retornoRef.current.status === "sessao" ||
+        retornoRef.current.status === "consentimento" ||
+        retornoRef.current.status === "vinculo"
+      ) {
         codigoRef.current = retornoRef.current.codigo;
       }
       if (["code", "etapa", "erro"].some((parametro) => url.searchParams.has(parametro))) {
@@ -97,6 +103,28 @@ export function useAuthGoogle() {
     }
 
     const retorno = retornoRef.current;
+    if (retorno.status === "vinculo") {
+      if (!trocaRef.current) trocaRef.current = authService.concluirVinculoGoogle(retorno.codigo);
+      void trocaRef.current
+        .then(() => {
+          if (ativo) {
+            codigoRef.current = null;
+            replace("/paciente/perfil?google=vinculado");
+            refresh();
+          }
+        })
+        .catch(() => {
+          if (ativo)
+            setEstado({
+              status: "erro",
+              mensagem:
+                "Não foi possível vincular a conta Google. Entre novamente e tente outra vez.",
+            });
+        });
+      return () => {
+        ativo = false;
+      };
+    }
     const estadoImediato = estadoSemTroca(retorno);
     if (estadoImediato) {
       // No primeiro acesso, o destino precisa sobreviver enquanto a pessoa
@@ -141,13 +169,17 @@ export function useAuthGoogle() {
     };
   }, [mutateAsync, queryClient, refresh, replace]);
 
-  async function concluirPrimeiroAcesso(consentimentos: DecisaoConsentimento[]): Promise<void> {
+  async function concluirPrimeiroAcesso(
+    consentimentos: DecisaoConsentimento[],
+    senha: string,
+  ): Promise<void> {
     if (retornoRef.current?.status !== "consentimento" || !codigoRef.current) {
       throw new ApiError(400, "O código do Google não está disponível.");
     }
     if (trocaRef.current) return trocaRef.current;
 
     consentimentosRef.current = consentimentos;
+    senhaRef.current = senha;
     setEstado({
       status: "consentimento",
       mensagem: "Antes de criar sua conta, precisamos confirmar os termos de uso.",
@@ -189,6 +221,7 @@ export function useAuthGoogle() {
       throw erro;
     } finally {
       consentimentosRef.current = undefined;
+      senhaRef.current = undefined;
       trocaRef.current = null;
     }
   }

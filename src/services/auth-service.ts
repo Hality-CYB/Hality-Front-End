@@ -316,6 +316,16 @@ export const authService = {
     return `${config.apiBaseUrl}${CAMINHO_GOOGLE}/authorize`;
   },
 
+  async statusVinculoGoogle(): Promise<{ vinculado: boolean; email: string | null }> {
+    return apiClient.get(`${CAMINHO_GOOGLE}/link`);
+  },
+  async iniciarVinculoGoogle(): Promise<{ url: string }> {
+    return apiClient.post(`${CAMINHO_GOOGLE}/link/start`, {}, { credentials: "include" });
+  },
+  async concluirVinculoGoogle(codigo: string): Promise<void> {
+    await apiClient.post(`${CAMINHO_GOOGLE}/link/complete`, { codigo });
+  },
+
   /** Adapta o login Google à mesma sessão e ao mesmo refresh usados pelo login atual. */
   async trocarCodigoGoogle(input: TrocaCodigoGoogleInput): Promise<void> {
     const codigo = codigoTrocaGoogleSchema.safeParse(input.codigo);
@@ -328,6 +338,7 @@ export const authService = {
         `${CAMINHO_GOOGLE}/exchange`,
         {
           codigo: codigo.data,
+          ...(input.senha ? { senha: input.senha } : {}),
           ...(input.consentimentos ? { consentimentos: input.consentimentos } : {}),
         },
         {

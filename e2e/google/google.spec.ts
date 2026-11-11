@@ -18,6 +18,7 @@ import { criarPacienteConfirmado } from "../helpers/pacientes";
 
 const trocaSchema = z.object({
   codigo: z.string().min(1),
+  senha: z.string().optional(),
   consentimentos: z
     .array(
       z.object({
@@ -316,6 +317,8 @@ test("primeiro acesso pede consentimento antes de criar a conta", async ({
 
   await test.step("O aceite obrigatório e a recusa opcional disparam uma única troca", async () => {
     const itens = termosSchema.parse(await (await termos).json()).itens;
+    await page.getByLabel("Senha", { exact: true }).fill("SenhaSegura123!");
+    await page.getByLabel("Confirmar senha").fill("SenhaSegura123!");
     await page.getByRole("checkbox", { name: /dados de saúde/ }).check();
     await expect(page.getByRole("checkbox", { name: /treinar a inteligência/ })).not.toBeChecked();
     await page.getByRole("button", { name: "Aceitar e continuar" }).click();
@@ -324,6 +327,7 @@ test("primeiro acesso pede consentimento antes de criar a conta", async ({
     expect(rotas.trocas).toEqual([
       {
         codigo,
+        senha: "SenhaSegura123!",
         consentimentos: itens.map((termo) => ({
           finalidade: termo.finalidade,
           versao: termo.versao,
