@@ -14,6 +14,27 @@ afterEach(() => {
 });
 
 describe("contrato do login com Google", () => {
+  it("inicia o vínculo autenticado por navegação ao backend", async () => {
+    setStoredToken("sessao-paciente");
+    server.use(
+      http.post(`${config.apiBaseUrl}/api/v1/auth/google/link/start`, ({ request }) => {
+        expect(request.headers.get("authorization")).toBe("Bearer sessao-paciente");
+        return HttpResponse.json({ state: "estado_sintetico_valido_1234567890" });
+      }),
+    );
+    await expect(authService.iniciarVinculoGoogle()).resolves.toEqual({
+      url: `${config.apiBaseUrl}/api/v1/auth/google/link/authorize?state=estado_sintetico_valido_1234567890`,
+    });
+  });
+
+  it("recusa state malformado no início do vínculo", async () => {
+    server.use(
+      http.post(`${config.apiBaseUrl}/api/v1/auth/google/link/start`, () =>
+        HttpResponse.json({ state: "https://exemplo.invalid" }),
+      ),
+    );
+    await expect(authService.iniciarVinculoGoogle()).rejects.toThrow("Vínculo Google inválido");
+  });
   it("monta a URL do authorize no backend", () => {
     expect(authService.obterUrlDeAutorizacaoGoogle()).toBe(
       `${config.apiBaseUrl}/api/v1/auth/google/authorize`,
