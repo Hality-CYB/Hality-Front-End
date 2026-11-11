@@ -55,8 +55,9 @@ const ITENS_CONFIGURACAO = [
 ];
 
 export default function PerfilPage() {
+  const sessao = useSessaoAtual();
   const google = useQuery({
-    queryKey: ["google-vinculo"],
+    queryKey: ["google-vinculo", sessao.id],
     queryFn: authService.statusVinculoGoogle,
   });
   const vincularGoogle = useMutation({
@@ -65,7 +66,6 @@ export default function PerfilPage() {
       window.location.assign(url);
     },
   });
-  const sessao = useSessaoAtual();
   const { data: usuario } = useUsuarioAtual();
   const atualizarPerfil = useAtualizarPerfil();
   const alterarSenha = useAlterarSenha();
