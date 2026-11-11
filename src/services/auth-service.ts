@@ -320,7 +320,11 @@ export const authService = {
     return apiClient.get(`${CAMINHO_GOOGLE}/link`);
   },
   async iniciarVinculoGoogle(): Promise<{ url: string }> {
-    return apiClient.post(`${CAMINHO_GOOGLE}/link/start`, {}, { credentials: "include" });
+    const resposta = await apiClient.post<{ state: string }>(`${CAMINHO_GOOGLE}/link/start`, {});
+    if (!/^[A-Za-z0-9_-]{20,128}$/.test(resposta.state)) {
+      throw new Error("Vínculo Google inválido");
+    }
+    return { url: `${config.apiBaseUrl}${CAMINHO_GOOGLE}/link/authorize?state=${resposta.state}` };
   },
   async concluirVinculoGoogle(codigo: string): Promise<void> {
     await apiClient.post(`${CAMINHO_GOOGLE}/link/complete`, { codigo });

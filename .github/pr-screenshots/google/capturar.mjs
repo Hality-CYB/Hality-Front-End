@@ -50,12 +50,14 @@
         "access-control-allow-headers": "authorization, content-type",
       };
     if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers });
+    if (path.endsWith("/auth/google/link/authorize"))
+      return route.fulfill({ status: 200, contentType: "text/html", body: "Autorização simulada" });
     let json = {};
     let status = 200;
     if (path.endsWith("/consentimentos/termos")) json = terms;
     else if (path.endsWith("/users/me")) json = user;
     else if (path.endsWith("/auth/google/link/start"))
-      json = { url: "https://accounts.google.com/o/oauth2/v2/auth?state=teste" };
+      json = { state: "estado_sintetico_valido_1234567890" };
     else if (path.endsWith("/auth/google/link/complete")) {
       linked = true;
       status = 204;
@@ -92,7 +94,7 @@
   await page.getByText("Vincular conta Google").waitFor();
   await page.screenshot({ path: ".github/pr-screenshots/google/02-vincular.png", fullPage: true });
   await page.getByRole("button", { name: /Conta Google/ }).click();
-  await page.waitForURL("https://accounts.google.com/**");
+  await page.waitForURL("http://localhost:8000/api/v1/auth/google/link/authorize?*");
   await page.goto("http://localhost:3017/login/google?code=teste-vinculo&etapa=vinculo");
   await page.getByText("Vinculado a maria@example.com").waitFor({ timeout: 20000 });
   await page.screenshot({ path: ".github/pr-screenshots/google/03-vinculado.png", fullPage: true });

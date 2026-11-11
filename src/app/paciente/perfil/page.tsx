@@ -62,10 +62,7 @@ export default function PerfilPage() {
   const vincularGoogle = useMutation({
     mutationFn: authService.iniciarVinculoGoogle,
     onSuccess: ({ url }) => {
-      const destino = new URL(url);
-      if (destino.origin !== "https://accounts.google.com")
-        throw new Error("Destino Google inválido");
-      window.location.assign(destino.href);
+      window.location.assign(url);
     },
   });
   const sessao = useSessaoAtual();
