@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AuthCard } from "@/components/auth-card";
+import { PasswordField } from "@/components/auth-fields";
 import { CaixaDeConsentimento, useLeituraDeTermos } from "@/components/caixas-de-termos";
 import { RequisitosSenha } from "@/components/requisitos-senha";
 import { senhaValida } from "@/lib/senha";
@@ -98,30 +99,28 @@ export function RetornoLoginGoogle() {
             <p className="text-muted-foreground text-sm">
               Use também seu e-mail e esta senha para entrar.
             </p>
-            <label htmlFor="google-senha" className="mt-3 block text-sm font-semibold">
-              Senha
-            </label>
-            <input
-              id="google-senha"
-              type="password"
-              autoComplete="new-password"
-              value={senha}
-              onChange={(e) => setSenha(e.target.value)}
-              aria-describedby="google-requisitos"
-              className="border-border w-full rounded-xl border px-3.5 py-3 text-sm"
-            />
-            <RequisitosSenha id="google-requisitos" senha={senha} className="mt-2" />
-            <label htmlFor="google-confirmacao" className="mt-3 block text-sm font-semibold">
-              Confirmar senha
-            </label>
-            <input
-              id="google-confirmacao"
-              type="password"
-              autoComplete="new-password"
-              value={confirmacao}
-              onChange={(e) => setConfirmacao(e.target.value)}
-              className="border-border w-full rounded-xl border px-3.5 py-3 text-sm"
-            />
+            <div className="mt-3">
+              <PasswordField
+                id="google-senha"
+                label="Senha"
+                autoComplete="new-password"
+                value={senha}
+                onChange={setSenha}
+                aria-describedby="google-requisitos"
+                disabled={estado.enviando}
+              />
+              <RequisitosSenha id="google-requisitos" senha={senha} className="mt-2" />
+            </div>
+            <div className="mt-3">
+              <PasswordField
+                id="google-confirmacao"
+                label="Confirmar senha"
+                autoComplete="new-password"
+                value={confirmacao}
+                onChange={setConfirmacao}
+                disabled={estado.enviando}
+              />
+            </div>
           </div>
           {termos.isPending && (
             <div className="text-muted-foreground flex items-center gap-2 text-sm" role="status">
