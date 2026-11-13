@@ -30,11 +30,6 @@ import { nivelColor, nivelIcon, nivelLabel } from "@/lib/level-format";
 import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/status-format";
 import { formatarData, formatarDataHora } from "@/lib/datas";
 
-/** O back manda o motivo como código; texto para os que ele usa hoje. */
-const MOTIVO_DATASET: Record<string, string> = {
-  exportacao_fora_do_escopo: "A exportação do dataset ainda não faz parte do escopo.",
-};
-
 /**
  * Detalhe do diagnóstico para o admin (`GET /admin/diagnosticos/{id}`).
  * O back não expõe ao admin as respostas da anamnese nem as imagens, só a
@@ -288,17 +283,17 @@ export default function DiagnosticoDetailAdminPage({
         </Card>
 
         <Card className="shell:col-start-2 shell:row-start-3 gap-0 rounded-lg p-5 shadow-sm ring-0">
-          <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="mb-2 flex items-center gap-2">
             <div className="font-heading flex items-center gap-2 text-sm font-extrabold">
               <Database className="text-muted-foreground h-4 w-4" /> Dataset
             </div>
-            <StatusBadge
-              label={d.dataset.disponivel ? "Disponível" : "Indisponível"}
-              status={d.dataset.disponivel ? "success" : "neutral"}
-            />
           </div>
           <p className="text-muted-foreground text-[13px]">
-            {MOTIVO_DATASET[d.dataset.motivo] ?? d.dataset.motivo}
+            A exportação é feita pela{" "}
+            <Link className="text-primary underline" href="/admin/diagnosticos">
+              fila de diagnósticos
+            </Link>
+            .
           </p>
           <RotuloDatasetSecao diagnostico={d} onRecarregar={() => refetch()} />
         </Card>
