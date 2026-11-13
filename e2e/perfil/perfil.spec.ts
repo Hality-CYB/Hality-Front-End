@@ -247,6 +247,7 @@ test("profissional edita os dados profissionais sem conseguir se declarar vincul
 }) => {
   const nomeSalvo = "Profissional Perfil Salvo";
   const telefoneSalvo = "11955554444";
+  const telefoneSalvoNaTela = "(11) 95555-4444";
   const registroSalvo = "CRO-9999";
   const especialidadeSalva = "Ortodontia";
   const { email } = await criarContaPeloAdmin({
@@ -308,7 +309,7 @@ test("profissional edita os dados profissionais sem conseguir se declarar vincul
     await dialog.getByLabel("Especialidade").fill(especialidadeSalva);
     await dialog.getByLabel("Registro profissional").fill(registroSalvo);
     await salvarPeloDialog(page, dialog);
-    await expect(page.getByText(telefoneSalvo)).toBeVisible();
+    await expect(page.getByText(telefoneSalvoNaTela)).toBeVisible();
     await expect(page.getByText(registroSalvo)).toBeVisible();
     await expect(page.getByText(especialidadeSalva).first()).toBeVisible();
     await expect(linkDaSidebar(page, email)).toContainText(nomeSalvo);
@@ -316,7 +317,7 @@ test("profissional edita os dados profissionais sem conseguir se declarar vincul
 
   await test.step("Recarregar mantém os dados e o profissional continua não vinculado à Hality", async () => {
     await page.reload();
-    await expect(page.getByText(telefoneSalvo)).toBeVisible();
+    await expect(page.getByText(telefoneSalvoNaTela)).toBeVisible();
     await expect(page.getByText(registroSalvo)).toBeVisible();
     await expect(page.getByText(especialidadeSalva).first()).toBeVisible();
     expect(await perfilDaApi({ request, email })).toMatchObject({
