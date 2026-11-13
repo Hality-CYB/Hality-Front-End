@@ -266,6 +266,10 @@ for (const estado of ["falha", "processando"] as const) {
       : "análise demorada informa timeout e permite consultar novamente",
     async ({ page, request }) => {
       test.setTimeout(90_000);
+      if (estado === "processando") {
+        await page.clock.install();
+        await page.clock.resume();
+      }
       const { headers } = await test.step("Paciente responde e escolhe uma foto", () =>
         prepararCaptura({ page, request }));
       await escolherFoto(page, { name: "lingua.png", mimeType: "image/png", buffer: imagemLingua });
@@ -287,6 +291,13 @@ for (const estado of ["falha", "processando"] as const) {
           json: { ...detalhe, status: estado, classificacao: null, confianca_ia: null },
         });
       });
+      if (estado === "processando")
+        await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+      const detalheRecebido = () =>
+        page.waitForResponse(
+          (r) => r.request().method() === "GET" && rotaDetalhe.test(r.url()) && r.ok(),
+        );
+      const primeiroDetalhe = estado === "processando" ? detalheRecebido() : null;
       const criacao = page.waitForResponse(
         (r) => r.url() === `${API_URL}/diagnosticos` && r.request().method() === "POST",
       );
@@ -294,6 +305,15 @@ for (const estado of ["falha", "processando"] as const) {
       const resposta = await criacao;
       expect(resposta.status()).toBe(202);
       const { id } = backendDiagnosticoCreatedSchema.parse(await resposta.json());
+      if (estado === "processando" && primeiroDetalhe) {
+        await primeiroDetalhe;
+        await page.clock.runFor(1000);
+        for (let ciclo = 0; ciclo < 14; ciclo += 1) {
+          await detalheRecebido();
+          await page.clock.runFor(1000);
+        }
+        await page.clock.resume();
+      }
       if (estado === "falha") {
         await test.step("Falha apresenta mensagem e oferece substituir a foto", async () => {
           await expect(
@@ -311,9 +331,9 @@ for (const estado of ["falha", "processando"] as const) {
         });
       } else {
         await test.step("Espera prolongada apresenta mensagem de timeout", async () => {
-          await expect(page.getByText("A análise está demorando mais que o esperado.")).toBeVisible(
-            { timeout: 25_000 },
-          );
+          await expect(
+            page.getByText("A análise está demorando mais que o esperado."),
+          ).toBeVisible();
           await expect(page.getByRole("button", { name: "Tentar de novo" })).toBeVisible();
         });
         await test.step("Nova consulta recupera resultado sem reenviar avaliação", async () => {

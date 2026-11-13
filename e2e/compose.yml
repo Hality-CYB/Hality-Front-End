@@ -18,6 +18,8 @@ x-backend: &backend
     HALITY_AI_URL: ""
     GOOGLE_CLIENT_ID: ""
     GOOGLE_CLIENT_SECRET: ""
+    # O worker de e-mail dorme este intervalo. Api e setup só carregam a env.
+    IDENTITY_WORKER_POLL_SECONDS: "1"
 
 services:
   db:

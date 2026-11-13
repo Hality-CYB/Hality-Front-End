@@ -1,13 +1,26 @@
 import { defineConfig, devices } from "@playwright/test";
 
 // https://playwright.dev/docs/test-configuration
+
+// Afirmam estado compartilhado: contagem, resumo, conteúdo publicado ou snapshot do seed.
+const globais = [
+  /google\/google\.spec\.ts/,
+  /admin-usuarios\/admin-usuarios\.spec\.ts/,
+  /resumos\/resumos\.spec\.ts/,
+  /conteudo\/conteudo\.spec\.ts/,
+  /conteudo-midia\/conteudo-midia\.spec\.ts/,
+  /avaliacao-erros\/avaliacao-erros\.spec\.ts/,
+];
+
+const chromium = { ...devices["Desktop Chrome"] };
+
 export default defineConfig({
   testDir: "./e2e",
   testMatch: "**/*.spec.ts",
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
-  workers: 1,
+  workers: 2,
   timeout: 30_000,
   reporter: [
     ["list"],
@@ -25,5 +38,20 @@ export default defineConfig({
     screenshot: "on",
     video: "off",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "isolado",
+      fullyParallel: true,
+      testIgnore: globais,
+      use: chromium,
+    },
+    {
+      name: "global",
+      fullyParallel: false,
+      workers: 1,
+      dependencies: ["isolado"],
+      testMatch: globais,
+      use: chromium,
+    },
+  ],
 });

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import { z } from "zod";
 import { entrar, tokenDe } from "../helpers/auth";
+import { consultarBanco } from "../helpers/banco";
 import { API_URL, SENHA } from "../helpers/config";
 import { criarDiagnostico } from "../helpers/diagnosticos";
 import { criarPacienteConfirmado } from "../helpers/pacientes";
@@ -286,17 +287,23 @@ test("profissional mantém diagnósticos ao falhar a próxima página e tenta no
   const dados = await test.step("Preparar mais de vinte diagnósticos próprios", async () => {
     const profissional = await criarProfissional(request);
     const paciente = await prepararPaciente({ request, page, headers: profissional.headers });
-    const ids: number[] = [];
-    for (let i = 0; i < 21; i++)
-      ids.push(
-        (
-          await criarDiagnostico({
-            request,
-            headers: paciente,
-            statusEsperado: "aguardando_revisao",
-          })
-        ).id,
-      );
+    const criados = await Promise.all(
+      Array.from({ length: 21 }, () =>
+        criarDiagnostico({
+          request,
+          headers: paciente,
+          statusEsperado: "aguardando_revisao",
+        }),
+      ),
+    );
+    const ids = criados.map((criado) => criado.id);
+    // Datas iguais: a lista desempata por id descendente, independente da ordem do Promise.all.
+    const instante = "2001-06-15 15:00:00+00";
+    for (const id of ids) {
+      expect(
+        consultarBanco(`UPDATE diagnosticos SET data_diagnostico = '${instante}' WHERE id = ${id}`),
+      ).toBe("UPDATE 1");
+    }
     return { profissional, ids };
   });
   await test.step("Exibir a primeira página e recuperar a próxima sem duplicar", async () => {
@@ -306,7 +313,9 @@ test("profissional mantém diagnósticos ao falhar a próxima página e tenta no
       page,
       endpoint: "profissional/diagnosticos",
       links: page.locator('a[href^="/profissional/diagnosticos/"]'),
-      esperados: dados.ids.toReversed().map((id) => `/profissional/diagnosticos/${id}`),
+      esperados: [...dados.ids]
+        .sort((a, b) => b - a)
+        .map((id) => `/profissional/diagnosticos/${id}`),
     });
   });
 });

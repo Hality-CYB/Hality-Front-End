@@ -74,7 +74,7 @@ export async function criarDiagnostico({
       const resposta = await request.get(`${API_URL}/diagnosticos/${criado.id}`, { headers });
       return statusSchema.parse(await resposta.json()).status;
     },
-    { timeout: 15_000 },
+    { timeout: 15_000, intervals: [250] },
   );
   if (statusEsperado) await polling.toBe(statusEsperado);
   else await polling.not.toBe("processando");
