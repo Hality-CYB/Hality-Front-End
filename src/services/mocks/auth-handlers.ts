@@ -103,6 +103,12 @@ const confirmarEmailSchema = z.object({ token: z.string().min(20) }).strict();
 const reenviarConfirmacaoSchema = z.object({ email: z.string().email() }).strict();
 
 export const authHandlers = [
+  http.get(`${config.apiBaseUrl}/api/v1/auth/google/link`, ({ request }) => {
+    const usuario = usuarioDoRequest(request);
+    if (!usuario || usuario.ativo === false) return new HttpResponse(null, { status: 401 });
+    if (usuario.role !== "paciente") return new HttpResponse(null, { status: 403 });
+    return HttpResponse.json({ vinculado: false, email: null });
+  }),
   http.post(url("/api/v1/auth/email-verification/confirm"), async ({ request }) => {
     const body = confirmarEmailSchema.safeParse(await request.json());
     const usuarioId = body.success

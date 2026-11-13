@@ -5,7 +5,10 @@ import Link from "next/link";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AuthCard } from "@/components/auth-card";
+import { PasswordField } from "@/components/auth-fields";
 import { CaixaDeConsentimento, useLeituraDeTermos } from "@/components/caixas-de-termos";
+import { RequisitosSenha } from "@/components/requisitos-senha";
+import { senhaValida } from "@/lib/senha";
 import { Button } from "@/components/ui/button";
 import { useAuthGoogle } from "@/hooks/use-auth-google";
 import { useTermosConsentimento } from "@/hooks/use-consentimentos";
@@ -18,6 +21,8 @@ export function RetornoLoginGoogle() {
   const leitura = useLeituraDeTermos();
   const [decisoes, setDecisoes] = useState<Partial<Record<Finalidade, boolean>>>({});
   const [erroValidacao, setErroValidacao] = useState("");
+  const [senha, setSenha] = useState("");
+  const [confirmacao, setConfirmacao] = useState("");
 
   function handleConsentimentos(event: FormEvent) {
     event.preventDefault();
@@ -25,6 +30,10 @@ export function RetornoLoginGoogle() {
     const lista = termos.data ?? [];
     if (lista.some((termo) => termo.obrigatorio && !decisoes[termo.finalidade])) {
       setErroValidacao("Para criar a conta, autorize o tratamento dos seus dados de saúde.");
+      return;
+    }
+    if (!senhaValida(senha) || senha !== confirmacao) {
+      setErroValidacao("Confira os requisitos e a confirmação da senha.");
       return;
     }
 
@@ -35,6 +44,7 @@ export function RetornoLoginGoogle() {
           versao: termo.versao,
           aceito: decisoes[termo.finalidade] === true,
         })),
+        senha,
       )
       .catch((erro: unknown) => {
         if (
@@ -84,6 +94,34 @@ export function RetornoLoginGoogle() {
         </div>
 
         <form onSubmit={handleConsentimentos} className="flex flex-col gap-4">
+          <div>
+            <h3 className="font-heading font-bold">Defina uma senha</h3>
+            <p className="text-muted-foreground text-sm">
+              Use também seu e-mail e esta senha para entrar.
+            </p>
+            <div className="mt-3">
+              <PasswordField
+                id="google-senha"
+                label="Senha"
+                autoComplete="new-password"
+                value={senha}
+                onChange={setSenha}
+                aria-describedby="google-requisitos"
+                disabled={estado.enviando}
+              />
+              <RequisitosSenha id="google-requisitos" senha={senha} className="mt-2" />
+            </div>
+            <div className="mt-3">
+              <PasswordField
+                id="google-confirmacao"
+                label="Confirmar senha"
+                autoComplete="new-password"
+                value={confirmacao}
+                onChange={setConfirmacao}
+                disabled={estado.enviando}
+              />
+            </div>
+          </div>
           {termos.isPending && (
             <div className="text-muted-foreground flex items-center gap-2 text-sm" role="status">
               <Loader2 className="text-primary h-4 w-4 motion-safe:animate-spin" aria-hidden />

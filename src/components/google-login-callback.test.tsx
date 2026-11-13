@@ -152,12 +152,15 @@ describe("retorno visual do login com Google", () => {
     );
     abrir(`?code=${codigo}&etapa=consentimento`);
     await userEvent.click(await screen.findByRole("checkbox", { name: /dados de saúde/ }));
+    await userEvent.type(screen.getByLabelText("Senha", { exact: true }), "SenhaSegura123!");
+    await userEvent.type(screen.getByLabelText("Confirmar senha"), "SenhaSegura123!");
 
     await userEvent.click(screen.getByRole("button", { name: "Aceitar e continuar" }));
 
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/paciente"));
     expect(body).toEqual({
       codigo,
+      senha: "SenhaSegura123!",
       consentimentos: [
         { finalidade: "health_data", versao: "v1", aceito: true },
         { finalidade: "image_training", versao: "v1", aceito: false },
@@ -175,6 +178,8 @@ describe("retorno visual do login com Google", () => {
     );
     abrir(`?code=${codigo}&etapa=consentimento`);
     await userEvent.click(await screen.findByRole("checkbox", { name: /dados de saúde/ }));
+    await userEvent.type(screen.getByLabelText("Senha", { exact: true }), "SenhaSegura123!");
+    await userEvent.type(screen.getByLabelText("Confirmar senha"), "SenhaSegura123!");
 
     await userEvent.click(screen.getByRole("button", { name: "Aceitar e continuar" }));
 
@@ -220,6 +225,8 @@ describe("retorno visual do login com Google", () => {
     );
     abrir(`?code=${codigo}&etapa=consentimento`);
     await userEvent.click(await screen.findByRole("checkbox", { name: /dados de saúde/ }));
+    await userEvent.type(screen.getByLabelText("Senha", { exact: true }), "SenhaSegura123!");
+    await userEvent.type(screen.getByLabelText("Confirmar senha"), "SenhaSegura123!");
     await userEvent.click(screen.getByRole("button", { name: "Aceitar e continuar" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("termos foram atualizados");
@@ -232,6 +239,7 @@ describe("retorno visual do login com Google", () => {
     expect(corpos).toHaveLength(2);
     expect(corpos[1]).toEqual({
       codigo,
+      senha: "SenhaSegura123!",
       consentimentos: [
         { finalidade: "health_data", versao: "v2", aceito: true },
         { finalidade: "image_training", versao: "v2", aceito: false },
@@ -263,6 +271,8 @@ describe("retorno visual do login com Google", () => {
 
     abrir(`?code=${codigo}&etapa=consentimento`);
     await userEvent.click(await screen.findByRole("checkbox", { name: /dados de saúde/ }));
+    await userEvent.type(screen.getByLabelText("Senha", { exact: true }), "SenhaSegura123!");
+    await userEvent.type(screen.getByLabelText("Confirmar senha"), "SenhaSegura123!");
     await userEvent.click(screen.getByRole("button", { name: "Aceitar e continuar" }));
 
     expect(
@@ -289,6 +299,7 @@ describe("retorno visual do login com Google", () => {
   it.each([
     ["papel_nao_permitido", "apenas para pacientes"],
     ["conta_existente", "e-mail e senha"],
+    ["email_pendente", "Confirme o e-mail da sua conta"],
     ["provedor_indisponivel", "indisponível"],
   ])("explica o erro de callback %s e permite voltar ao login", async (erro, mensagem) => {
     const exchange = vi.fn();

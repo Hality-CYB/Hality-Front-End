@@ -60,6 +60,7 @@ export function mensagemDoErroCallbackGoogle(erro: ErroCallbackGoogle): string {
     identidade_invalida: "Não foi possível confirmar sua identidade pelo Google.",
     email_nao_verificado: "O Google não confirmou que este e-mail foi verificado.",
     conta_existente: "Já existe uma conta com este e-mail. Entre usando e-mail e senha.",
+    email_pendente: "Confirme o e-mail da sua conta antes de entrar com o Google.",
     papel_nao_permitido: "O login com Google está disponível apenas para pacientes.",
     conta_inativa: "Esta conta está inativa. Entre em contato com o suporte.",
   };
