@@ -2,6 +2,7 @@ import { http, HttpResponse } from "msw";
 import { z } from "zod";
 import { config } from "@/lib/config";
 import { adicionarUsuarioMock, usuarioDoRequest } from "@/services/mocks/auth-handlers";
+import { arquivoRecebidoMock, emitirAlvoMock } from "@/services/mocks/uploads-handlers";
 import { historicoRevisoesMock } from "@/services/mocks/diagnosticos-handlers";
 import {
   CLASSIFICACAO_ID_POR_NIVEL,
@@ -331,7 +332,6 @@ function sincronizarHome(
  * Mídias de conteúdo enviadas no mock, em memória. Mesmo contrato do
  * `conteudo_storage` do back: formatos, limites, 400 com `motivo` e 413.
  */
-const midiasMock = new Map<string, { bytes: ArrayBuffer; tipo: string }>();
 const EXTENSAO_MIDIA: Record<string, string> = {
   "image/jpeg": ".jpg",
   "image/png": ".png",
@@ -341,18 +341,13 @@ const EXTENSAO_MIDIA: Record<string, string> = {
 };
 
 export const adminHandlers = [
-  http.post(url("/api/v1/admin/conteudos/midias"), async ({ request }) => {
+  http.post(url("/api/v1/admin/conteudos/midias/upload"), async ({ request }) => {
     const admin = exigirAdmin(request);
     if (admin instanceof Response) return admin;
-    const campo = (await request.formData()).get("arquivo");
-    // Checa a forma, não a classe: no teste (jsdom) o arquivo vem de outro realm
-    // e `instanceof Blob` falha.
-    const arquivo =
-      typeof campo === "object" && campo !== null && "arrayBuffer" in campo ? campo : null;
-    if (!arquivo) {
-      return HttpResponse.json({ detail: "arquivo obrigatório" }, { status: 422 });
-    }
-    const extensao = EXTENSAO_MIDIA[arquivo.type];
+    const corpo = (await request.json()) as { content_type?: unknown; tamanho?: unknown };
+    const contentType = typeof corpo.content_type === "string" ? corpo.content_type : "";
+    const tamanho = typeof corpo.tamanho === "number" ? corpo.tamanho : 0;
+    const extensao = EXTENSAO_MIDIA[contentType];
     if (!extensao) {
       return HttpResponse.json(
         {
@@ -361,29 +356,29 @@ export const adminHandlers = [
         { status: 400 },
       );
     }
-    if (arquivo.size === 0) {
+    if (tamanho <= 0) {
       return HttpResponse.json({ motivo: "O arquivo enviado está vazio." }, { status: 400 });
     }
-    const tipo = arquivo.type.startsWith("video/") ? "video" : "imagem";
-    if (arquivo.size > MIDIA_ACEITA[tipo].maxMb * 1024 * 1024) {
+    const tipo = contentType.startsWith("video/") ? "video" : "imagem";
+    const maxBytes = MIDIA_ACEITA[tipo].maxMb * 1024 * 1024;
+    if (tamanho > maxBytes) {
       return HttpResponse.json(
         { detail: "arquivo acima do tamanho máximo permitido" },
         { status: 413 },
       );
     }
     const nome = `${crypto.randomUUID().replaceAll("-", "")}${extensao}`;
-    // Guarda os bytes, não o objeto: no teste (jsdom) nem o File nem o Blob
-    // globais servem de corpo de Response.
-    midiasMock.set(nome, { bytes: await arquivo.arrayBuffer(), tipo: arquivo.type });
-    return HttpResponse.json(
-      { url: `/api/v1/public/conteudos/midias/${nome}`, tipo },
-      { status: 201 },
-    );
+    const alvo = emitirAlvoMock(`conteudos/${nome}`, contentType, maxBytes);
+    return HttpResponse.json({
+      ...alvo,
+      url_publica: `/api/v1/public/conteudos/midias/${nome}`,
+      tipo,
+    });
   }),
 
   // Aberta, como no back: <img>/<video> carregam sem token.
   http.get(url("/api/v1/public/conteudos/midias/:nome"), ({ params }) => {
-    const arquivo = midiasMock.get(String(params.nome));
+    const arquivo = arquivoRecebidoMock(`conteudos/${String(params.nome)}`);
     if (!arquivo) return HttpResponse.json({ detail: "mídia não encontrada" }, { status: 404 });
     return new HttpResponse(arquivo.bytes, { headers: { "Content-Type": arquivo.tipo } });
   }),

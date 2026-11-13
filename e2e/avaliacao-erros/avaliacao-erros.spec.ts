@@ -6,6 +6,13 @@ import {
   backendDiagnosticoDetailSchema,
 } from "../../src/types/diagnostico";
 import { entrar, tokenDe } from "../helpers/auth";
+import {
+  ROTA_ALVO_FOTO,
+  ROTA_UPLOAD_LOCAL,
+  conferirEnvioDaFoto,
+  esperarImagemCarregada,
+  observarEnvioDaFoto,
+} from "../helpers/envio";
 import { consultarBanco } from "../helpers/banco";
 import { API_URL } from "../helpers/config";
 import { imagemLingua } from "../helpers/imagem";
@@ -124,20 +131,24 @@ async function confirmarHistorico({
   await page.goto("/paciente/diagnosticos");
   await page.reload();
   await page.getByRole("link", { name: new RegExp(`Diagnóstico #${id}\\b`) }).click();
-  await expect(page.getByAltText("Foto da língua capturada")).toBeVisible();
+  await esperarImagemCarregada(page.getByAltText("Foto da língua capturada"));
 }
 
 const arquivosInvalidos = [
   {
     titulo: "formato não permitido",
     arquivo: { name: "invalida.gif", mimeType: "image/gif", buffer: gif },
+    // o back recusa o formato já ao pedir o alvo
+    rota: ROTA_ALVO_FOTO,
     status: 400,
     mensagem: "Formato de imagem inválido. Envie JPEG, PNG ou WEBP.",
   },
   {
     titulo: "imagem acima de 10 MB",
     arquivo: { name: "grande.png", mimeType: "image/png", buffer: pngGrande },
-    status: 413,
+    // o limite é aplicado pelo alvo de envio (policy do storage)
+    rota: ROTA_UPLOAD_LOCAL,
+    status: 400,
     mensagem: "arquivo acima do tamanho máximo permitido",
   },
 ];
@@ -153,23 +164,27 @@ for (const caso of arquivosInvalidos) {
     await test.step("Servidor rejeita a foto e informa o motivo", async () => {
       await escolherFoto(page, caso.arquivo);
       const resposta = page.waitForResponse(
-        (r) => r.url() === `${API_URL}/diagnosticos` && r.request().method() === "POST",
+        (r) => r.url() === caso.rota && r.request().method() === "POST",
       );
+      const confirmacoes: string[] = [];
+      page.on("request", (req) => {
+        if (req.method() === "POST" && req.url() === `${API_URL}/diagnosticos`)
+          confirmacoes.push(req.url());
+      });
       await usarFoto(page);
       expect((await resposta).status()).toBe(caso.status);
       await expect(page.getByText(caso.mensagem, { exact: true })).toBeVisible();
       const dados = await registros({ request, headers });
       expect(dados.anamneses).toHaveLength(1);
       expect(dados.diagnosticos.total).toBe(0);
+      expect(confirmacoes).toEqual([]);
     });
     await test.step("Paciente envia outra foto e encontra o único diagnóstico no histórico", async () => {
       await page.getByRole("button", { name: "Enviar outra foto" }).click();
       await escolherFoto(page, { name: "lingua.png", mimeType: "image/png", buffer: imagemLingua });
-      const resposta = page.waitForResponse(
-        (r) => r.url() === `${API_URL}/diagnosticos` && r.request().method() === "POST",
-      );
+      const envio = observarEnvioDaFoto(page);
       await usarFoto(page);
-      const criado = await resposta;
+      const criado = await conferirEnvioDaFoto(envio);
       expect(criado.status()).toBe(202);
       const { id } = backendDiagnosticoCreatedSchema.parse(await criado.json());
       await confirmarHistorico({ page, request, headers, id });
@@ -213,10 +228,12 @@ for (const respostaPerdida of [false, true]) {
       let primeiro = true;
       let idAceito: number | undefined;
       let postsDiagnostico = 0;
+      let postsAlvo = 0;
       let postsAnamnese = 0;
       page.on("request", (req) => {
         if (req.method() === "POST" && req.url() === `${API_URL}/anamneses`) postsAnamnese++;
         if (req.method() === "POST" && req.url() === `${API_URL}/diagnosticos`) postsDiagnostico++;
+        if (req.method() === "POST" && req.url() === ROTA_ALVO_FOTO) postsAlvo++;
       });
       await page.route(`${API_URL}/diagnosticos`, async (route) => {
         if (route.request().method() !== "POST" || !primeiro) return route.continue();
@@ -241,8 +258,11 @@ for (const respostaPerdida of [false, true]) {
           expect(dados.diagnosticos.itens.map((item) => item.id)).toEqual([idAceito]);
       });
       await test.step("Nova tentativa recupera um único diagnóstico no histórico", async () => {
+        // Resposta perdida: o 409 vem já ao pedir o novo alvo e nada é reenviado.
         const resposta = page.waitForResponse(
-          (r) => r.url() === `${API_URL}/diagnosticos` && r.request().method() === "POST",
+          (r) =>
+            r.request().method() === "POST" &&
+            r.url() === (respostaPerdida ? ROTA_ALVO_FOTO : `${API_URL}/diagnosticos`),
         );
         await page.getByRole("button", { name: "Tentar de novo" }).click();
         const reenvio = await resposta;
@@ -253,7 +273,8 @@ for (const respostaPerdida of [false, true]) {
         if (respostaPerdida) expect(id).toBe(idAceito);
         await confirmarHistorico({ page, request, headers, id });
         expect(postsAnamnese).toBe(1);
-        expect(postsDiagnostico).toBe(2);
+        expect(postsAlvo).toBe(2);
+        expect(postsDiagnostico).toBe(respostaPerdida ? 1 : 2);
       });
     },
   );

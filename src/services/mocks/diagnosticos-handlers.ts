@@ -2,6 +2,7 @@ import { http, HttpResponse } from "msw";
 import { z } from "zod";
 import { config } from "@/lib/config";
 import { usuarioDoRequest } from "@/services/mocks/auth-handlers";
+import { arquivoRecebidoMock, emitirAlvoMock } from "@/services/mocks/uploads-handlers";
 import { tratamentoBloqueadoMock } from "@/services/mocks/consentimentos-handlers";
 import { respostasDaAnamnese, titularDaAnamnese } from "@/services/mocks/anamnese-handlers";
 import {
@@ -29,6 +30,43 @@ import type { Usuario } from "@/types/usuario";
 import { nivelLabel } from "@/lib/level-format";
 
 const url = (path: string) => `${config.apiBaseUrl}${path}`;
+
+const FORMATOS_FOTO = ["image/jpeg", "image/png", "image/webp"];
+const TAMANHO_MAXIMO_FOTO = 10 * 1024 * 1024;
+const tokensDeUpload = new Map<string, { chave: string; usuarioId: string; anamneseId: string }>();
+
+/** Checagens do back para enviar foto: anamnese acessível (404), uma por diagnóstico (409), consentimento (403). */
+function checarEnvio(usuario: Usuario, anamneseId: string): Response | null {
+  // Igual ao back (#91): o titular vem da anamnese, e quem envia precisa ter acesso a ele.
+  const pacienteId = titularDaAnamnese(anamneseId);
+  const podeUsar =
+    pacienteId !== undefined &&
+    (usuario.role === "profissional"
+      ? temVinculo(pacienteId, usuario.id)
+      : usuario.role === "paciente" && pacienteId === PACIENTE_MOCK_ID);
+  if (!pacienteId || !podeUsar) {
+    return HttpResponse.json({ detail: "anamnese não encontrada" }, { status: 404 });
+  }
+  // Como o back (#164): uma anamnese gera um diagnóstico só; reenviar devolve o existente.
+  const existente = diagnosticos.find((d) => d.anamneseId === anamneseId);
+  if (existente) {
+    return HttpResponse.json(
+      { detail: "anamnese já possui diagnóstico", diagnostico_id: idNumerico(existente.id) },
+      { status: 409 },
+    );
+  }
+  // Como o back (#160): quem recusou ou revogou dados de saúde não envia diagnóstico novo.
+  if (tratamentoBloqueadoMock(pacienteId)) {
+    return HttpResponse.json(
+      {
+        detail:
+          "consentimento para tratamento de dados de saúde não vigente (revogado ou termo desatualizado)",
+      },
+      { status: 403 },
+    );
+  }
+  return null;
+}
 
 /** Mesmo tempo do mock de IA do back (`MOCK_PROCESSING_SECONDS`). */
 const TEMPO_PROCESSAMENTO_MS = 2000;
@@ -269,46 +307,61 @@ export const diagnosticosHandlers = [
     return HttpResponse.json(paraBackendDetail(diagnosticos[index] ?? diagnostico));
   }),
 
+  http.post(url("/api/v1/diagnosticos/upload"), async ({ request }) => {
+    const usuario = usuarioDoRequest(request);
+    if (!usuario) return new HttpResponse(null, { status: 401 });
+
+    const corpo = (await request.json()) as { anamnese_id?: unknown; content_type?: unknown };
+    const anamneseId = corpo.anamnese_id == null ? "" : String(corpo.anamnese_id);
+    const contentType = typeof corpo.content_type === "string" ? corpo.content_type : "";
+    if (!anamneseId) {
+      return HttpResponse.json({ detail: "campos obrigatórios ausentes" }, { status: 422 });
+    }
+    const bloqueio = checarEnvio(usuario, anamneseId);
+    if (bloqueio) return bloqueio;
+    if (!FORMATOS_FOTO.includes(contentType)) {
+      return HttpResponse.json(
+        { motivo: "Formato de imagem inválido. Envie JPEG, PNG ou WEBP." },
+        { status: 400 },
+      );
+    }
+    const chave = `uploads/${crypto.randomUUID().replaceAll("-", "")}`;
+    const alvo = emitirAlvoMock(chave, contentType, TAMANHO_MAXIMO_FOTO);
+    const uploadToken = `token-${chave}`;
+    tokensDeUpload.set(uploadToken, { chave, usuarioId: usuario.id, anamneseId });
+    return HttpResponse.json({ ...alvo, upload_token: uploadToken });
+  }),
+
   http.post(url("/api/v1/diagnosticos"), async ({ request }) => {
     const usuario = usuarioDoRequest(request);
     if (!usuario) return new HttpResponse(null, { status: 401 });
 
-    const form = await request.formData();
-    const anamneseId = form.get("anamnese_id");
-    const imagem = form.get("imagem");
-    const parametros = form.get("parametros_captura");
-    if (!anamneseId || !(imagem instanceof File) || typeof parametros !== "string") {
+    const corpo = (await request.json()) as {
+      anamnese_id?: unknown;
+      upload_token?: unknown;
+      parametros_captura?: unknown;
+    };
+    const anamneseId = corpo.anamnese_id == null ? "" : String(corpo.anamnese_id);
+    if (!anamneseId || typeof corpo.upload_token !== "string" || !corpo.parametros_captura) {
       return HttpResponse.json({ detail: "campos obrigatórios ausentes" }, { status: 422 });
     }
-
-    // Igual ao back (#91): o titular vem da anamnese, e quem envia precisa ter acesso a ele.
-    const pacienteId = titularDaAnamnese(String(anamneseId));
-    const podeUsar =
-      pacienteId !== undefined &&
-      (usuario.role === "profissional"
-        ? temVinculo(pacienteId, usuario.id)
-        : usuario.role === "paciente" && pacienteId === PACIENTE_MOCK_ID);
-    if (!pacienteId || !podeUsar) {
-      return HttpResponse.json({ detail: "anamnese não encontrada" }, { status: 404 });
-    }
-    // Como o back (#164): uma anamnese gera um diagnóstico só; reenviar devolve o existente.
-    const existente = diagnosticos.find((d) => d.anamneseId === String(anamneseId));
-    if (existente) {
+    const token = tokensDeUpload.get(corpo.upload_token);
+    if (!token || token.usuarioId !== usuario.id || token.anamneseId !== anamneseId) {
       return HttpResponse.json(
-        { detail: "anamnese já possui diagnóstico", diagnostico_id: idNumerico(existente.id) },
-        { status: 409 },
+        { motivo: "Envio da imagem inválido ou expirado. Envie a foto de novo." },
+        { status: 400 },
       );
     }
-    // Como o back (#160): quem recusou ou revogou dados de saúde não envia diagnóstico novo.
-    if (tratamentoBloqueadoMock(pacienteId)) {
+    const bloqueio = checarEnvio(usuario, anamneseId);
+    if (bloqueio) return bloqueio;
+    if (!arquivoRecebidoMock(token.chave)) {
       return HttpResponse.json(
-        {
-          detail:
-            "consentimento para tratamento de dados de saúde não vigente (revogado ou termo desatualizado)",
-        },
-        { status: 403 },
+        { motivo: "A imagem não foi enviada. Envie a foto de novo." },
+        { status: 400 },
       );
     }
+    tokensDeUpload.delete(corpo.upload_token);
+    const pacienteId = titularDaAnamnese(anamneseId)!;
 
     const id = String(proximoId++);
     const diagnostico: Diagnostico = {
