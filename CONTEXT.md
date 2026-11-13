@@ -35,6 +35,8 @@ Check Your Breath (CYB) é o app da Hality Diagnóstico do Hálito: usa IA para 
 
 ## Últimas atualizações
 
+- **2026-11-13** - O job de E2E saiu do pipeline. A suíte Playwright permanece no repositório e roda localmente, sob demanda. O deploy na `main` depende de lint, testes e build.
+
 - **2026-11-13** - CI do E2E: cache das imagens da stack e dos browsers do Playwright, e o job deixa de esperar lint, testes e build. O deploy em main continua dependendo dos quatro.
 
 - **2026-11-12** - Envio direto ao storage: a foto do diagnóstico (paciente e atendimento pelo profissional) e a mídia de conteúdo do admin pedem um alvo ao back (`POST /diagnosticos/upload`, `POST /admin/conteudos/midias/upload`), enviam o arquivo ao alvo (`src/lib/upload-direto.ts`, `FormData` com os campos do alvo e o arquivo por último, sem `Authorization`) e confirmam no back (diagnóstico) ou usam `url_publica` no bloco (mídia). Erros do alvo viram os mesmos textos de antes e nunca 403/409. A leitura não muda. Mocks MSW e E2E seguem o fluxo novo.
@@ -53,7 +55,7 @@ Check Your Breath (CYB) é o app da Hality Diagnóstico do Hálito: usa IA para 
 
 - **2026-11-06** - Preparação compartilhada dos testes E2E em `e2e/helpers/`: login UI/API, paciente confirmado, diagnóstico com polling, questionário, PNG válido e consulta ao banco descartável. Os 5 specs usam os helpers, preservando jornadas e asserções para servir de base aos próximos cenários.
 
-- **2026-11-03** - Base dos testes end-to-end (Playwright, Chromium headless) em `e2e/`, contra build de produção do front, API real do back (`main` quando o alvo é `main`, senão `develop`) e PostgreSQL 17 descartável (`e2e/compose.yml`). Primeiro cenário: login e acesso por papel. Job `E2E Chromium` na CI roda em PRs com base `develop`, `main` ou `chore/e2e-*` (PRs empilhados) e no push na `main`, onde bloqueia o deploy se falhar. Como rodar e o que o job publica: seção "E2E com Playwright" do README.
+- **2026-11-03** - Base dos testes end-to-end (Playwright, Chromium headless) em `e2e/`, contra build de produção do front, API real do back (`main` quando o alvo é `main`, senão `develop`) e PostgreSQL 17 descartável (`e2e/compose.yml`). Primeiro cenário: login e acesso por papel. A suíte roda localmente, sob demanda; como rodar: seção "E2E com Playwright" do README.
 
 - **2026-10-22** - O número que vem em `confianca_ia` não é confiança: é a escala de halitose do modelo (0 sem halitose, 1 halitose social). As telas passam a mostrar "Escala de halitose: X%" no lugar de "Confiança" (resultado da avaliação, detalhe do diagnóstico e detalhe do admin). O nome do campo no contrato da API continua o mesmo.
 
