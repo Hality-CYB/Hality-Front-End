@@ -60,6 +60,7 @@ import { cn } from "@/lib/utils";
 import { config } from "@/lib/config";
 import type { Vinculo } from "@/types/admin";
 import { formatarData } from "@/lib/datas";
+import { formatarTelefone } from "@/lib/telefone";
 
 type DialogAberto = "editar" | "profissional" | "vincular" | "bloquear" | "senha" | null;
 
@@ -169,7 +170,7 @@ export default function UsuarioDetailPage({ params }: { params: Promise<{ id: st
                     <Phone className="h-3.5 w-3.5" /> Telefone
                   </span>
                 ),
-                valor: usuario.telefone || "—",
+                valor: formatarTelefone(usuario.telefone) || "—",
               },
               {
                 label: "Cadastro em",

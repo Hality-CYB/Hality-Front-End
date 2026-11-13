@@ -6,10 +6,11 @@ import { useSearchParams } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
-  Lock,
+  ClipboardList,
   Database,
   BadgeCheck,
   History,
+  ImageIcon,
   Sparkles,
 } from "lucide-react";
 import { CarregandoPagina, ErroPagina } from "@/components/estado-pagina";
@@ -20,6 +21,7 @@ import { Alert } from "@/components/alert";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { ReclassificarDiagnostico } from "@/components/reclassificar-diagnostico";
 import { RotuloDatasetSecao } from "@/components/rotulo-dataset-secao";
+import { FotoAmpliavel } from "@/components/foto-ampliavel";
 import {
   erroDaReclassificacao,
   useDiagnosticoAdmin,
@@ -29,13 +31,16 @@ import { ApiError } from "@/lib/api-client";
 import { nivelColor, nivelIcon, nivelLabel } from "@/lib/level-format";
 import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/status-format";
 import { formatarData, formatarDataHora } from "@/lib/datas";
+import { formatarResposta } from "@/lib/anamnese-format";
+import { urlDaApi } from "@/lib/url-da-api";
+import { cn } from "@/lib/utils";
 
 /**
  * Detalhe do diagnóstico para o admin (`GET /admin/diagnosticos/{id}`).
- * O back não expõe ao admin as respostas da anamnese nem as imagens, só a
- * referência e a contagem, então esta tela não usa o DiagnosticoDetalhe
- * compartilhado do paciente/profissional. A regra do resultado é a mesma:
- * o nível revisado prevalece e o da IA vira um selo secundário.
+ * Mostra a foto e a anamnese para o admin rotular e reclassificar; o back
+ * registra cada abertura. Tem tela própria (e não o DiagnosticoDetalhe do
+ * paciente/profissional) por causa da reclassificação e do dataset, mas a regra
+ * do resultado é a mesma: o nível revisado prevalece e o da IA vira um selo.
  */
 export default function DiagnosticoDetailAdminPage({
   params,
@@ -49,6 +54,8 @@ export default function DiagnosticoDetailAdminPage({
   const { data: diagnostico, isError, error, refetch } = useDiagnosticoAdmin(id);
   const reclassificar = useReclassificarDiagnostico();
   const [reclassificado, setReclassificado] = useState(false);
+  const [anamneseAberta, setAnamneseAberta] = useState(true);
+  const [fotoFalhou, setFotoFalhou] = useState(false);
 
   // se deu erro, mostra o aviso de cada caso
   if (isError) {
@@ -130,6 +137,25 @@ export default function DiagnosticoDetailAdminPage({
             <ChevronRight className="text-gray-3 h-4 w-4" />
           </Card>
         </Link>
+
+        <Card className="shell:col-start-2 shell:row-start-2 gap-0 overflow-hidden rounded-lg p-0 shadow-sm ring-0">
+          <div className="relative flex aspect-4/3 items-center justify-center overflow-hidden bg-[#0a3d4a]">
+            {d.fotoUrl && !fotoFalhou ? (
+              <FotoAmpliavel
+                src={urlDaApi(d.fotoUrl)}
+                alt={`Foto da língua do diagnóstico #${d.id}`}
+                onError={() => setFotoFalhou(true)}
+              />
+            ) : (
+              <div className="flex flex-col items-center gap-2">
+                <ImageIcon className="h-9 w-9 text-white/25" aria-hidden />
+                <span className="text-xs text-white/40">
+                  {fotoFalhou ? "Não foi possível carregar a foto" : "Sem foto"}
+                </span>
+              </div>
+            )}
+          </div>
+        </Card>
 
         <div className="shell:col-start-1 shell:row-span-4 shell:row-start-1 flex min-w-0 flex-col gap-3.5">
           <Card className="gap-0 rounded-lg p-5 shadow-sm ring-0">
@@ -234,6 +260,44 @@ export default function DiagnosticoDetailAdminPage({
             </div>
           </Card>
 
+          <Card className="gap-0 overflow-hidden rounded-lg p-0 shadow-sm ring-0">
+            <button
+              type="button"
+              onClick={() => setAnamneseAberta((aberta) => !aberta)}
+              aria-expanded={anamneseAberta}
+              className="flex w-full items-center justify-between p-5 text-left"
+            >
+              <span className="font-heading flex items-center gap-2 text-sm font-extrabold">
+                <ClipboardList className="text-muted-foreground h-4 w-4" /> Anamnese
+              </span>
+              <ChevronRight
+                className={cn(
+                  "text-gray-3 h-4 w-4 transition-transform",
+                  anamneseAberta && "rotate-90",
+                )}
+              />
+            </button>
+            {anamneseAberta && (
+              <div className="shell:grid shell:grid-cols-2 flex flex-col gap-1.5 px-5 pb-5">
+                {d.respostasAnamnese?.length ? (
+                  d.respostasAnamnese.map((r) => (
+                    <div
+                      key={r.perguntaId}
+                      className="bg-background flex justify-between gap-3 rounded-[10px] px-3 py-2"
+                    >
+                      <span className="text-muted-foreground text-[13px]">{r.enunciado}</span>
+                      <span className="font-heading shrink-0 text-[13px] font-semibold">
+                        {formatarResposta(r.tipo, r.valor)}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-muted-foreground text-[13px]">Sem respostas registradas.</p>
+                )}
+              </div>
+            )}
+          </Card>
+
           {anteriores.length > 0 && (
             <Card className="gap-0 rounded-lg p-5 shadow-sm ring-0">
               <div className="font-heading mb-3 flex items-center gap-2 text-sm font-extrabold">
@@ -260,27 +324,6 @@ export default function DiagnosticoDetailAdminPage({
             </Card>
           )}
         </div>
-
-        <Card className="shell:col-start-2 shell:row-start-2 gap-0 rounded-lg p-5 shadow-sm ring-0">
-          <div className="font-heading mb-2 flex items-center gap-2 text-sm font-extrabold">
-            <Lock className="text-muted-foreground h-4 w-4" /> Dados clínicos
-          </div>
-          <p className="text-muted-foreground mb-3 text-[13px] leading-relaxed">
-            As respostas da anamnese e as fotos não ficam visíveis para o administrador.
-          </p>
-          <div className="flex flex-col gap-1.5 text-[13px]">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Anamnese</span>
-              <span className="font-heading font-semibold">
-                {d.anamneseId ? `#${d.anamneseId}` : "—"}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Imagens</span>
-              <span className="font-heading font-semibold">{d.qtdImagens}</span>
-            </div>
-          </div>
-        </Card>
 
         <Card className="shell:col-start-2 shell:row-start-3 gap-0 rounded-lg p-5 shadow-sm ring-0">
           <div className="mb-2 flex items-center gap-2">

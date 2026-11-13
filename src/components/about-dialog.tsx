@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import cybIcon from "@/assets/images/icon-check-your-breath.png";
 import agesLogo from "@/assets/images/logo-ages.png";
 import halityLogo from "@/assets/images/logo-hality.png";
+import { ContatosHality } from "@/components/contatos-hality";
 
 const CREDITS = [
   "Igor Marcel",
@@ -83,6 +84,11 @@ export function AboutDialog({ open, onOpenChange }: AboutDialogProps) {
               <span className="font-heading text-primary text-[13px] font-bold">{ADVISOR}</span>
               <span className="text-primary text-[11px]">· Professor orientador</span>
             </div>
+          </div>
+
+          <div className="bg-background rounded-[14px] p-4">
+            <div className="font-heading mb-2.5 text-[13px] font-bold">Fale com a Hality</div>
+            <ContatosHality />
           </div>
 
           <div className="flex items-center justify-center gap-2">

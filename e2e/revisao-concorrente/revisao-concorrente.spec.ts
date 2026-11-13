@@ -141,7 +141,7 @@ test.describe("revisão do profissional: histórico e concorrência", () => {
       await page.getByLabel("Observações clínicas").fill(primeiraObservacao);
       await page.getByRole("button", { name: "Salvar revisão", exact: true }).click();
       await expect(page.getByRole("status").filter({ hasText: "Revisão salva" })).toBeVisible();
-      await expect(page.getByText(`Revisado como ${NIVEIS[primeiraOrdem - 1]}`)).toBeVisible();
+      await expect(page.getByText(`Revisão atual: ${NIVEIS[primeiraOrdem - 1]}`)).toBeVisible();
       await expect(page.getByRole("button", { name: "Salvar nova revisão" })).toBeVisible();
     });
 
@@ -149,14 +149,14 @@ test.describe("revisão do profissional: histórico e concorrência", () => {
       await escolherClassificacao(page, segundaOrdem);
       await page.getByLabel("Observações clínicas").fill(segundaObservacao);
       await page.getByRole("button", { name: "Salvar nova revisão", exact: true }).click();
-      await expect(page.getByText(`Revisado como ${NIVEIS[segundaOrdem - 1]}`)).toBeVisible();
+      await expect(page.getByText(`Revisão atual: ${NIVEIS[segundaOrdem - 1]}`)).toBeVisible();
       await expect(page.getByText(/2 revisões no histórico/)).toBeVisible();
       await expect(page.getByText(segundaObservacao, { exact: true })).toBeVisible();
     });
 
     await test.step("revisões continuam após recarregar a página", async () => {
       await page.reload();
-      await expect(page.getByText(`Revisado como ${NIVEIS[segundaOrdem - 1]}`)).toBeVisible();
+      await expect(page.getByText(`Revisão atual: ${NIVEIS[segundaOrdem - 1]}`)).toBeVisible();
       await expect(page.getByText(/2 revisões no histórico/)).toBeVisible();
     });
 
@@ -267,7 +267,7 @@ test.describe("revisão do profissional: histórico e concorrência", () => {
       });
 
       await test.step("tela do Dr. Bruno mostra a revisão da Dra. Ana sem recarregar", async () => {
-        await expect(paginaBruno.getByText(`Revisado como ${NIVEIS[ordemAna - 1]}`)).toBeVisible();
+        await expect(paginaBruno.getByText(`Revisão atual: ${NIVEIS[ordemAna - 1]}`)).toBeVisible();
         await expect(paginaBruno.getByText(ANA.nome, { exact: false }).first()).toBeVisible();
         await expect(paginaBruno.getByText(observacaoAna, { exact: true })).toBeVisible();
         await expect(
@@ -298,14 +298,14 @@ test.describe("revisão do profissional: histórico e concorrência", () => {
           paginaBruno.getByRole("status").filter({ hasText: "Revisão salva" }),
         ).toBeVisible();
         await expect(
-          paginaBruno.getByText(`Revisado como ${NIVEIS[ordemBruno - 1]}`),
+          paginaBruno.getByText(`Revisão atual: ${NIVEIS[ordemBruno - 1]}`),
         ).toBeVisible();
         await expect(paginaBruno.getByText(/2 revisões no histórico/)).toBeVisible();
       });
 
       await test.step("Dra. Ana vê a revisão do colega após recarregar", async () => {
         await page.reload();
-        await expect(page.getByText(`Revisado como ${NIVEIS[ordemBruno - 1]}`)).toBeVisible();
+        await expect(page.getByText(`Revisão atual: ${NIVEIS[ordemBruno - 1]}`)).toBeVisible();
         await expect(page.getByText(BRUNO.nome, { exact: false }).first()).toBeVisible();
         await expect(page.getByText(/2 revisões no histórico/)).toBeVisible();
       });

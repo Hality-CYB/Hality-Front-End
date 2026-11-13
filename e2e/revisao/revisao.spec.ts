@@ -43,7 +43,7 @@ test("revisão profissional corrigida chega ao paciente sem perder o resultado d
     await entrar({ page: paciente, email: "carla.mendes@example.com" });
     await expect(paciente).toHaveURL("/paciente");
     await paciente.goto(`/paciente/diagnosticos/${id}`);
-    await expect(paciente.getByText("Resultado do profissional")).toBeVisible();
+    await expect(paciente.getByText("Resultado revisado")).toBeVisible();
     await expect(
       paciente.getByText("Observação clínica sintética para acompanhamento."),
     ).toBeVisible();

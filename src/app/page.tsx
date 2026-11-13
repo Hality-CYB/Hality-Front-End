@@ -10,6 +10,8 @@ import {
   Cigarette,
   CheckCircle2,
   ArrowRight,
+  Mail,
+  MessageCircle,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -18,6 +20,14 @@ import cybIcon from "@/assets/images/icon-check-your-breath.png";
 import { Button } from "@/components/ui/button";
 import { ScrollReveal } from "@/components/scroll-reveal";
 import { EntradaPorLink } from "@/components/definir-senha-form";
+import { RedesHality } from "@/components/contatos-hality";
+import {
+  ASSUNTO_PROFISSIONAL,
+  CONTATOS_HALITY,
+  MENSAGEM_PROFISSIONAL,
+  linkEmail,
+  linkWhatsApp,
+} from "@/lib/contatos-hality";
 
 /**
  * Repaginação completa da landing (era um porte quase 1:1 de
@@ -372,17 +382,26 @@ function LandingContent() {
             <h2 className="font-heading shell:text-4xl mb-4 text-[28px] font-extrabold text-white">
               Caro Dr(a), faça parte dessa revolução
             </h2>
-            <p className="mb-8 text-base leading-relaxed text-white/75">
+            <p className="mb-3 text-base leading-relaxed text-white/75">
               Iniciamos uma nova fase no diagnóstico da halitose e desde já agradecemos sua
               disponibilidade em ajudar a desenvolver nosso sistema.
             </p>
+            <p className="mb-8 text-sm leading-relaxed text-white/60">
+              O acesso de profissionais é liberado pela equipe Hality. Fale com a gente para
+              cadastrar você e começar a acompanhar seus pacientes.
+            </p>
             <div className="flex flex-wrap justify-center gap-3">
               <Button size="lg" variant="success" asChild>
-                <Link href="/registro">Criar conta grátis</Link>
+                <a href={linkWhatsApp(MENSAGEM_PROFISSIONAL)} target="_blank" rel="noreferrer">
+                  <MessageCircle aria-hidden /> Falar no WhatsApp
+                </a>
               </Button>
-              <button className="font-heading rounded-[12px] border border-white/30 bg-white/10 px-6 py-3.75 text-[15px] font-bold text-white transition-colors hover:bg-white/15">
-                Entrar em contato
-              </button>
+              <a
+                href={linkEmail(ASSUNTO_PROFISSIONAL)}
+                className="font-heading inline-flex items-center gap-2 rounded-[12px] border border-white/30 bg-white/10 px-6 py-3.75 text-[15px] font-bold text-white transition-colors hover:bg-white/15"
+              >
+                <Mail className="h-4 w-4" aria-hidden /> Enviar e-mail
+              </a>
             </div>
           </div>
         </ScrollReveal>
@@ -397,6 +416,27 @@ function LandingContent() {
             className="h-5 w-auto object-contain opacity-60 brightness-0 invert"
           />
           <span className="font-heading text-xs font-bold text-white/60">Check Your Breath</span>
+        </div>
+        <div className="mb-5 flex flex-col items-center gap-3">
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[13px]">
+            <a
+              href={linkWhatsApp()}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-white/70 hover:text-white"
+            >
+              <MessageCircle className="h-3.5 w-3.5" aria-hidden />
+              {CONTATOS_HALITY.whatsapp.exibicao}
+            </a>
+            <a
+              href={linkEmail()}
+              className="inline-flex items-center gap-1.5 text-white/70 hover:text-white"
+            >
+              <Mail className="h-3.5 w-3.5" aria-hidden />
+              {CONTATOS_HALITY.email}
+            </a>
+          </div>
+          <RedesHality tom="claro" />
         </div>
         <p className="text-[13px] text-white/40">
           © 2026 Hality Diagnóstico do Hálito — Check Your Breath (CYB). Todos os direitos

@@ -17,6 +17,7 @@ import { useDiagnosticosProfissionalPaginados } from "@/hooks/use-diagnosticos";
 import { nivelColor, nivelIcon } from "@/lib/level-format";
 import { statusDiagnosticoLabel, statusDiagnosticoBadgeStatus } from "@/lib/status-format";
 import { formatarData, formatarDataSemHorario, idadeEmAnos } from "@/lib/datas";
+import { formatarTelefone } from "@/lib/telefone";
 
 export default function PacienteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -87,7 +88,9 @@ export default function PacienteDetailPage({ params }: { params: Promise<{ id: s
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Telefone</span>
-              <span className="font-heading font-semibold">{paciente.telefone || "—"}</span>
+              <span className="font-heading font-semibold">
+                {formatarTelefone(paciente.telefone) || "—"}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Vinculado em</span>

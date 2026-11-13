@@ -7,6 +7,11 @@ import {
   type StatusDiagnostico,
 } from "@/types/diagnostico";
 import { mapBackendRoleToFrontend, type Usuario } from "@/types/usuario";
+import {
+  adaptBackendRespostas,
+  backendRespostaArmazenadaSchema,
+  type RespostaAnamnese,
+} from "@/types/anamnese";
 
 /** Contratos das rotas `/admin/*` do back (#94, #95, #96), todas exigem papel admin. */
 
@@ -161,8 +166,35 @@ export const backendAdminDiagnosticoItemSchema = z.object({
   automatica: automaticaSchema,
   revisao: revisaoAdminSchema,
   qtd_imagens: z.number(),
+  // Opcionais só para o front não quebrar contra um back que ainda não manda.
+  dataset: z
+    .object({
+      exportavel: z.boolean(),
+      fonte_efetiva: z.enum(["hality", "profissional", "ia"]),
+      // Texto livre: um motivo novo no back não pode derrubar a fila inteira.
+      motivo: z.string().nullable(),
+    })
+    .optional(),
 });
-export const backendAdminDiagnosticoListSchema = paginaSchema(backendAdminDiagnosticoItemSchema);
+export const backendAdminDiagnosticoListSchema = paginaSchema(
+  backendAdminDiagnosticoItemSchema,
+).extend({ exportacao_habilitada: z.boolean().optional() });
+
+/** Motivos conhecidos de um diagnóstico ficar fora da exportação. */
+export type MotivoInelegivel =
+  "nao_concluido" | "sem_imagem" | "sem_rotulo_humano" | "sem_consentimento";
+
+/** Se o diagnóstico entra hoje numa exportação (as mesmas regras do ZIP, calculadas no back). */
+export type ElegibilidadeDataset = {
+  exportavel: boolean;
+  fonte: FonteRotulo;
+  motivo: string | null;
+};
+
+export type PaginaDiagnosticosAdmin = Pagina<DiagnosticoAdminResumo> & {
+  /** Desligada por padrão no back (DATASET_EXPORT_ENABLED). */
+  exportacaoHabilitada: boolean;
+};
 
 export type RevisaoAdmin = {
   revisado: boolean;
@@ -190,6 +222,8 @@ export type DiagnosticoAdminResumo = {
   nivelCorrigido: boolean;
   revisao: RevisaoAdmin;
   qtdImagens: number;
+  /** Nula quando o back ainda não informa a elegibilidade na lista. */
+  elegibilidade: ElegibilidadeDataset | null;
 };
 
 function adaptRevisaoAdmin(data: z.infer<typeof revisaoAdminSchema>): RevisaoAdmin {
@@ -224,13 +258,23 @@ function adaptItemAdmin(item: z.infer<typeof backendAdminDiagnosticoItemSchema>)
     ...niveisDoDiagnostico(item.automatica, revisao),
     revisao,
     qtdImagens: item.qtd_imagens,
+    elegibilidade: item.dataset
+      ? {
+          exportavel: item.dataset.exportavel,
+          fonte: item.dataset.fonte_efetiva,
+          motivo: item.dataset.motivo,
+        }
+      : null,
   };
 }
 
 export function adaptBackendAdminDiagnosticoList(
   data: z.infer<typeof backendAdminDiagnosticoListSchema>,
-): Pagina<DiagnosticoAdminResumo> {
-  return adaptPagina(data, adaptItemAdmin);
+): PaginaDiagnosticosAdmin {
+  return {
+    ...adaptPagina(data, adaptItemAdmin),
+    exportacaoHabilitada: data.exportacao_habilitada ?? false,
+  };
 }
 
 const indisponivelSchema = z.object({ disponivel: z.boolean(), motivo: z.string() });
@@ -327,7 +371,15 @@ export const backendAdminDiagnosticoDetalheSchema = z.object({
   ),
   dataset: indisponivelSchema,
   rotulo_dataset: rotuloDatasetInfoSchema,
-  imagem: indisponivelSchema,
+  imagem: z.object({ disponivel: z.boolean(), motivo: z.string().nullable() }),
+  // Opcionais só para o front não quebrar contra um back anterior à liberação.
+  imagens: z
+    .array(z.object({ id: z.number(), url_arquivo: z.string(), ordem: z.number() }))
+    .optional(),
+  anamnese: z
+    .object({ id: z.number(), respostas: z.array(backendRespostaArmazenadaSchema) })
+    .nullable()
+    .optional(),
   /** Opcional só para o mock, que não acompanha mais os contratos novos. */
   reclassificacao: z
     .object({ version: z.number(), revisada_por_profissional: z.boolean() })
@@ -337,15 +389,21 @@ export const backendAdminDiagnosticoDetalheSchema = z.object({
 });
 
 /**
- * Detalhe do admin. O back não expõe de propósito as respostas da anamnese
- * nem as imagens (`imagem.disponivel` é sempre false por enquanto).
+ * Detalhe do admin. Traz a foto (URL assinada) e as respostas da anamnese, que
+ * o admin usa para rotular e reclassificar; o back registra cada abertura.
  */
-export type DiagnosticoAdminDetalhe = Omit<DiagnosticoAdminResumo, "qtdImagens"> & {
+export type DiagnosticoAdminDetalhe = Omit<
+  DiagnosticoAdminResumo,
+  "qtdImagens" | "elegibilidade"
+> & {
   erro: string | null;
   escalaSaburra: number | null;
   confiancaIA: number | null;
   historico: Omit<RevisaoAdmin, "revisado">[];
-  imagem: { disponivel: boolean; motivo: string };
+  /** Primeira foto, já com a assinatura que o back devolve; nula sem foto. */
+  fotoUrl: string | null;
+  /** Nula quando o back não manda a anamnese. */
+  respostasAnamnese: RespostaAnamnese[] | null;
   dataset: { disponivel: boolean; motivo: string };
   rotuloDataset: RotuloDatasetInfo;
   /** Versão da revisão e se o último revisor foi um profissional. */
@@ -378,7 +436,8 @@ export function adaptBackendAdminDiagnosticoDetalhe(
       nivel: nivelDaOrdem(r.classificacao?.ordem),
       observacoes: r.observacoes,
     })),
-    imagem: data.imagem,
+    fotoUrl: [...(data.imagens ?? [])].sort((a, b) => a.ordem - b.ordem)[0]?.url_arquivo ?? null,
+    respostasAnamnese: data.anamnese ? adaptBackendRespostas(data.anamnese.respostas) : null,
     dataset: data.dataset,
     rotuloDataset: adaptRotuloDatasetInfo(data.rotulo_dataset),
     reclassificacao: data.reclassificacao
