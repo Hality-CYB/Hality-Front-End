@@ -83,7 +83,6 @@ jobs:
   e2e:
     name: E2E Chromium
     runs-on: ubuntu-latest
-    needs: [test, build]
     timeout-minutes: 30
     permissions:
       contents: read
@@ -93,7 +92,7 @@ jobs:
     env:
       CI: "true"
       COMPOSE_PROJECT_NAME: hality-e2e-${{ github.run_id }}-${{ github.run_attempt }}
-      COMPOSE_FILE: e2e/compose.yml
+      COMPOSE_FILE: e2e/compose.yml:e2e/compose.ci-cache.yml
       BACKEND_PATH: ${{ github.workspace }}/backend
     steps:
       - uses: actions/checkout@v4
@@ -127,10 +126,46 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
+      - name: Versão do Playwright
+        id: playwright-version
+        run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache dos browsers do Playwright
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.HOME }}/.cache/ms-playwright
+          key: ms-playwright-${{ runner.os }}-chromium-${{ steps.playwright-version.outputs.version }}
+
       - name: Instalar Chromium e dependências do sistema
         run: npx playwright install --with-deps chromium
 
+      - name: Configurar Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Configurar Compose
+        uses: docker/setup-compose-action@v2
+        with:
+          version: v5.7.1
+
+      - name: Expor o runtime de cache do GitHub
+        uses: actions/github-script@v9
+        with:
+          script: |
+            for (const key of [
+              "ACTIONS_CACHE_URL",
+              "ACTIONS_RUNTIME_TOKEN",
+              "ACTIONS_RUNTIME_URL",
+              "ACTIONS_CACHE_SERVICE_V2",
+              "ACTIONS_RESULTS_URL",
+            ]) {
+              const value = process.env[key];
+              if (value) core.exportVariable(key, value);
+            }
+
       - name: Subir ambiente descartável com migrações e seed
+        env:
+          BUILDX_BUILDER: ${{ steps.buildx.outputs.name }}
         run: docker compose up --build --wait --wait-timeout 180
 
       - name: Executar fluxos no Chromium headless

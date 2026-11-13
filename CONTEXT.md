@@ -35,6 +35,8 @@ Check Your Breath (CYB) é o app da Hality Diagnóstico do Hálito: usa IA para 
 
 ## Últimas atualizações
 
+- **2026-11-13** - CI do E2E: cache das imagens da stack e dos browsers do Playwright, e o job deixa de esperar lint, testes e build. O deploy em main continua dependendo dos quatro.
+
 - **2026-11-12** - Envio direto ao storage: a foto do diagnóstico (paciente e atendimento pelo profissional) e a mídia de conteúdo do admin pedem um alvo ao back (`POST /diagnosticos/upload`, `POST /admin/conteudos/midias/upload`), enviam o arquivo ao alvo (`src/lib/upload-direto.ts`, `FormData` com os campos do alvo e o arquivo por último, sem `Authorization`) e confirmam no back (diagnóstico) ou usam `url_publica` no bloco (mídia). Erros do alvo viram os mesmos textos de antes e nunca 403/409. A leitura não muda. Mocks MSW e E2E seguem o fluxo novo.
 
 - **2026-11-06** - Revisão do E2E de sessão: o teste mantém o refresh pendente até observar as duas respostas 401 reais, confere a ordem dos eventos sem depender da resolução do relógio e conta todas as tentativas de renovação.
