@@ -121,6 +121,13 @@ export function useDiagnosticosAdminPaginados(
   });
 }
 
+/** Gera o ZIP do dataset; o back revalida a elegibilidade de cada item. */
+export function useExportarDataset() {
+  return useMutation({
+    mutationFn: (diagnosticoIds: string[]) => diagnosticoService.exportarDataset(diagnosticoIds),
+  });
+}
+
 // rotular o dataset só muda o detalhe e as listas do admin
 // não mexe no que o paciente ou o profissional veem, então essas telas não são recarregadas
 export function useCriarRotuloDataset() {

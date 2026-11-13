@@ -35,6 +35,8 @@ Check Your Breath (CYB) é o app da Hality Diagnóstico do Hálito: usa IA para 
 
 ## Últimas atualizações
 
+- **2026-11-13** - Fila do admin: a elegibilidade do dataset vem pronta em cada item de `GET /admin/diagnosticos` (`dataset: { exportavel, fonte_efetiva, motivo }`) e a lista informa `exportacao_habilitada`. A tela deixa de buscar o detalhe de cada diagnóstico para saber se ele entra na exportação, mostra no rodapé do card o motivo de ficar de fora e avisa antes, quando a exportação está desligada no ambiente. No modo de seleção o card inteiro marca e desmarca (a seta abre o detalhe), um quadradinho no canto superior esquerdo mostra a marcação, os cards fora do dataset ficam esmaecidos e a barra de seleção fica por cima da lista, encostada no menu no celular. O detalhe do admin passa a mostrar a foto (clicar abre grande, `components/foto-ampliavel.tsx`) e a anamnese, decisão do time para o admin poder rotular. E2E em `e2e/dataset` e `e2e/vinculo`.
+
 - **2026-11-13** - CI do E2E: cache das imagens da stack e dos browsers do Playwright, e o job deixa de esperar lint, testes e build. O deploy em main continua dependendo dos quatro.
 
 - **2026-11-12** - Envio direto ao storage: a foto do diagnóstico (paciente e atendimento pelo profissional) e a mídia de conteúdo do admin pedem um alvo ao back (`POST /diagnosticos/upload`, `POST /admin/conteudos/midias/upload`), enviam o arquivo ao alvo (`src/lib/upload-direto.ts`, `FormData` com os campos do alvo e o arquivo por último, sem `Authorization`) e confirmam no back (diagnóstico) ou usam `url_publica` no bloco (mídia). Erros do alvo viram os mesmos textos de antes e nunca 403/409. A leitura não muda. Mocks MSW e E2E seguem o fluxo novo.
