@@ -30,6 +30,7 @@ import {
 } from "@/hooks/use-usuarios";
 import { useSessaoAtual } from "@/lib/auth/session-context";
 import { cn } from "@/lib/utils";
+import { formatarTelefone } from "@/lib/telefone";
 
 const ITENS_CONFIGURACAO = [
   {
@@ -103,7 +104,9 @@ export default function ProfissionalPerfilPage() {
                 <div className="text-gray-3 font-heading mb-0.5 text-[10px] font-bold tracking-wide uppercase">
                   Telefone
                 </div>
-                <div className="text-[15px]">{perfil.telefone || "Não informado"}</div>
+                <div className="text-[15px]">
+                  {formatarTelefone(perfil.telefone) || "Não informado"}
+                </div>
               </div>
             </div>
             <div className="bg-background flex items-center gap-2.5 rounded-[13px] p-3.5">

@@ -117,19 +117,21 @@ export default function DiagnosticosPage() {
                     style: { color: nivelColor(d.nivel) },
                   })}
                 </div>
-                <div className="flex-1">
-                  <div className="font-heading text-sm font-bold">
+                <div className="min-w-0 flex-1">
+                  <div className="font-heading truncate text-sm font-bold">
                     Diagnóstico #{d.id.slice(-4)}
                   </div>
-                  <div className="text-muted-foreground text-xs">{formatarData(d.criadoEm)}</div>
+                  <div className="text-muted-foreground mb-1.5 truncate text-xs">
+                    {formatarData(d.criadoEm)}
+                  </div>
+                  <StatusBadge
+                    label={
+                      d.nivel !== null ? nivelLabel(d.nivel) : (STATUS_LABEL[d.status] ?? d.status)
+                    }
+                    status={nivelBadgeStatus(d.nivel)}
+                  />
                 </div>
-                <StatusBadge
-                  label={
-                    d.nivel !== null ? nivelLabel(d.nivel) : (STATUS_LABEL[d.status] ?? d.status)
-                  }
-                  status={nivelBadgeStatus(d.nivel)}
-                />
-                <ChevronRight className="text-gray-3 h-4 w-4" />
+                <ChevronRight className="text-gray-3 h-4 w-4 shrink-0" />
               </Card>
             </Link>
           );

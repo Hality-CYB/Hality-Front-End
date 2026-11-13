@@ -42,6 +42,8 @@ type DiagnosticoDetalheProps = {
   aviso?: ReactNode;
   /** Fecha o card do resultado, separado por uma linha (ex.: a revisão do profissional). */
   rodape?: ReactNode;
+  /** Ações do cabeçalho, ao lado do status (ex.: exportar o PDF). */
+  acoes?: ReactNode;
   /**
    * Nível original da IA. O detalhe do back traz a classificação já revisada,
    * então quem tiver o resultado da IA (o profissional) passa aqui.
@@ -64,6 +66,7 @@ export function DiagnosticoDetalhe({
   voltarHref,
   aviso,
   rodape,
+  acoes,
   nivelIA,
   children,
 }: DiagnosticoDetalheProps) {
@@ -77,6 +80,8 @@ export function DiagnosticoDetalhe({
       ? diagnostico.revisao.nivel
       : null;
   const nivelDestaque = nivelProfissional ?? nivel;
+  // Revisado por qualquer pessoa (profissional ou Equipe Hality), mudando ou não o nível.
+  const revisado = diagnostico.revisao?.revisado === true;
   const nivelOriginalIA =
     nivelIA !== undefined ? nivelIA : nivel !== nivelProfissional ? nivel : null;
   const conteudos = diagnostico.conteudos ?? [];
@@ -102,7 +107,10 @@ export function DiagnosticoDetalhe({
               <p className="text-sm text-white/60">{subtitulo}</p>
             </div>
           </div>
-          <StatusBadge className="shrink-0" label={status.label} status={status.tipo} />
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <StatusBadge className="shrink-0" label={status.label} status={status.tipo} />
+            {acoes}
+          </div>
         </div>
 
         <div className="flex gap-1 rounded-xl bg-white/10 p-1 backdrop-blur-sm">
@@ -136,14 +144,14 @@ export function DiagnosticoDetalhe({
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
                   <div className="flex items-center gap-3">
                     <div className="bg-secondary text-primary flex h-8 w-8 items-center justify-center rounded-[9px]">
-                      {nivelProfissional ? (
+                      {revisado ? (
                         <Stethoscope className="h-4 w-4" />
                       ) : (
                         <Sparkles className="h-4 w-4" />
                       )}
                     </div>
                     <div className="font-heading text-primary text-sm font-extrabold whitespace-nowrap">
-                      {nivelProfissional ? "Resultado do profissional" : "Resultado da IA"}
+                      {revisado ? "Resultado revisado" : "Resultado da IA"}
                     </div>
                   </div>
                   {nivelProfissional && (
@@ -185,12 +193,6 @@ export function DiagnosticoDetalhe({
                   </div>
                   <div>
                     <LevelChip nivel={nivelDestaque} />
-                    {nivelProfissional && (
-                      <div className="text-muted-foreground mt-1.5 text-xs">
-                        Revisado por{" "}
-                        {diagnostico.revisao?.profissionalNome ?? "profissional Hality"}
-                      </div>
-                    )}
                     {!nivelProfissional && diagnostico.confiancaIA !== undefined && (
                       <>
                         <div className="text-muted-foreground mt-1.5 mb-1.5 text-xs">
