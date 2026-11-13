@@ -163,6 +163,8 @@ test("paciente edita os dados pessoais, cancela, salva e vê o que salvou após 
   const nomeInicial = "Paciente Perfil Inicial";
   const nomeSalvo = "Paciente Perfil Salvo";
   const telefoneSalvo = "11977776666";
+  // Fora da edição a tela mostra o telefone formatado.
+  const telefoneSalvoNaTela = "(11) 97777-6666";
   const { email } = await criarPacienteConfirmado({ request, page, nome: nomeInicial });
   const nome = page.getByLabel("Nome", { exact: true });
   const telefone = page.getByLabel("Telefone", { exact: true });
@@ -210,7 +212,7 @@ test("paciente edita os dados pessoais, cancela, salva e vê o que salvou após 
     expect((await resposta).status()).toBe(200);
     await expect(page.getByRole("button", { name: "Salvar alterações" })).toHaveCount(0);
     await expect(nome).toHaveValue(nomeSalvo);
-    await expect(telefone).toHaveValue(telefoneSalvo);
+    await expect(telefone).toHaveValue(telefoneSalvoNaTela);
     await expect(page.getByText("14/03/1985")).toBeVisible();
     await expect(linkDaSidebar(page, email)).toContainText(nomeSalvo);
   });
@@ -218,7 +220,7 @@ test("paciente edita os dados pessoais, cancela, salva e vê o que salvou após 
   await test.step("Recarregar mantém os dados salvos", async () => {
     await page.reload();
     await expect(nome).toHaveValue(nomeSalvo);
-    await expect(telefone).toHaveValue(telefoneSalvo);
+    await expect(telefone).toHaveValue(telefoneSalvoNaTela);
     await expect(page.getByText("14/03/1985")).toBeVisible();
     expect(await perfilDaApi({ request, email })).toMatchObject({
       name: nomeSalvo,
@@ -266,7 +268,7 @@ test("profissional edita os dados profissionais sem conseguir se declarar vincul
     await expect(page).toHaveURL("/profissional");
     await page.goto("/profissional/perfil");
     await expect(page.getByText("Dados profissionais")).toBeVisible();
-    await expect(page.getByText("11911112222")).toBeVisible();
+    await expect(page.getByText("(11) 91111-2222")).toBeVisible();
     await expect(page.getByText("CRO-1111")).toBeVisible();
     await expect(page.getByText("Clínica geral").first()).toBeVisible();
     await expect(page.getByText(email, { exact: true }).first()).toBeVisible();

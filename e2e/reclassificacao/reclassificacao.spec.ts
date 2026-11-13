@@ -107,7 +107,7 @@ test("admin reclassifica por cima do profissional: confirma, paciente vê e prof
       await entrar({ page: profissional, email: "ana.souza@hality.com" });
       await expect(profissional).toHaveURL("/profissional");
       await profissional.goto(`/profissional/diagnosticos/${id}`);
-      await expect(profissional.getByText(`Revisado como ${doAdmin.nome}`)).toBeVisible();
+      await expect(profissional.getByText(`Revisão atual: ${doAdmin.nome}`)).toBeVisible();
     } finally {
       await contexto.close();
     }
@@ -122,7 +122,7 @@ test("admin reclassifica por cima do profissional: confirma, paciente vê e prof
       await expect(paciente).toHaveURL("/paciente");
       await paciente.goto(`/paciente/diagnosticos/${id}`);
       await expect(paciente.getByText("Curadoria da equipe Hality.")).toBeVisible();
-      await expect(paciente.getByText(/^Equipe Hality ·/)).toBeVisible();
+      await expect(paciente.getByText("Revisado por Equipe Hality")).toBeVisible();
       await expect(paciente.getByText(doAdmin.nome, { exact: true }).first()).toBeVisible();
     } finally {
       await contexto.close();
