@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { alvoDeUploadSchema } from "@/types/upload";
 
 /**
  * Shape do campo `conteudo` (JSONB) da tabela genérica `conteudos` do back
@@ -154,7 +155,7 @@ export function resumoDoConteudo(blocos: BlocoConteudo[]): {
 }
 
 /**
- * Upload de mídia (`POST /admin/conteudos/midias`): mesmos formatos e limites
+ * Upload de mídia (`POST /admin/conteudos/midias/upload`): mesmos formatos e limites
  * do back (`conteudo_storage`), checados antes de enviar para o admin não
  * esperar o upload inteiro de um arquivo que vai ser recusado.
  */
@@ -167,11 +168,12 @@ export const MIDIA_ACEITA = {
   video: { tipos: ["video/mp4", "video/webm"], maxMb: 50, nome: "MP4 ou WEBM" },
 } as const;
 
-export const backendMidiaEnviadaSchema = z.object({
-  url: z.string(),
+/** Alvo de envio da mídia (`POST /admin/conteudos/midias/upload`) e a URL que vai no bloco. */
+export const backendMidiaUploadSchema = alvoDeUploadSchema.extend({
+  url_publica: z.string().min(1),
   tipo: z.enum(["imagem", "video"]),
 });
-export type MidiaEnviada = z.infer<typeof backendMidiaEnviadaSchema>;
+export type MidiaEnviada = { url: string; tipo: "imagem" | "video" };
 
 /** O que impede enviar o arquivo como mídia do formato escolhido. */
 export function problemaDoArquivo(arquivo: File, formato: "imagem" | "video"): string | null {

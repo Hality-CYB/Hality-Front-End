@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/api-client";
+import { enviarParaAlvo } from "@/lib/upload-direto";
 import {
   adaptBackendConteudoAdmin,
   backendConteudoAdminSchema,
@@ -9,7 +10,7 @@ import {
   type ConteudoAdminInput,
 } from "@/types/conteudo-admin";
 import {
-  backendMidiaEnviadaSchema,
+  backendMidiaUploadSchema,
   type DestinoConteudo,
   type MidiaEnviada,
 } from "@/types/conteudo";
@@ -81,12 +82,16 @@ export const conteudoAdminService = {
     return adaptBackendConteudoAdmin(backendConteudoAdminSchema.parse(data));
   },
 
-  /** Grava a imagem ou o vídeo no back e devolve a URL para o bloco. */
+  /** Envia a imagem ou o vídeo direto ao storage e devolve a URL para o bloco. */
   async enviarMidia(arquivo: File): Promise<MidiaEnviada> {
-    const form = new FormData();
-    form.append("arquivo", arquivo);
-    const data = await apiClient.post<unknown>("/api/v1/admin/conteudos/midias", form);
-    return backendMidiaEnviadaSchema.parse(data);
+    const alvo = backendMidiaUploadSchema.parse(
+      await apiClient.post<unknown>("/api/v1/admin/conteudos/midias/upload", {
+        content_type: arquivo.type,
+        tamanho: arquivo.size,
+      }),
+    );
+    await enviarParaAlvo(alvo, arquivo);
+    return { url: alvo.url_publica, tipo: alvo.tipo };
   },
 
   async remover(id: string): Promise<void> {
