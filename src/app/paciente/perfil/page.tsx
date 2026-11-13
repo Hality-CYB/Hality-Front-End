@@ -27,6 +27,7 @@ import {
 import { useSessaoAtual } from "@/lib/auth/session-context";
 import { cn } from "@/lib/utils";
 import { formatarDataSemHorario, hojeNoCalendario, problemaDaDataDeNascimento } from "@/lib/datas";
+import { formatarTelefone } from "@/lib/telefone";
 
 const ITENS_CONFIGURACAO = [
   {
@@ -210,7 +211,7 @@ export default function PerfilPage() {
                   aria-label="Telefone"
                   type="tel"
                   placeholder={editing ? "(11) 99999-9999" : "Não informado"}
-                  value={editing ? telefone : telefoneAtual}
+                  value={editing ? telefone : formatarTelefone(telefoneAtual)}
                   onChange={(e) => setTelefone(e.target.value)}
                   disabled={!editing}
                   className="w-full bg-transparent text-[15px] outline-none disabled:opacity-100"

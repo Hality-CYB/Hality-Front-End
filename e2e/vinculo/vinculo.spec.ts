@@ -9,15 +9,11 @@ import { questionarioSchema } from "../helpers/questionario";
 
 const ADMIN = "admin@hality.com";
 const ANA = "ana.souza@hality.com";
-const FRASE_PRIVACIDADE =
-  "As respostas da anamnese e as fotos não ficam visíveis para o administrador.";
-
 const euSchema = z.object({ id: z.string().uuid() });
 const vinculosSchema = z.object({ itens: z.array(z.object({ id: z.number() })) });
 const detalheAdminSchema = z.object({
-  anamnese_id: z.number(),
-  qtd_imagens: z.number(),
-  imagem: z.object({ disponivel: z.boolean() }),
+  imagens: z.array(z.object({ url_arquivo: z.string() })),
+  anamnese: z.object({ respostas: z.array(z.object({ enunciado: z.string() })) }),
 });
 
 let pacienteId = "";
@@ -211,7 +207,7 @@ test.describe("vínculo e privacidade", () => {
     });
   });
 
-  test("admin abre o diagnóstico sem buscar nem mostrar respostas ou foto", async ({
+  test("admin vê a foto e a anamnese no detalhe, e a lista continua sem dado clínico", async ({
     page,
     request,
   }) => {
@@ -220,20 +216,29 @@ test.describe("vínculo e privacidade", () => {
     pacienteId = paciente.id;
     const classificacao = paciente.diagnostico.classificacao.nome_exibicao;
 
-    await test.step("admin chega ao detalhe do diagnóstico", async () => {
+    await test.step("a lista do paciente não traz foto nem respostas", async () => {
       await page.goto("/login");
       await entrar({ page, email: ADMIN });
       await expect(page).toHaveURL("/admin");
       await page.goto("/admin/usuarios");
       await page.getByLabel("Buscar usuário").fill(paciente.email);
       await page.getByText(paciente.email, { exact: true }).click();
+      const lista = page.waitForResponse(
+        (resposta) =>
+          resposta.url().startsWith(`${API_URL}/admin/diagnosticos?`) &&
+          resposta.url().includes(`paciente_id=${paciente.id}`),
+      );
       await page.getByRole("link", { name: "Ver diagnósticos" }).click();
+      const texto = await (await lista).text();
+      expect(texto).not.toContain("respostas");
+      expect(texto).not.toContain("url_arquivo");
+      expect(texto).not.toContain("assinatura");
       await expect(
         page.getByRole("link", { name: `Diagnóstico #${paciente.diagnostico.id}` }),
       ).toBeVisible();
     });
 
-    await test.step("o detalhe não pede nem mostra respostas ou foto", async () => {
+    await test.step("o detalhe mostra a foto e as respostas, só pela rota do admin", async () => {
       const pedidos: string[] = [];
       const registrar = (requisicao: { url: () => string }) => pedidos.push(requisicao.url());
       page.on("request", registrar);
@@ -246,28 +251,41 @@ test.describe("vínculo e privacidade", () => {
         await page.getByRole("link", { name: `Diagnóstico #${paciente.diagnostico.id}` }).click();
         const resposta = await detalhe;
         expect(resposta.ok()).toBeTruthy();
-        const texto = await resposta.text();
-        expect(texto).not.toContain("respostas");
-        expect(texto).not.toContain("url_arquivo");
-        expect(texto).not.toContain("assinatura");
-        const corpo = detalheAdminSchema.parse(JSON.parse(texto));
-        expect(corpo.imagem.disponivel).toBe(false);
-        await expect(page.getByText(FRASE_PRIVACIDADE)).toBeVisible();
+        const corpo = detalheAdminSchema.parse(await resposta.json());
+        expect(corpo.imagens[0]?.url_arquivo).toContain("assinatura=");
+
         await expect(page.getByText("Classificação da IA", { exact: true })).toBeVisible();
         await expect(page.getByText(classificacao, { exact: true }).first()).toBeVisible();
         await expect(page.getByText("Aguardando revisão.")).toBeVisible();
-        await expect(page.getByText(`#${corpo.anamnese_id}`, { exact: true })).toBeVisible();
-        await expect(page.getByText("Imagens", { exact: true }).locator("..")).toContainText(
-          String(corpo.qtd_imagens),
-        );
-        await expect(page.getByRole("img", { name: "Foto da língua capturada" })).toHaveCount(0);
+        await expect(page.getByText(/não ficam visíveis/)).toHaveCount(0);
+        const foto = page.getByRole("img", {
+          name: `Foto da língua do diagnóstico #${paciente.diagnostico.id}`,
+        });
+        await expect(foto).toBeVisible();
+        await expect
+          .poll(() => foto.evaluate((img: HTMLImageElement) => img.naturalWidth))
+          .toBeGreaterThan(0);
         for (const enunciado of paciente.enunciados) {
-          await expect(page.getByText(enunciado, { exact: true })).toHaveCount(0);
+          await expect(page.getByText(enunciado, { exact: true })).toBeVisible();
         }
-        expect(pedidos.filter(pedidoClinico)).toEqual([]);
+
+        // A foto vem pela URL assinada do detalhe; nenhuma rota do paciente ou do
+        // profissional é chamada para montar a tela do admin.
+        const fora = pedidos.filter(
+          (url) => pedidoClinico(url) && !new URL(url).searchParams.has("assinatura"),
+        );
+        expect(fora).toEqual([]);
       } finally {
         page.off("request", registrar);
       }
+    });
+
+    await test.step("clicar na foto abre ela grande", async () => {
+      await page.getByRole("button", { name: /Ampliar: Foto da língua/ }).click();
+      const janela = page.getByRole("dialog");
+      await expect(janela.getByRole("img", { name: /Foto da língua/ })).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(janela).toHaveCount(0);
     });
   });
 });

@@ -96,11 +96,76 @@ describe("Detalhe do diagnóstico do admin", () => {
     expect(
       screen.queryByText("A exportação do dataset ainda não faz parte do escopo."),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "As respostas da anamnese e as fotos não ficam visíveis para o administrador.",
+    expect(screen.queryByText(/não ficam visíveis/)).not.toBeInTheDocument();
+  });
+
+  it("mostra a foto e a anamnese para o admin rotular", async () => {
+    server.use(
+      http.get(url, () =>
+        HttpResponse.json(
+          detalhe({
+            imagem: { disponivel: true, motivo: null },
+            imagens: [
+              { id: 2, url_arquivo: "/api/v1/diagnosticos/imagens/b.jpg?assinatura=2", ordem: 2 },
+              { id: 1, url_arquivo: "/api/v1/diagnosticos/imagens/a.jpg?assinatura=1", ordem: 1 },
+            ],
+            anamnese: {
+              id: 101,
+              respostas: [
+                {
+                  pergunta_id: "halito_ao_acordar",
+                  enunciado: "Você sente mau hálito ao acordar?",
+                  tipo: "boolean",
+                  resposta: "Sim",
+                  valor: true,
+                  tipo_resposta: "bool",
+                },
+              ],
+            },
+          }),
+        ),
       ),
-    ).toBeInTheDocument();
+    );
+    await renderPagina();
+
+    const foto = await screen.findByRole("img", { name: /Foto da língua/ });
+    // A primeira foto pela ordem, não pela posição na lista.
+    expect(foto.getAttribute("src")).toContain("a.jpg?assinatura=1");
+    expect(screen.getByText("Você sente mau hálito ao acordar?")).toBeInTheDocument();
+    expect(screen.getByText("Sim")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Anamnese/ }));
+    expect(screen.queryByText("Você sente mau hálito ao acordar?")).not.toBeInTheDocument();
+  });
+
+  it("clicar na foto abre ela grande e Esc fecha", async () => {
+    server.use(
+      http.get(url, () =>
+        HttpResponse.json(
+          detalhe({
+            imagem: { disponivel: true, motivo: null },
+            imagens: [{ id: 1, url_arquivo: "/api/v1/diagnosticos/imagens/a.jpg?s=1", ordem: 1 }],
+            anamnese: null,
+          }),
+        ),
+      ),
+    );
+    await renderPagina();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Ampliar: Foto da língua/ }));
+    const janela = await screen.findByRole("dialog");
+    expect(within(janela).getByRole("img", { name: /Foto da língua/ })).toBeInTheDocument();
+
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("sem foto e sem anamnese, diz isso em vez de esconder o espaço", async () => {
+    server.use(http.get(url, () => HttpResponse.json(detalhe({ imagens: [], anamnese: null }))));
+    await renderPagina();
+
+    expect(await screen.findByText("Sem foto")).toBeInTheDocument();
+    expect(screen.getByText("Sem respostas registradas.")).toBeInTheDocument();
   });
 
   it("com revisão que mudou o nível, o do profissional vale e o da IA vira selo", async () => {

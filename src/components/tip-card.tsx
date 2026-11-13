@@ -94,7 +94,7 @@ export function TipCard({ titulo, categoria, blocos, icon, compact }: TipCardPro
         onClick={() => setAberto(true)}
         aria-haspopup="dialog"
         className={cn(
-          "bg-card text-card-foreground shell:h-80 flex max-h-80 w-full flex-col gap-2.5 overflow-hidden rounded-lg text-left shadow-sm",
+          "bg-card text-card-foreground flex max-h-80 w-full flex-col gap-2.5 overflow-hidden rounded-lg text-left shadow-sm",
           "focus-visible:ring-ring/50 transition-shadow outline-none hover:shadow-md focus-visible:ring-3",
           compact ? "p-4" : "p-5",
         )}

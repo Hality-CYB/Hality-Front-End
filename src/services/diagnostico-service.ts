@@ -29,8 +29,7 @@ import {
   backendAdminDiagnosticoListSchema,
   backendRotuloDatasetItemSchema,
   type DiagnosticoAdminDetalhe,
-  type DiagnosticoAdminResumo,
-  type Pagina,
+  type PaginaDiagnosticosAdmin,
   type RotuloDataset,
 } from "@/types/admin";
 
@@ -66,7 +65,7 @@ function queryDoFiltro(filtro: FiltroDiagnosticosProfissional): string {
 
 export const diagnosticoService = {
   /** Todos os diagnósticos, para o admin (`/admin/diagnosticos`, #96 do back). */
-  async listarAdmin(filtro: FiltroDiagnosticosAdmin = {}): Promise<Pagina<DiagnosticoAdminResumo>> {
+  async listarAdmin(filtro: FiltroDiagnosticosAdmin = {}): Promise<PaginaDiagnosticosAdmin> {
     const { classificacao, semClassificacao, ...resto } = filtro;
     let query = queryDoFiltro(resto);
     // sem classificação e classificação não entram juntos, só um deles
