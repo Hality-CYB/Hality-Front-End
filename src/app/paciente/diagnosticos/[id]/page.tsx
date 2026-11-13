@@ -16,17 +16,19 @@ const STATUS_LABEL: Record<string, string> = {
   falha: "Falha na análise",
 };
 
-/** Fecha o card do resultado depois que um profissional revisou. */
+/** Fecha o card do resultado depois da revisão (de um profissional ou da Equipe Hality). */
 function RevisaoProfissional({ revisao }: { revisao: NonNullable<Diagnostico["revisao"]> }) {
   return (
     <div>
       <div className="font-heading text-primary mb-1 flex items-center gap-1.5 text-[13px] font-bold">
-        <BadgeCheck className="h-4 w-4" /> Revisado por profissional
+        <BadgeCheck className="h-4 w-4" /> Revisado por{" "}
+        {revisao.profissionalNome ?? "profissional Hality"}
       </div>
-      <p className="text-muted-foreground text-xs leading-relaxed">
-        {revisao.profissionalNome ?? "Profissional Hality"}
-        {revisao.revisadoEm && ` · ${formatarData(revisao.revisadoEm)}`}
-      </p>
+      {revisao.revisadoEm && (
+        <p className="text-muted-foreground text-xs leading-relaxed">
+          {formatarData(revisao.revisadoEm)}
+        </p>
+      )}
       {/* Quando o nível foi corrigido, ele já aparece em destaque no resultado. */}
       {revisao.nivel && !revisao.nivelCorrigido && (
         <p className="text-foreground mt-1.5 text-xs font-semibold">

@@ -13,8 +13,7 @@ import {
   ClipboardList,
   ChevronLeft,
   Check,
-  Phone,
-  Mail,
+  Globe,
   Stethoscope,
   TriangleAlert,
   ChartColumn,
@@ -22,6 +21,8 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ContatosHality } from "@/components/contatos-hality";
+import { CONTATOS_HALITY } from "@/lib/contatos-hality";
 import { StatusBadge } from "@/components/status-badge";
 import { StepBar } from "@/components/step-bar";
 import { ScanLoader } from "@/components/scan-loader";
@@ -1016,26 +1017,16 @@ export function AvaliacaoWizard({
                   Especialistas em diagnóstico e tratamento do mau hálito com tecnologia e
                   conhecimento. Pioneira no Brasil no exame de cromatografia gasosa da respiração.
                 </p>
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center gap-2">
-                    <Phone className="h-3.5 w-3.5 text-white/70" />
-                    <span className="font-heading text-xs font-semibold text-white/70">
-                      0800 404 0404
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Mail className="h-3.5 w-3.5 text-white/70" />
-                    <span className="font-heading text-xs font-semibold text-white/70">
-                      hality.com.br
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Stethoscope className="h-3.5 w-3.5 text-white/70" />
-                    <span className="font-heading text-xs font-semibold text-white/70">
-                      Ijuí: drmarcelosaldanha.com.br
-                    </span>
-                  </div>
-                </div>
+                <ContatosHality tom="claro" />
+                <a
+                  href={CONTATOS_HALITY.site.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-heading mt-2 inline-flex items-center gap-2 text-xs font-semibold text-white/80 underline-offset-2 hover:text-white hover:underline"
+                >
+                  <Globe className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  {CONTATOS_HALITY.site.exibicao}
+                </a>
               </div>
             </div>
 

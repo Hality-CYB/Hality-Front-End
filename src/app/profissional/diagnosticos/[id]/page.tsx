@@ -113,10 +113,10 @@ export default function DiagnosticoReviewPage({ params }: { params: Promise<{ id
           <div className="border-secondary bg-secondary/40 mb-3.5 rounded-xl border p-3.5">
             <div className="font-heading text-primary mb-1 flex items-center gap-1.5 text-[13px] font-bold">
               <BadgeCheck className="h-4 w-4" />
-              Revisado como {nivelLabel(revisaoAtual.nivel)}
+              Revisão atual: {nivelLabel(revisaoAtual.nivel)}
             </div>
             <p className="text-muted-foreground text-xs leading-relaxed">
-              {revisaoAtual.profissionalNome ?? "Profissional Hality"} ·{" "}
+              Por {revisaoAtual.profissionalNome ?? "profissional Hality"} ·{" "}
               {formatarData(revisaoAtual.criadoEm)}
               {visaoProfissional.historico.length > 1 &&
                 ` · ${visaoProfissional.historico.length} revisões no histórico`}
