@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { z } from "zod";
 import { TOKEN_STORAGE_KEY } from "../../src/lib/session";
+import { conferirEnvioDaFoto, observarEnvioDaFoto } from "../helpers/envio";
 import { entrar } from "../helpers/auth";
 import { API_URL as api } from "../helpers/config";
 import { imagemLingua } from "../helpers/imagem";
@@ -54,15 +55,13 @@ test("paciente responde, edita e envia avaliação com foto e consulta o histór
   const anamneseCriada = page.waitForResponse(
     (r) => r.url() === `${api}/anamneses` && r.request().method() === "POST",
   );
-  const diagnosticoCriado = page.waitForResponse(
-    (r) => r.url() === `${api}/diagnosticos` && r.request().method() === "POST",
-  );
+  const envioDaFoto = observarEnvioDaFoto(page);
   await page.getByRole("button", { name: "Usar esta foto" }).click();
   await expect(page.getByText("Analisando sua imagem")).toBeVisible();
   const ar = await anamneseCriada;
   expect(ar.status()).toBe(201);
   const anamnese = z.object({ id: z.number() }).parse(await ar.json());
-  const dr = await diagnosticoCriado;
+  const dr = await conferirEnvioDaFoto(envioDaFoto);
   expect(dr.status()).toBe(202);
   const diagnostico = z
     .object({ id: z.number(), anamnese_id: z.number(), status: z.string() })

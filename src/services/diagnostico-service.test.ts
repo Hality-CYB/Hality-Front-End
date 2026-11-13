@@ -6,6 +6,8 @@ import { http, HttpResponse } from "msw";
 import { ZodError } from "zod";
 import { config } from "@/lib/config";
 import { ApiError } from "@/lib/api-client";
+import { idDoDiagnosticoExistente } from "@/lib/envio-diagnostico";
+import { clearStoredToken, setStoredToken } from "@/lib/session";
 import { server } from "@/services/mocks/server";
 import { diagnosticoService } from "@/services/diagnostico-service";
 import { nivelFinal } from "@/types/diagnostico";
@@ -83,15 +85,42 @@ function sequenciaDeGets(...corpos: Record<string, unknown>[]) {
   return chamadas;
 }
 
-describe("diagnosticoService.criar", () => {
-  it("envia multipart com anamnese_id, a imagem intacta e parametros_captura em JSON", async () => {
-    let contentType: string | null = null;
-    let recebido: FormData | undefined;
-    server.use(
-      http.post(url("/api/v1/diagnosticos"), async ({ request }) => {
-        contentType = request.headers.get("content-type");
-        recebido = await request.formData();
-        return HttpResponse.json(
+const ALVO = {
+  url: "/api/v1/uploads/local",
+  fields: { key: "uploads/abc.jpg", "Content-Type": "image/jpeg", policy: "p", signature: "s" },
+  upload_token: "token-1",
+};
+
+/** Alvo, envio e confirmação do back, registrando a ordem das chamadas. */
+function fluxoDeEnvio(
+  { confirmacao }: { confirmacao?: () => Response } = {},
+  chamadas: string[] = [],
+) {
+  const registro: {
+    chamadas: string[];
+    alvo?: unknown;
+    campos?: [string, FormDataEntryValue][];
+    autorizacaoDoEnvio?: string | null;
+    confirmacao?: unknown;
+  } = { chamadas };
+  server.use(
+    http.post(url("/api/v1/diagnosticos/upload"), async ({ request }) => {
+      chamadas.push("alvo");
+      registro.alvo = await request.json();
+      return HttpResponse.json(ALVO);
+    }),
+    http.post(url("/api/v1/uploads/local"), async ({ request }) => {
+      chamadas.push("envio");
+      registro.autorizacaoDoEnvio = request.headers.get("authorization");
+      registro.campos = [...(await request.formData()).entries()];
+      return new HttpResponse(null, { status: 204 });
+    }),
+    http.post(url("/api/v1/diagnosticos"), async ({ request }) => {
+      chamadas.push("confirmacao");
+      registro.confirmacao = await request.json();
+      return (
+        confirmacao?.() ??
+        HttpResponse.json(
           {
             id: 7,
             status: "processando",
@@ -99,9 +128,17 @@ describe("diagnosticoService.criar", () => {
             anamnese_id: 101,
           },
           { status: 202 },
-        );
-      }),
-    );
+        )
+      );
+    }),
+  );
+  return registro;
+}
+
+describe("diagnosticoService.criar", () => {
+  it("pede o alvo, envia a foto direto e confirma em JSON com o token", async () => {
+    setStoredToken("token-de-acesso");
+    const registro = fluxoDeEnvio();
 
     const criado = await diagnosticoService.criar({
       anamneseId: "101",
@@ -110,17 +147,19 @@ describe("diagnosticoService.criar", () => {
     });
 
     expect(criado).toEqual({ id: "7", status: "processando" });
-    expect(contentType).toMatch(/^multipart\/form-data; boundary=/);
-    expect(recebido!.get("anamnese_id")).toBe("101");
-    const imagem = recebido!.get("imagem") as File;
-    expect(imagem.name).toBe("lingua.jpg");
-    expect(imagem.type).toBe("image/jpeg");
-    expect(new Uint8Array(await imagem.arrayBuffer())).toEqual(BYTES_IMAGEM);
-    expect(JSON.parse(recebido!.get("parametros_captura") as string)).toEqual({
-      origem: "galeria",
-      largura: 800,
-      altura: 600,
+    expect(registro.chamadas).toEqual(["alvo", "envio", "confirmacao"]);
+    expect(registro.alvo).toEqual({ anamnese_id: 101, content_type: "image/jpeg" });
+    expect(registro.campos!.map(([nome]) => nome)).toEqual([...Object.keys(ALVO.fields), "file"]);
+    const arquivo = registro.campos!.at(-1)![1] as File;
+    expect(arquivo.name).toBe("lingua.jpg");
+    expect(new Uint8Array(await arquivo.arrayBuffer())).toEqual(BYTES_IMAGEM);
+    expect(registro.autorizacaoDoEnvio).toBeNull();
+    expect(registro.confirmacao).toEqual({
+      anamnese_id: 101,
+      upload_token: "token-1",
+      parametros_captura: { origem: "galeria", largura: 800, altura: 600 },
     });
+    clearStoredToken();
   });
 
   describe("diagnosticoService.exportarDataset", () => {
@@ -159,12 +198,69 @@ describe("diagnosticoService.criar", () => {
     });
   });
 
-  it("propaga o erro do back (ex.: 422 anamnese já usada) como ApiError", async () => {
+  it("anamnese que já tem diagnóstico (409 no alvo) devolve o id e não envia nada", async () => {
+    const chamadas: string[] = [];
     server.use(
-      http.post(url("/api/v1/diagnosticos"), () =>
-        HttpResponse.json({ detail: "anamnese já vinculada a outro diagnóstico" }, { status: 422 }),
-      ),
+      http.post(url("/api/v1/diagnosticos/upload"), () => {
+        chamadas.push("alvo");
+        return HttpResponse.json(
+          { detail: "anamnese já vinculada a outro diagnóstico", diagnostico_id: 55 },
+          { status: 409 },
+        );
+      }),
     );
+
+    const erro = await diagnosticoService
+      .criar({ anamneseId: "101", imagem: imagemFake(), parametrosCaptura: {} })
+      .catch((e: unknown) => e);
+
+    expect(erro).toMatchObject({ status: 409 });
+    expect(idDoDiagnosticoExistente(erro)).toBe("55");
+    expect(chamadas).toEqual(["alvo"]);
+  });
+
+  it("409 na confirmação também traz o id existente", async () => {
+    fluxoDeEnvio({
+      confirmacao: () => HttpResponse.json({ diagnostico_id: 9 }, { status: 409 }),
+    });
+
+    const erro = await diagnosticoService
+      .criar({ anamneseId: "101", imagem: imagemFake(), parametrosCaptura: {} })
+      .catch((e: unknown) => e);
+
+    expect(idDoDiagnosticoExistente(erro)).toBe("9");
+  });
+
+  it("falha no envio da foto não chama a confirmação", async () => {
+    const chamadas: string[] = [];
+    fluxoDeEnvio({}, chamadas);
+    server.use(
+      http.post(url("/api/v1/uploads/local"), () => {
+        chamadas.push("envio");
+        return HttpResponse.json(
+          { motivo: "Alvo de upload inválido ou expirado." },
+          { status: 403 },
+        );
+      }),
+    );
+
+    const erro = await diagnosticoService
+      .criar({ anamneseId: "101", imagem: imagemFake(), parametrosCaptura: {} })
+      .catch((e: unknown) => e);
+
+    expect(erro).toBeInstanceOf(ApiError);
+    expect((erro as ApiError).status).toBe(400);
+    expect(chamadas).toEqual(["alvo", "envio"]);
+  });
+
+  it("propaga o erro da confirmação (ex.: 400 token vencido) como ApiError", async () => {
+    fluxoDeEnvio({
+      confirmacao: () =>
+        HttpResponse.json(
+          { motivo: "Envio da imagem inválido ou expirado. Envie a foto de novo." },
+          { status: 400 },
+        ),
+    });
 
     const promessa = diagnosticoService.criar({
       anamneseId: "101",
@@ -173,15 +269,23 @@ describe("diagnosticoService.criar", () => {
     });
 
     await expect(promessa).rejects.toBeInstanceOf(ApiError);
-    await expect(promessa).rejects.toMatchObject({ status: 422 });
+    await expect(promessa).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("rejeita um alvo fora do contrato do back", async () => {
+    server.use(
+      http.post(url("/api/v1/diagnosticos/upload"), () => HttpResponse.json({ url: "/x" })),
+    );
+
+    await expect(
+      diagnosticoService.criar({ anamneseId: "101", imagem: imagemFake(), parametrosCaptura: {} }),
+    ).rejects.toBeInstanceOf(ZodError);
   });
 
   it("rejeita uma resposta 202 fora do contrato do back", async () => {
-    server.use(
-      http.post(url("/api/v1/diagnosticos"), () =>
-        HttpResponse.json({ id: "sete", status: "processando" }, { status: 202 }),
-      ),
-    );
+    fluxoDeEnvio({
+      confirmacao: () => HttpResponse.json({ id: "sete", status: "processando" }, { status: 202 }),
+    });
 
     await expect(
       diagnosticoService.criar({ anamneseId: "101", imagem: imagemFake(), parametrosCaptura: {} }),

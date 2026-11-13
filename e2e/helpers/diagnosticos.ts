@@ -16,6 +16,34 @@ const resultadoSchema = z.object({
   }),
 });
 
+const alvoSchema = z.object({
+  url: z.string(),
+  fields: z.record(z.string(), z.string()),
+  upload_token: z.string(),
+});
+
+/** Envia a foto ao alvo como o navegador: `fields` na ordem e o arquivo por último, sem token. */
+export function enviarParaAlvo({
+  request,
+  alvo,
+  arquivo,
+}: {
+  request: APIRequestContext;
+  alvo: { url: string; fields: Record<string, string> };
+  arquivo: Buffer;
+}) {
+  return request.post(new URL(alvo.url, API_URL).toString(), {
+    multipart: {
+      ...alvo.fields,
+      file: {
+        name: "lingua.png",
+        mimeType: alvo.fields["Content-Type"] ?? "image/png",
+        buffer: arquivo,
+      },
+    },
+  });
+}
+
 function respostaDePreparacao(pergunta: Pergunta) {
   switch (pergunta.tipo) {
     case "boolean":
@@ -59,13 +87,17 @@ export async function criarDiagnostico({
   });
   expect(anamnese.ok(), await anamnese.text()).toBeTruthy();
   const { id } = idSchema.parse(await anamnese.json());
+  const alvoResposta = await request.post(`${API_URL}/diagnosticos/upload`, {
+    headers,
+    data: { anamnese_id: id, content_type: "image/png" },
+  });
+  expect(alvoResposta.status(), await alvoResposta.text()).toBe(200);
+  const alvo = alvoSchema.parse(await alvoResposta.json());
+  const envio = await enviarParaAlvo({ request, alvo, arquivo: imagemLingua });
+  expect(envio.status(), await envio.text()).toBe(204);
   const diagnostico = await request.post(`${API_URL}/diagnosticos`, {
     headers,
-    multipart: {
-      anamnese_id: String(id),
-      parametros_captura: "{}",
-      imagem: { name: "lingua.png", mimeType: "image/png", buffer: imagemLingua },
-    },
+    data: { anamnese_id: id, upload_token: alvo.upload_token, parametros_captura: {} },
   });
   expect(diagnostico.status(), await diagnostico.text()).toBe(202);
   const criado = idSchema.parse(await diagnostico.json());

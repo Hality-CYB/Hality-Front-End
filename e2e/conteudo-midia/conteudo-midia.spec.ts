@@ -8,18 +8,29 @@ import {
 } from "@playwright/test";
 import { z } from "zod";
 import { entrar, tokenDe } from "../helpers/auth";
+import {
+  ROTA_ALVO_MIDIA,
+  ROTA_UPLOAD_LOCAL,
+  conferirEnvioAoStorage,
+  observarEnvioDaMidia,
+} from "../helpers/envio";
 import { API_URL } from "../helpers/config";
 import { imagemLingua } from "../helpers/imagem";
 import { videoCurto } from "./video";
 
 const EMAIL_ADMIN = "admin@hality.com";
-const ROTA_MIDIAS = `${API_URL}/admin/conteudos/midias`;
 const LIMITE_IMAGEM_EM_BYTES = 10 * 1024 * 1024;
 
 const listaSchema = z.object({
   total: z.number(),
-  items: z.array(z.object({ id: z.number() })),
+  items: z.array(
+    z.object({
+      id: z.number(),
+      conteudo: z.object({ itens: z.array(z.object({ url: z.string().optional() })) }),
+    }),
+  ),
 });
+const alvoMidiaSchema = z.object({ url_publica: z.string(), tipo: z.enum(["imagem", "video"]) });
 const conteudoCriadoSchema = z.object({ id: z.number() });
 
 const arquivoImagem = { name: "lingua.png", mimeType: "image/png", buffer: imagemLingua };
@@ -80,12 +91,14 @@ async function abrirNovoConteudo(page: Page, formato: "Imagem" | "Vídeo") {
   await page.getByRole("button", { name: formato, exact: true }).click();
 }
 
+/** Envia pelo editor (alvo e envio direto ao storage) e devolve a URL pública que vai no bloco. */
 async function enviarArquivo(page: Page, arquivo: typeof arquivoImagem) {
-  const envio = page.waitForResponse(
-    (resposta) => resposta.url() === ROTA_MIDIAS && resposta.request().method() === "POST",
-  );
+  const envio = observarEnvioDaMidia(page);
   await page.locator("#conteudo-arquivo").setInputFiles(arquivo);
-  expect((await envio).status()).toBe(201);
+  const alvo = await envio.alvo;
+  expect(alvo.status()).toBe(200);
+  await conferirEnvioAoStorage(await envio.upload);
+  return alvoMidiaSchema.parse(await alvo.json()).url_publica;
 }
 
 async function publicarConteudoDeMidia({
@@ -134,8 +147,10 @@ async function buscarConteudosNaLista(page: Page, marcador: string) {
 
 test("admin publica imagem e vídeo com prévias carregadas na ordem configurada", async ({
   page,
+  request,
   marcador,
 }) => {
+  let urlDoVideo = "";
   const tituloImagem = `Imagem ${marcador}`;
   const tituloVideo = `Vídeo ${marcador}`;
   await entrarComoAdmin(page);
@@ -153,7 +168,7 @@ test("admin publica imagem e vídeo com prévias carregadas na ordem configurada
 
   await test.step("vídeo enviado aparece carregado na prévia do editor", async () => {
     await abrirNovoConteudo(page, "Vídeo");
-    await enviarArquivo(page, arquivoVideo);
+    urlDoVideo = await enviarArquivo(page, arquivoVideo);
     await esperarVideoCarregado(page.getByLabel("Prévia do vídeo enviado"));
     await expect(page.getByText("Trocar arquivo")).toBeVisible();
   });
@@ -164,6 +179,20 @@ test("admin publica imagem e vídeo com prévias carregadas na ordem configurada
 
   const cardsDoMarcador = (dialogo: Locator) =>
     dialogo.getByRole("button", { name: new RegExp(marcador) });
+
+  await test.step("o bloco salvo aponta para a URL pública e o vídeo é servido com Range", async () => {
+    const headers = await tokenDe({ request, email: EMAIL_ADMIN });
+    const { items } = await listarConteudosDoMarcador(request, headers, marcador);
+    expect(items.flatMap((item) => item.conteudo.itens.map((bloco) => bloco.url))).toContain(
+      urlDoVideo,
+    );
+    const trecho = await request.get(new URL(urlDoVideo, API_URL).toString(), {
+      headers: { Range: "bytes=0-99" },
+    });
+    expect(trecho.status()).toBe(206);
+    expect(trecho.headers()["content-type"]).toBe("video/webm");
+    expect((await trecho.body()).length).toBe(100);
+  });
 
   await test.step("prévia da home mostra o vídeo antes da imagem, com as mídias carregadas", async () => {
     await page.getByRole("button", { name: "Preview da home" }).click();
@@ -223,7 +252,10 @@ test("editor recusa formato inválido e arquivo acima do limite sem enviar à AP
 }) => {
   const envios: string[] = [];
   page.on("request", (requisicao) => {
-    if (requisicao.method() === "POST" && requisicao.url() === ROTA_MIDIAS) {
+    if (
+      requisicao.method() === "POST" &&
+      [ROTA_ALVO_MIDIA, ROTA_UPLOAD_LOCAL].includes(requisicao.url())
+    ) {
       envios.push(requisicao.url());
     }
   });

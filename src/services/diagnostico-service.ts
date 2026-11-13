@@ -1,10 +1,12 @@
 import { apiClient } from "@/lib/api-client";
+import { enviarParaAlvo } from "@/lib/upload-direto";
 import {
   adaptBackendDiagnosticoDetail,
   adaptBackendDiagnosticoList,
   backendDiagnosticoCreatedSchema,
   backendDiagnosticoDetailSchema,
   backendDiagnosticoListResponseSchema,
+  backendUploadDiagnosticoSchema,
   adaptBackendDiagnosticoProfissional,
   adaptBackendDiagnosticoProfissionalList,
   adaptBackendRevisaoProfissional,
@@ -146,11 +148,21 @@ export const diagnosticoService = {
     imagem: File;
     parametrosCaptura: Record<string, unknown>;
   }): Promise<{ id: string; status: StatusDiagnostico }> {
-    const form = new FormData();
-    form.append("anamnese_id", input.anamneseId);
-    form.append("imagem", input.imagem);
-    form.append("parametros_captura", JSON.stringify(input.parametrosCaptura));
-    const data = await apiClient.post<unknown>("/api/v1/diagnosticos", form);
+    const anamneseId = Number(input.anamneseId);
+    // Cada tentativa começa de novo: se uma anterior já criou o diagnóstico, o 409
+    // do primeiro passo traz o id para retomar.
+    const alvo = backendUploadDiagnosticoSchema.parse(
+      await apiClient.post<unknown>("/api/v1/diagnosticos/upload", {
+        anamnese_id: anamneseId,
+        content_type: input.imagem.type,
+      }),
+    );
+    await enviarParaAlvo(alvo, input.imagem);
+    const data = await apiClient.post<unknown>("/api/v1/diagnosticos", {
+      anamnese_id: anamneseId,
+      upload_token: alvo.upload_token,
+      parametros_captura: input.parametrosCaptura,
+    });
     const criado = backendDiagnosticoCreatedSchema.parse(data);
     return { id: String(criado.id), status: criado.status };
   },
