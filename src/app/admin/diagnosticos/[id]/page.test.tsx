@@ -493,14 +493,30 @@ describe("Reclassificação pelo admin", () => {
     expect(screen.queryByText(/já revisou este diagnóstico/)).not.toBeInTheDocument();
   });
 
-  it("não deixa continuar com a classificação que já está valendo", async () => {
-    server.use(http.get(url, () => HttpResponse.json(detalhe(revisado))));
+  it("permite confirmar a classificação atual sem prometer aviso de mudança ao profissional", async () => {
+    let corpo: unknown;
+    server.use(
+      http.get(url, () => HttpResponse.json(detalhe(revisado))),
+      http.patch(`${url}/revisao`, async ({ request }) => {
+        corpo = await request.json();
+        return HttpResponse.json({
+          ...resposta,
+          revisao: { ...resposta.revisao, classificacao: INTIMA },
+        });
+      }),
+    );
     await renderPagina();
 
     fireEvent.click(await screen.findByRole("button", { name: "Reclassificar" }));
 
     expect(await screen.findByRole("radio", { name: "Halitose Íntima (atual)" })).toBeChecked();
-    expect(screen.getByRole("button", { name: "Continuar" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Continuar" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    expect(await screen.findByText(/sem alterar a escala/)).toBeVisible();
+    expect(screen.queryByText(/recebe um e-mail avisando da mudança/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar reclassificação" }));
+    expect(await screen.findByText(/Reclassificação salva/)).toBeVisible();
+    expect(corpo).toEqual({ classificacao: "halitose_intima", observacao: null, version: 1 });
   });
 
   it("409: pede para recarregar em vez de sobrescrever a revisão nova", async () => {

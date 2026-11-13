@@ -54,12 +54,12 @@ test("admin reclassifica por cima do profissional: confirma, paciente vê e prof
   await revisarComoProfissional(request, id, doProfissional.codigo);
   await abrirComoAdmin(page, id);
 
-  await test.step("A classificação que já vale não pode ser escolhida de novo", async () => {
+  await test.step("A classificação atual também pode ser confirmada", async () => {
     await page.getByRole("button", { name: "Reclassificar", exact: true }).click();
     await expect(
       page.getByRole("radio", { name: `${doProfissional.nome} (atual)`, exact: true }),
     ).toBeChecked();
-    await expect(page.getByRole("button", { name: "Continuar" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Continuar" })).toBeEnabled();
   });
 
   await test.step("A confirmação diz quem revisou e que será avisado", async () => {
@@ -168,3 +168,29 @@ test("admin desatualizado não sobrescreve a revisão que o profissional acabou 
   await page.getByRole("button", { name: "Recarregar" }).click();
   await expect(page.getByText("Dra. Ana Souza").first()).toBeVisible();
 });
+
+for (const comProfissional of [false, true]) {
+  test(`admin confirma a mesma escala ${comProfissional ? "do profissional" : "da IA"}`, async ({
+    page,
+    request,
+  }) => {
+    const { id, classificacao } = await diagnosticoDaCarla(request);
+    if (comProfissional) await revisarComoProfissional(request, id, classificacao.codigo);
+    await abrirComoAdmin(page, id);
+    await page.getByRole("button", { name: "Reclassificar", exact: true }).click();
+    await page.getByRole("button", { name: "Continuar" }).click();
+    await expect(page.getByText(/sem alterar a escala/)).toBeVisible();
+    const gravacao = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/admin/diagnosticos/${id}/revisao`) &&
+        response.request().method() === "PATCH",
+    );
+    await page.getByRole("button", { name: "Confirmar reclassificação" }).click();
+    const response = await gravacao;
+    expect(response.ok()).toBeTruthy();
+    const body = await response.json();
+    expect(body.revisao.classificacao.codigo).toBe(classificacao.codigo);
+    expect(body.version).toBe(comProfissional ? 2 : 1);
+    await expect(page.getByText("Reclassificação salva. O paciente será avisado.")).toBeVisible();
+  });
+}
