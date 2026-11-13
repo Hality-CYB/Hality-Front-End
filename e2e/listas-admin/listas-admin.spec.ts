@@ -310,16 +310,17 @@ test("paginação de diagnósticos não duplica e recupera a página seguinte ap
   const email = `paginado-${token}@example.com`;
   await criarPacienteConfirmado({ request, page, nome, email });
   const headers = await tokenDe({ request, email });
-  const ids: number[] = [];
-  for (let indice = 0; indice < 21; indice += 1) {
-    const criado = await criarDiagnostico({
-      request,
-      headers,
-      statusEsperado: "aguardando_revisao",
-    });
-    ids.push(criado.id);
-    ajustarDiagnostico({ id: criado.id, instante: dia.instante });
-  }
+  const criados = await Promise.all(
+    Array.from({ length: 21 }, () =>
+      criarDiagnostico({
+        request,
+        headers,
+        statusEsperado: "aguardando_revisao",
+      }),
+    ),
+  );
+  const ids = criados.map((criado) => criado.id);
+  for (const id of ids) ajustarDiagnostico({ id, instante: dia.instante });
   const menor = exigir([...ids].sort((a, b) => a - b)[0], "id da segunda página");
   const maior = exigir([...ids].sort((a, b) => b - a)[0], "id da primeira página");
 
