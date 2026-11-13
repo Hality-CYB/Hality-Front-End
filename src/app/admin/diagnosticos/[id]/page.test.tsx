@@ -81,7 +81,7 @@ async function renderPagina() {
 }
 
 describe("Detalhe do diagnóstico do admin", () => {
-  it("mostra o paciente, a classificação da IA e o dataset indisponível", async () => {
+  it("mostra o paciente, a classificação da IA e indica onde exportar o dataset", async () => {
     server.use(http.get(url, () => HttpResponse.json(detalhe())));
     await renderPagina();
 
@@ -89,10 +89,13 @@ describe("Detalhe do diagnóstico do admin", () => {
     expect(screen.getByText("Classificação da IA")).toBeInTheDocument();
     expect(screen.getByText("Escala de halitose 87%")).toBeInTheDocument();
     expect(screen.getByText("Aguardando revisão.")).toBeInTheDocument();
-    expect(screen.getByText("Indisponível")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "fila de diagnósticos" })).toHaveAttribute(
+      "href",
+      "/admin/diagnosticos",
+    );
     expect(
-      screen.getByText("A exportação do dataset ainda não faz parte do escopo."),
-    ).toBeInTheDocument();
+      screen.queryByText("A exportação do dataset ainda não faz parte do escopo."),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByText(
         "As respostas da anamnese e as fotos não ficam visíveis para o administrador.",
