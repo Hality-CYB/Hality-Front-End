@@ -14,6 +14,20 @@ afterEach(() => {
 });
 
 describe("contrato do login com Google", () => {
+  it("consulta o vínculo usando a sessão autenticada", async () => {
+    setStoredToken("token-paciente");
+    server.use(
+      http.get(`${config.apiBaseUrl}/api/v1/auth/google/link`, ({ request }) => {
+        expect(request.headers.get("authorization")).toBe("Bearer token-paciente");
+        return HttpResponse.json({ vinculado: true, email: "paciente@gmail.com" });
+      }),
+    );
+    await expect(authService.statusVinculoGoogle()).resolves.toEqual({
+      vinculado: true,
+      email: "paciente@gmail.com",
+    });
+  });
+
   it("monta a URL do authorize no backend", () => {
     expect(authService.obterUrlDeAutorizacaoGoogle()).toBe(
       `${config.apiBaseUrl}/api/v1/auth/google/authorize`,

@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { authService } from "@/services/auth-service";
+import { GoogleAccountStatus } from "@/components/google-account-status";
 import { User, Mail, Phone, Cake, Key, Shield, Info, ChevronRight, LogOut } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -54,6 +57,10 @@ const ITENS_CONFIGURACAO = [
 
 export default function PerfilPage() {
   const sessao = useSessaoAtual();
+  const vinculoGoogle = useQuery({
+    queryKey: ["google-vinculo", sessao.id],
+    queryFn: () => authService.statusVinculoGoogle(),
+  });
   const { data: usuario } = useUsuarioAtual();
   const atualizarPerfil = useAtualizarPerfil();
   const alterarSenha = useAlterarSenha();
@@ -228,6 +235,11 @@ export default function PerfilPage() {
         </Card>
 
         <Card className="gap-0 overflow-hidden rounded-lg p-0 shadow-sm ring-0">
+          <GoogleAccountStatus
+            vinculo={vinculoGoogle.data}
+            carregando={vinculoGoogle.isPending}
+            erro={vinculoGoogle.isError}
+          />
           {ITENS_CONFIGURACAO.map(({ Icon, label, sub, dialog, bg, iconColor }, i) => (
             <button
               key={label}
