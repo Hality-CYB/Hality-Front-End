@@ -8,6 +8,7 @@ import { DiagnosticoAdminCard } from "@/components/diagnostico-admin-card";
 import { useUsuarios } from "@/hooks/use-usuarios";
 import { useDiagnosticosAdmin } from "@/hooks/use-diagnosticos";
 import { useResumoAdmin } from "@/hooks/use-admin";
+import { ConcordanciaIaCard } from "@/components/concordancia-ia";
 import { useClassificacoes } from "@/hooks/use-classificacoes";
 import { useConteudosAdmin } from "@/hooks/use-conteudos-admin";
 import { useSessaoAtual } from "@/lib/auth/session-context";
@@ -184,6 +185,8 @@ export default function AdminHomePage() {
             </div>
           </Card>
         </div>
+
+        <ConcordanciaIaCard concordancia={resumo ? resumo.concordancia : undefined} />
 
         <Card className="rounded-lg p-5 shadow-sm ring-0">
           <div className="mb-4 flex items-center justify-between">

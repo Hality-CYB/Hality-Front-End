@@ -462,6 +462,15 @@ export const backendAdminResumoSchema = z.object({
     por_status: z.record(z.string(), z.number()),
   }),
   revisao: z.object({ pendentes: z.number(), revisados: z.number() }),
+  /** Opcional só para não quebrar contra um back anterior à concordância. */
+  concordancia: z
+    .object({
+      comparados: z.number(),
+      concordantes: z.number(),
+      taxa: z.number().nullable(),
+      matriz: z.array(z.object({ ia: z.number(), revisao: z.number(), total: z.number() })),
+    })
+    .optional(),
   /** Nulo até a regra clínica de com/sem halitose ser decidida. */
   halitose: z.record(z.string(), z.number()).nullable(),
 });
@@ -481,6 +490,20 @@ export type ResumoAdmin = {
   semClassificacao: number;
   pendentes: number;
   revisados: number;
+  /** Quanto a IA bateu com a revisão humana no período; nula contra um back antigo. */
+  concordancia: ConcordanciaIA | null;
+};
+
+/**
+ * IA × revisão: `matriz` tem as 9 combinações de nível (1-3), com quantos
+ * diagnósticos a IA classificou num nível e a revisão mais recente deixou em outro
+ * (ou no mesmo). `taxa` é nula quando nada foi revisado no período.
+ */
+export type ConcordanciaIA = {
+  comparados: number;
+  concordantes: number;
+  taxa: number | null;
+  matriz: { ia: DiagnosticoNivel; revisao: DiagnosticoNivel; total: number }[];
 };
 
 export function adaptBackendAdminResumo(
@@ -497,6 +520,18 @@ export function adaptBackendAdminResumo(
     semClassificacao,
     pendentes: data.revisao.pendentes,
     revisados: data.revisao.revisados,
+    concordancia: data.concordancia
+      ? {
+          comparados: data.concordancia.comparados,
+          concordantes: data.concordancia.concordantes,
+          taxa: data.concordancia.taxa,
+          matriz: data.concordancia.matriz.flatMap((c) => {
+            const ia = nivelDaOrdem(c.ia);
+            const revisao = nivelDaOrdem(c.revisao);
+            return ia && revisao ? [{ ia, revisao, total: c.total }] : [];
+          }),
+        }
+      : null,
   };
 }
 
