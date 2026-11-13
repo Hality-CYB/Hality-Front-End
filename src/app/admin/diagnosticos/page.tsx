@@ -132,9 +132,9 @@ export default function DiagnosticosAdminPage() {
     sem: useTotal({ ...filtroPeriodo, semClassificacao: true }),
   };
 
-  const selecionadosElegiveis = diagnosticos.filter(
-    (d) => selecionados.has(d.id) && elegibilidade.get(d.id)?.exportavel,
-  );
+  const elegiveis = diagnosticos.filter((d) => elegibilidade.get(d.id)?.exportavel);
+  const selecionadosElegiveis = elegiveis.filter((d) => selecionados.has(d.id));
+  const verificandoElegibilidade = [...elegibilidade.values()].some((d) => d.carregando);
 
   function limparSelecaoAntesDeMudarFiltro() {
     setBloqueados(new Set());
@@ -460,24 +460,49 @@ export default function DiagnosticosAdminPage() {
         />
       </div>
       {modoSelecao && (
-        <div className="sticky bottom-0 flex items-center justify-between gap-3 border-t bg-white px-4 py-3">
+        <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t bg-white px-4 py-3">
           <span className="text-muted-foreground text-sm" aria-live="polite">
             {selecionados.size} selecionado(s)
           </span>
-          <Button
-            type="button"
-            size="sm"
-            variant="success"
-            disabled={
-              baixando ||
-              selecionadosElegiveis.length === 0 ||
-              selecionadosElegiveis.length !== selecionados.size
-            }
-            onClick={exportar}
-          >
-            {baixando ? <LoaderCircle className="animate-spin" /> : <Download />}
-            {baixando ? "Baixando…" : "Exportar dataset"}
-          </Button>
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="flex-1 sm:flex-none"
+              aria-describedby="selecao-elegiveis-descricao"
+              disabled={
+                baixando ||
+                verificandoElegibilidade ||
+                lista.isFetchingNextPage ||
+                elegiveis.length === 0
+              }
+              onClick={() => {
+                setSelecionados(new Set(elegiveis.map((d) => d.id)));
+                setMensagem(null);
+              }}
+            >
+              Selecionar elegíveis
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="success"
+              className="flex-1 sm:flex-none"
+              disabled={
+                baixando ||
+                selecionadosElegiveis.length === 0 ||
+                selecionadosElegiveis.length !== selecionados.size
+              }
+              onClick={exportar}
+            >
+              {baixando ? <LoaderCircle className="animate-spin" /> : <Download />}
+              {baixando ? "Baixando…" : "Exportar dataset"}
+            </Button>
+          </div>
+          <p id="selecao-elegiveis-descricao" className="text-muted-foreground w-full text-xs">
+            Seleciona os diagnósticos elegíveis já carregados nesta lista.
+          </p>
         </div>
       )}
     </div>

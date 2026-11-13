@@ -55,7 +55,8 @@ export function ReclassificarDiagnostico({
   const [nivel, setNivel] = useState<DiagnosticoNivel | null>(nivelAtual);
   const [observacoes, setObservacoes] = useState("");
 
-  const podeContinuar = nivel !== null && nivel !== nivelAtual;
+  const podeContinuar = nivel !== null;
+  const mantendoClassificacao = nivel === nivelAtual;
   const profissional = profissionalNome ?? "O profissional";
 
   // Fechar a janela depois de salvar: `concluido` muda quando o servidor confirma.
@@ -92,14 +93,19 @@ export function ReclassificarDiagnostico({
             </DialogTitle>
             <DialogDescription>
               {confirmando
-                ? "Confira antes de confirmar. A mudança fica no histórico de revisões."
-                : "Escolha o resultado que o paciente deve ver."}
+                ? "Confira antes de confirmar. A revisão fica no histórico."
+                : "Confirme a classificação atual ou escolha outro resultado para o paciente."}
             </DialogDescription>
           </DialogHeader>
 
           {confirmando && nivel !== null ? (
             <div className="flex flex-col gap-4" aria-busy={salvando}>
-              {revisadaPorProfissional && nivelAtual !== null ? (
+              {mantendoClassificacao ? (
+                <Alert
+                  type="info"
+                  message={`Ao confirmar, você valida a classificação ${nivelLabel(nivel)} sem alterar a escala. Essa confirmação fica registrada como revisão da equipe Hality.`}
+                />
+              ) : revisadaPorProfissional && nivelAtual !== null ? (
                 <Alert
                   type="info"
                   message={`${profissional} já revisou este diagnóstico como ${nivelLabel(nivelAtual)}. Ao confirmar, o resultado passa a ser ${nivelLabel(nivel)}, e ${profissional} recebe um e-mail avisando da mudança.`}
@@ -111,7 +117,9 @@ export function ReclassificarDiagnostico({
                 />
               )}
               <p className="text-muted-foreground text-[13px]">
-                O paciente vê o novo resultado e recebe um e-mail.
+                {mantendoClassificacao
+                  ? "O paciente vê a classificação confirmada e recebe um e-mail."
+                  : "O paciente vê o novo resultado e recebe um e-mail."}
               </p>
               {erro && <Alert type="error" message={erro} />}
               <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
