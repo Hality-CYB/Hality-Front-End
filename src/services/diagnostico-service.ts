@@ -79,6 +79,19 @@ export const diagnosticoService = {
     return adaptBackendAdminDiagnosticoList(backendAdminDiagnosticoListSchema.parse(data));
   },
 
+  async exportarDataset(diagnosticoIds: string[]): Promise<Blob> {
+    if (diagnosticoIds.length === 0) {
+      throw new Error("Selecione ao menos um diagnóstico elegível.");
+    }
+    return apiClient.postBlob(
+      "/api/v1/admin/datasets/exports",
+      {
+        diagnostico_ids: diagnosticoIds.map((id) => Number(id)),
+      },
+      { contentTypeEsperado: "application/zip" },
+    );
+  },
+
   async buscarAdmin(id: string): Promise<DiagnosticoAdminDetalhe> {
     const data = await apiClient.get<unknown>(`/api/v1/admin/diagnosticos/${id}`);
     return adaptBackendAdminDiagnosticoDetalhe(backendAdminDiagnosticoDetalheSchema.parse(data));

@@ -14,6 +14,11 @@ type DiagnosticoAdminCardProps = {
   href: string;
   /** Padrão: o nome do paciente. Na lista de um paciente só, o número do diagnóstico. */
   titulo?: string;
+  selecionando?: boolean;
+  selecionado?: boolean;
+  selecaoDesabilitada?: boolean;
+  estadoSelecao?: string;
+  onAlternarSelecao?: () => void;
 };
 
 /**
@@ -21,13 +26,39 @@ type DiagnosticoAdminCardProps = {
  * prevalece sobre a IA): sem revisão, o chip leva "IA"; com revisão que mudou
  * o resultado, "Ajustado".
  */
-export function DiagnosticoAdminCard({ diagnostico: d, href, titulo }: DiagnosticoAdminCardProps) {
+export function DiagnosticoAdminCard({
+  diagnostico: d,
+  href,
+  titulo,
+  selecionando = false,
+  selecionado = false,
+  selecaoDesabilitada = false,
+  estadoSelecao,
+  onAlternarSelecao,
+}: DiagnosticoAdminCardProps) {
   const rotuloNivel = !d.revisao.revisado ? "IA" : d.nivelCorrigido ? "Ajustado" : null;
 
   return (
-    <Link href={href}>
-      <Card className="diag-list-card flex-row items-center gap-3.5 rounded-lg p-4 shadow-sm ring-0">
-        {/* Ícone e cor pelo resultado, como na lista do paciente. */}
+    <Card className="diag-list-card relative flex-row items-center gap-3.5 rounded-lg p-4 shadow-sm ring-0">
+      {selecionando && (
+        <label
+          className="relative z-10 flex shrink-0 items-center"
+          title={`Selecionar ${d.pacienteNome}`}
+        >
+          <input
+            type="checkbox"
+            checked={selecionado}
+            disabled={selecaoDesabilitada}
+            onChange={onAlternarSelecao}
+            aria-label={`Selecionar diagnóstico de ${d.pacienteNome}, ${d.id}`}
+            className="h-4 w-4 accent-[var(--primary)]"
+          />
+        </label>
+      )}
+      <Link
+        href={href}
+        className="flex min-w-0 flex-1 items-center gap-3.5 before:absolute before:inset-0"
+      >
         <div
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
           style={{ background: `${nivelColor(d.nivel)}18` }}
@@ -43,6 +74,11 @@ export function DiagnosticoAdminCard({ diagnostico: d, href, titulo }: Diagnosti
             {formatarData(d.criadoEm)}
             {titulo === undefined && ` · #${d.id}`}
           </div>
+          {selecionando && (
+            <div id={`elegibilidade-${d.id}`} className="text-muted-foreground mt-1 text-xs">
+              {estadoSelecao}
+            </div>
+          )}
           <StatusBadge
             label={statusDiagnosticoLabel(d.status)}
             status={statusDiagnosticoBadgeStatus(d.status)}
@@ -61,7 +97,7 @@ export function DiagnosticoAdminCard({ diagnostico: d, href, titulo }: Diagnosti
           )}
         </div>
         <ChevronRight className="text-gray-3 h-4 w-4" />
-      </Card>
-    </Link>
+      </Link>
+    </Card>
   );
 }

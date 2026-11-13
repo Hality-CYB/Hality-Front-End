@@ -59,10 +59,21 @@ async function renovarAccessToken(): Promise<string | null> {
   return refreshEmAndamento;
 }
 
-type ApiRequestInit = RequestInit & { autenticada?: boolean; statusEsperado?: number };
+type ApiRequestInit = RequestInit & {
+  autenticada?: boolean;
+  statusEsperado?: number;
+  resposta?: "json" | "blob";
+  contentTypeEsperado?: string;
+};
 
 async function request<T>(path: string, init?: ApiRequestInit, retentativa = false): Promise<T> {
-  const { autenticada = true, statusEsperado, ...requestInit } = init ?? {};
+  const {
+    autenticada = true,
+    statusEsperado,
+    resposta = "json",
+    contentTypeEsperado,
+    ...requestInit
+  } = init ?? {};
   const token = autenticada ? getStoredToken() : null;
   // Com FormData (upload de arquivo) quem define o Content-Type é o
   // navegador, porque ele precisa incluir o boundary do multipart.
@@ -125,7 +136,14 @@ async function request<T>(path: string, init?: ApiRequestInit, retentativa = fal
     return undefined as T;
   }
 
-  return response.json() as Promise<T>;
+  if (contentTypeEsperado) {
+    const contentType = response.headers.get("Content-Type")?.split(";")[0]?.trim();
+    if (contentType !== contentTypeEsperado) {
+      throw new ApiError(response.status, "O servidor não retornou um arquivo ZIP válido.");
+    }
+  }
+
+  return (resposta === "blob" ? response.blob() : response.json()) as Promise<T>;
 }
 
 function serializarBody(body: unknown): BodyInit | undefined {
@@ -140,6 +158,13 @@ export const apiClient = {
     request<T>(path, {
       ...init,
       method: "POST",
+      body: serializarBody(body),
+    }),
+  postBlob: (path: string, body?: unknown, init?: ApiRequestInit) =>
+    request<Blob>(path, {
+      ...init,
+      method: "POST",
+      resposta: "blob",
       body: serializarBody(body),
     }),
   put: <T>(path: string, body?: unknown, init?: ApiRequestInit) =>
