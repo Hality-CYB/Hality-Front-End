@@ -97,8 +97,7 @@ export E2E_API_PORT=8100
 Essas variáveis configuram portas publicadas, URL da API no build, CORS, links de
 identidade e URLs usadas pelo Playwright. Mantenha-as no mesmo terminal durante
 build/testes/limpeza; ao trocar portas, refaça `npm run e2e:up`.
-As portas internas dos containers não mudam. Sem as variáveis, inclusive na CI,
-continuam 3000/8000.
+As portas internas dos containers não mudam. Sem as variáveis, continuam 3000/8000.
 
 O seed destrutivo roda só no banco novo deste Compose. Para reiniciar do zero,
 remova os volumes com o último comando e suba novamente. Não execute o seed
@@ -113,18 +112,12 @@ roda depois, com 1 worker:
 Teste novo entra no `isolado`, salvo se afirmar contagem global, total de admins,
 resumo do admin ou conteúdo publicado visível aos outros pacientes.
 
-PRs com base em `develop`, `main` ou `chore/e2e-*` (PRs empilhados) executam E2E após testes e build
-contra o back-end da mesma branch alvo: `main` em PRs e pushes pra `main`, `develop` nos demais.
-No push na `main`, o deploy só roda se o E2E passar. O resumo do job **E2E Chromium** registra as revisões testadas,
-contagens de aprovados/falhas/instáveis/ignorados e um link direto para baixar
-o artifact `playwright-report`. Extraia o download e abra com
-`npx playwright show-report <pasta>/playwright-report`.
+A suíte não entra no pipeline. Rode localmente, sob demanda, com os comandos acima.
 Cada teste, inclusive quando passa, inclui screenshot final e trace passo a passo
-no HTML; vídeo fica desligado. O artifact também inclui JUnit e JSON.
-Logs ficam em `e2e-container-logs` nas falhas. Retenção: 7 dias.
+no HTML; vídeo fica desligado. O relatório local também inclui JUnit e JSON.
 São apenas dados sintéticos, mas traces podem conter credenciais/tokens de teste:
-não use contas reais nem publique os artifacts fora da execução.
-Sem retry local; no máximo um na CI, com testes instáveis identificados no relatório.
+não use contas reais nem publique os relatórios fora da execução.
+Por padrão não há retry. Com a variável `CI` definida, há no máximo um, e testes instáveis aparecem no relatório.
 
 O worker captura e-mails sintéticos em arquivos privados no container. Testes podem
 usar `obterLinkEmail` de `e2e/emails.ts` para buscar links por destinatário e
@@ -168,7 +161,7 @@ npm run smoke
 
 > No VS Code, instale as extensões recomendadas em `.vscode/extensions.json` (Prettier + ESLint) — o `.vscode/settings.json` já está configurado para formatar automaticamente ao salvar.
 
-Todo Pull Request pra `develop`/`main` (e pra `chore/e2e-*`, na pilha de testes E2E) roda lint, testes, build e E2E automaticamente via GitHub Actions; push na `main` roda os mesmos jobs e, com todos verdes, faz o deploy (`.github/workflows/ci-pipeline.yml`; E2E em [E2E com Playwright](#e2e-com-playwright)) — rode os mesmos comandos localmente antes de abrir o PR pra não ser pego de surpresa. Os testes incluem `src/rotas-legadas.test.ts`, que falha se alguma rota que não existe no back (`/api/v1/usuarios`, `/api/v1/dicas`, `vincular-profissional`, `/api/v1/profissionais`) voltar ao código.
+Todo Pull Request pra `develop`/`main` (e pra `chore/e2e-*`) roda lint, testes e build automaticamente via GitHub Actions; push na `main` roda os mesmos jobs e, com todos verdes, faz o deploy (`.github/workflows/ci-pipeline.yml`). A suíte E2E roda localmente, sob demanda ([E2E com Playwright](#e2e-com-playwright)). Rode lint, testes e build localmente antes de abrir o PR pra não ser pego de surpresa. Os testes incluem `src/rotas-legadas.test.ts`, que falha se alguma rota que não existe no back (`/api/v1/usuarios`, `/api/v1/dicas`, `vincular-profissional`, `/api/v1/profissionais`) voltar ao código.
 
 ## Arquitetura
 
@@ -253,7 +246,7 @@ vitest.setup.ts
 
 - **`.nvmrc`** — versão do Node.js usada no projeto, pra todo mundo (e o CI) rodar a mesma versão.
 
-- **`.github/workflows/ci-pipeline.yml`** — pipeline do GitHub Actions: lint + format check, testes, build e E2E, rodando em todo Pull Request pra `develop`/`main` (e `chore/e2e-*`); no push na `main`, também o deploy, condicionado a todos esses jobs.
+- **`.github/workflows/ci-pipeline.yml`** — pipeline do GitHub Actions: lint + format check, testes e build, rodando em todo Pull Request pra `develop`/`main` (e `chore/e2e-*`); no push na `main`, também o deploy, condicionado a lint, testes e build. A suíte E2E roda localmente, sob demanda.
 
 - **`playwright.config.ts`** / **`e2e/`** — configuração e specs dos testes E2E com Playwright (ver [E2E com Playwright](#e2e-com-playwright)).
 
