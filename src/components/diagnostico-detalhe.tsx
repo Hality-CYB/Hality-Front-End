@@ -42,6 +42,8 @@ type DiagnosticoDetalheProps = {
   aviso?: ReactNode;
   /** Fecha o card do resultado, separado por uma linha (ex.: a revisão do profissional). */
   rodape?: ReactNode;
+  /** Ações do cabeçalho, ao lado do status (ex.: exportar o PDF). */
+  acoes?: ReactNode;
   /**
    * Nível original da IA. O detalhe do back traz a classificação já revisada,
    * então quem tiver o resultado da IA (o profissional) passa aqui.
@@ -64,6 +66,7 @@ export function DiagnosticoDetalhe({
   voltarHref,
   aviso,
   rodape,
+  acoes,
   nivelIA,
   children,
 }: DiagnosticoDetalheProps) {
@@ -104,7 +107,10 @@ export function DiagnosticoDetalhe({
               <p className="text-sm text-white/60">{subtitulo}</p>
             </div>
           </div>
-          <StatusBadge className="shrink-0" label={status.label} status={status.tipo} />
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <StatusBadge className="shrink-0" label={status.label} status={status.tipo} />
+            {acoes}
+          </div>
         </div>
 
         <div className="flex gap-1 rounded-xl bg-white/10 p-1 backdrop-blur-sm">

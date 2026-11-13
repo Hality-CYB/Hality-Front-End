@@ -8,7 +8,9 @@ import { ehNaoEncontrado } from "@/lib/erros";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { BotaoExportarPdf } from "@/components/botao-exportar-pdf";
 import { DiagnosticoDetalhe, NIVEIS } from "@/components/diagnostico-detalhe";
+import { useExportarRelatorio } from "@/hooks/use-exportar-relatorio";
 import {
   useDiagnostico,
   useDiagnosticoProfissional,
@@ -46,6 +48,10 @@ export default function DiagnosticoReviewPage({ params }: { params: Promise<{ id
     refetch: refetchVisao,
   } = useDiagnosticoProfissional(id);
   const revisar = useRevisarDiagnostico();
+  const relatorio = useExportarRelatorio(diagnostico, {
+    pacienteNome: visaoProfissional?.pacienteNome ?? null,
+    nivelIA: visaoProfissional?.nivelIA,
+  });
 
   if (isError || erroProfissional) {
     const naoEncontrado = ehNaoEncontrado(erro) || ehNaoEncontrado(erroVisao);
@@ -100,6 +106,15 @@ export default function DiagnosticoReviewPage({ params }: { params: Promise<{ id
       avatarNome={nomePaciente}
       voltarHref={voltarHref}
       nivelIA={visaoProfissional.nivelIA}
+      acoes={
+        diagnostico.status !== "processando" ? (
+          <BotaoExportarPdf
+            onExportar={relatorio.exportar}
+            gerando={relatorio.gerando}
+            erro={relatorio.erro}
+          />
+        ) : undefined
+      }
     >
       <Card className="border-primary rounded-lg border-2 p-5 shadow-sm ring-0">
         <div className="mb-4 flex items-center gap-2.5">

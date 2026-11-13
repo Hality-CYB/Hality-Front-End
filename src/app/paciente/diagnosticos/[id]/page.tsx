@@ -4,8 +4,11 @@ import { use } from "react";
 import { TriangleAlert, BadgeCheck } from "lucide-react";
 import { CarregandoPagina, ErroPagina } from "@/components/estado-pagina";
 import { ehNaoEncontrado } from "@/lib/erros";
+import { BotaoExportarPdf } from "@/components/botao-exportar-pdf";
 import { DiagnosticoDetalhe } from "@/components/diagnostico-detalhe";
 import { useDiagnostico } from "@/hooks/use-diagnosticos";
+import { useExportarRelatorio } from "@/hooks/use-exportar-relatorio";
+import { useUsuarioAtual } from "@/hooks/use-usuarios";
 import { nivelLabel, nivelBadgeStatus } from "@/lib/level-format";
 import { nivelFinal, type Diagnostico } from "@/types/diagnostico";
 import { formatarData } from "@/lib/datas";
@@ -61,6 +64,8 @@ function AvisoSemRevisao({ temProfissionalVinculado }: { temProfissionalVinculad
 export default function DiagnosticoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { data: diagnostico, isError, error: erro, refetch } = useDiagnostico(id);
+  const { data: usuario } = useUsuarioAtual();
+  const relatorio = useExportarRelatorio(diagnostico, { pacienteNome: usuario?.nome ?? null });
 
   if (isError) {
     return (
@@ -100,6 +105,15 @@ export default function DiagnosticoDetailPage({ params }: { params: Promise<{ id
         ) : undefined
       }
       rodape={revisao ? <RevisaoProfissional revisao={revisao} /> : undefined}
+      acoes={
+        diagnostico.status !== "processando" ? (
+          <BotaoExportarPdf
+            onExportar={relatorio.exportar}
+            gerando={relatorio.gerando}
+            erro={relatorio.erro}
+          />
+        ) : undefined
+      }
     />
   );
 }
