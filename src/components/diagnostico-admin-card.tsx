@@ -39,9 +39,12 @@ export function DiagnosticoAdminCard({
   const rotuloNivel = !d.revisao.revisado ? "IA" : d.nivelCorrigido ? "Ajustado" : null;
 
   return (
-    <Card className="diag-list-card flex-row items-center gap-3.5 rounded-lg p-4 shadow-sm ring-0">
+    <Card className="diag-list-card relative flex-row items-center gap-3.5 rounded-lg p-4 shadow-sm ring-0">
       {selecionando && (
-        <label className="flex shrink-0 items-center" title={`Selecionar ${d.pacienteNome}`}>
+        <label
+          className="relative z-10 flex shrink-0 items-center"
+          title={`Selecionar ${d.pacienteNome}`}
+        >
           <input
             type="checkbox"
             checked={selecionado}
@@ -52,7 +55,10 @@ export function DiagnosticoAdminCard({
           />
         </label>
       )}
-      <Link href={href} className="flex min-w-0 flex-1 items-center gap-3.5">
+      <Link
+        href={href}
+        className="flex min-w-0 flex-1 items-center gap-3.5 before:absolute before:inset-0"
+      >
         <div
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
           style={{ background: `${nivelColor(d.nivel)}18` }}

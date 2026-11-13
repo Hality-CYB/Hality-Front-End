@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { config } from "@/lib/config";
 import { server } from "@/services/mocks/server";
 import DiagnosticosAdminPage from "@/app/admin/diagnosticos/page";
@@ -362,5 +362,55 @@ describe("Fila de diagnósticos do admin", () => {
     await userEvent.click(screen.getByRole("button", { name: "Exportar dataset" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(mensagem);
     expect(screen.getByText(contador)).toBeInTheDocument();
+  });
+
+  it.each([
+    [401, "Sua sessão expirou"],
+    [403, "Você não tem permissão"],
+    [413, "A seleção excede o limite"],
+    [503, "Erro temporário"],
+  ])("informa erro %i e mantém a seleção para revisão", async (status, mensagem) => {
+    server.use(
+      http.get(url, () => HttpResponse.json(resposta([itemElegivel(101, "Primeiro")]))),
+      http.get(`${url}/101`, () => HttpResponse.json(detalheElegivel(101, "Primeiro"))),
+      http.post(`${config.apiBaseUrl}/api/v1/admin/datasets/exports`, () =>
+        HttpResponse.json({ detail: "erro" }, { status }),
+      ),
+    );
+    renderPagina();
+    await screen.findByText("Primeiro");
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
+    const checkbox = screen.getByRole("checkbox", { name: /Primeiro/ });
+    await waitFor(() => expect(checkbox).toBeEnabled());
+    await userEvent.click(checkbox);
+    await userEvent.click(screen.getByRole("button", { name: "Exportar dataset" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(mensagem);
+    expect(checkbox).toBeChecked();
+  });
+
+  it("bloqueia mudanças na seleção e filtros enquanto o arquivo é gerado", async () => {
+    let requisicoes = 0;
+    server.use(
+      http.get(url, () => HttpResponse.json(resposta([itemElegivel(101, "Primeiro")]))),
+      http.get(`${url}/101`, () => HttpResponse.json(detalheElegivel(101, "Primeiro"))),
+      http.post(`${config.apiBaseUrl}/api/v1/admin/datasets/exports`, async () => {
+        requisicoes++;
+        await delay(250);
+        return HttpResponse.json({ detail: "falha" }, { status: 500 });
+      }),
+    );
+    renderPagina();
+    await screen.findByText("Primeiro");
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
+    const checkbox = screen.getByRole("checkbox", { name: /Primeiro/ });
+    await waitFor(() => expect(checkbox).toBeEnabled());
+    await userEvent.click(checkbox);
+    await userEvent.click(screen.getByRole("button", { name: "Exportar dataset" }));
+    expect(checkbox).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancelar seleção" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Falha" })).toBeDisabled();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível gerar");
+    expect(checkbox).toBeChecked();
+    expect(requisicoes).toBe(1);
   });
 });

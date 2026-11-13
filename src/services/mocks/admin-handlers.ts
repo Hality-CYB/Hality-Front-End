@@ -341,6 +341,13 @@ const EXTENSAO_MIDIA: Record<string, string> = {
 };
 
 export const adminHandlers = [
+  // O mock não guarda imagens nem decisões de consentimento necessárias ao ZIP.
+  // Retorna a mesma indisponibilidade do backend desligado, sem acessar a API real.
+  http.post(url("/api/v1/admin/datasets/exports"), ({ request }) => {
+    const admin = exigirAdmin(request);
+    if (admin instanceof Response) return admin;
+    return HttpResponse.json({ detail: "exportação de dataset indisponível" }, { status: 409 });
+  }),
   http.post(url("/api/v1/admin/conteudos/midias"), async ({ request }) => {
     const admin = exigirAdmin(request);
     if (admin instanceof Response) return admin;
