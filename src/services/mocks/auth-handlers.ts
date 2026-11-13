@@ -103,9 +103,6 @@ const confirmarEmailSchema = z.object({ token: z.string().min(20) }).strict();
 const reenviarConfirmacaoSchema = z.object({ email: z.string().email() }).strict();
 
 export const authHandlers = [
-  http.get(url("/api/v1/auth/google/link"), () =>
-    HttpResponse.json({ vinculado: false, email: null }),
-  ),
   http.post(url("/api/v1/auth/email-verification/confirm"), async ({ request }) => {
     const body = confirmarEmailSchema.safeParse(await request.json());
     const usuarioId = body.success

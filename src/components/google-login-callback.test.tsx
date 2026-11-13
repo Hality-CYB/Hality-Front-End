@@ -299,6 +299,7 @@ describe("retorno visual do login com Google", () => {
   it.each([
     ["papel_nao_permitido", "apenas para pacientes"],
     ["conta_existente", "e-mail e senha"],
+    ["email_pendente", "Confirme o e-mail da sua conta"],
     ["provedor_indisponivel", "indisponível"],
   ])("explica o erro de callback %s e permite voltar ao login", async (erro, mensagem) => {
     const exchange = vi.fn();

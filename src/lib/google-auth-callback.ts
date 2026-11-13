@@ -6,7 +6,6 @@ import {
 } from "@/types/auth-google";
 
 export type RetornoGoogle =
-  | { status: "vinculo"; codigo: string; etapa: "vinculo" }
   | { status: "sessao"; codigo: string; etapa: "sessao" }
   | { status: "consentimento"; codigo: string; etapa: "consentimento" }
   | { status: "erro"; erro: ErroCallbackGoogle }
@@ -40,7 +39,6 @@ export function lerRetornoGoogle(url: URL): RetornoGoogle {
   const etapa = etapaGoogleSchema.safeParse(etapas[0]);
   if (!codigo.success || !etapa.success) return { status: "invalido" };
 
-  if (etapa.data === "vinculo") return { status: "vinculo", codigo: codigo.data, etapa: "vinculo" };
   return etapa.data === "sessao"
     ? { status: "sessao", codigo: codigo.data, etapa: etapa.data }
     : { status: "consentimento", codigo: codigo.data, etapa: etapa.data };
@@ -62,6 +60,7 @@ export function mensagemDoErroCallbackGoogle(erro: ErroCallbackGoogle): string {
     identidade_invalida: "Não foi possível confirmar sua identidade pelo Google.",
     email_nao_verificado: "O Google não confirmou que este e-mail foi verificado.",
     conta_existente: "Já existe uma conta com este e-mail. Entre usando e-mail e senha.",
+    email_pendente: "Confirme o e-mail da sua conta antes de entrar com o Google.",
     papel_nao_permitido: "O login com Google está disponível apenas para pacientes.",
     conta_inativa: "Esta conta está inativa. Entre em contato com o suporte.",
   };

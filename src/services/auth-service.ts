@@ -316,20 +316,6 @@ export const authService = {
     return `${config.apiBaseUrl}${CAMINHO_GOOGLE}/authorize`;
   },
 
-  async statusVinculoGoogle(): Promise<{ vinculado: boolean; email: string | null }> {
-    return apiClient.get(`${CAMINHO_GOOGLE}/link`);
-  },
-  async iniciarVinculoGoogle(): Promise<{ url: string }> {
-    const resposta = await apiClient.post<{ state: string }>(`${CAMINHO_GOOGLE}/link/start`, {});
-    if (!/^[A-Za-z0-9_-]{20,128}$/.test(resposta.state)) {
-      throw new Error("Vínculo Google inválido");
-    }
-    return { url: `${config.apiBaseUrl}${CAMINHO_GOOGLE}/link/authorize?state=${resposta.state}` };
-  },
-  async concluirVinculoGoogle(codigo: string): Promise<void> {
-    await apiClient.post(`${CAMINHO_GOOGLE}/link/complete`, { codigo });
-  },
-
   /** Adapta o login Google à mesma sessão e ao mesmo refresh usados pelo login atual. */
   async trocarCodigoGoogle(input: TrocaCodigoGoogleInput): Promise<void> {
     const codigo = codigoTrocaGoogleSchema.safeParse(input.codigo);

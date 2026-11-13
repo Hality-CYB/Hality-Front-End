@@ -381,6 +381,13 @@ test("cancelamento e erro do Google mostram mensagem clara", async ({ page }) =>
     expect(rotas.trocas).toEqual([]);
     expect(rotas.autorizacaoPerfil).toEqual([]);
   });
+
+  await test.step("Conta não confirmada recebe orientação para confirmar o e-mail", async () => {
+    await page.goto("/login/google?erro=email_pendente");
+    await expect(alerta(page, "Confirme o e-mail da sua conta")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Voltar ao login" })).toBeVisible();
+    expect(rotas.trocas).toEqual([]);
+  });
 });
 
 test("código recusado na troca não fica na URL, no storage nem na mensagem", async ({

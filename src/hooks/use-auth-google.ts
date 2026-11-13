@@ -86,11 +86,7 @@ export function useAuthGoogle() {
     if (!retornoRef.current) {
       const url = new URL(window.location.href);
       retornoRef.current = lerRetornoGoogle(url);
-      if (
-        retornoRef.current.status === "sessao" ||
-        retornoRef.current.status === "consentimento" ||
-        retornoRef.current.status === "vinculo"
-      ) {
+      if (retornoRef.current.status === "sessao" || retornoRef.current.status === "consentimento") {
         codigoRef.current = retornoRef.current.codigo;
       }
       if (["code", "etapa", "erro"].some((parametro) => url.searchParams.has(parametro))) {
@@ -103,28 +99,6 @@ export function useAuthGoogle() {
     }
 
     const retorno = retornoRef.current;
-    if (retorno.status === "vinculo") {
-      if (!trocaRef.current) trocaRef.current = authService.concluirVinculoGoogle(retorno.codigo);
-      void trocaRef.current
-        .then(() => {
-          if (ativo) {
-            codigoRef.current = null;
-            replace("/paciente/perfil?google=vinculado");
-            refresh();
-          }
-        })
-        .catch(() => {
-          if (ativo)
-            setEstado({
-              status: "erro",
-              mensagem:
-                "Não foi possível vincular a conta Google. Entre novamente e tente outra vez.",
-            });
-        });
-      return () => {
-        ativo = false;
-      };
-    }
     const estadoImediato = estadoSemTroca(retorno);
     if (estadoImediato) {
       // No primeiro acesso, o destino precisa sobreviver enquanto a pessoa
