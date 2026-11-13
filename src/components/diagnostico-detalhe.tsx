@@ -15,7 +15,6 @@ import { LevelChip } from "@/components/level-chip";
 import { StatusBadge } from "@/components/status-badge";
 import { TipCard } from "@/components/tip-card";
 import { urlDaApi } from "@/lib/url-da-api";
-import { ConteudoBlocos } from "@/components/conteudo-blocos";
 import { EmptyState } from "@/components/empty-state";
 import { AvatarWithRole } from "@/components/avatar-with-role";
 import { nivelColor, nivelLabel, nivelIcon, type BadgeStatus } from "@/lib/level-format";
@@ -41,6 +40,8 @@ type DiagnosticoDetalheProps = {
   voltarHref?: string;
   /** Entra na leitura da IA, abaixo do nível (ex.: aviso de revisão para o paciente). */
   aviso?: ReactNode;
+  /** Fecha o card do resultado, separado por uma linha (ex.: a revisão do profissional). */
+  rodape?: ReactNode;
   /**
    * Nível original da IA. O detalhe do back traz a classificação já revisada,
    * então quem tiver o resultado da IA (o profissional) passa aqui.
@@ -62,6 +63,7 @@ export function DiagnosticoDetalhe({
   avatarNome,
   voltarHref,
   aviso,
+  rodape,
   nivelIA,
   children,
 }: DiagnosticoDetalheProps) {
@@ -78,7 +80,6 @@ export function DiagnosticoDetalhe({
   const nivelOriginalIA =
     nivelIA !== undefined ? nivelIA : nivel !== nivelProfissional ? nivel : null;
   const conteudos = diagnostico.conteudos ?? [];
-  const analise = nivel ? conteudos[0] : undefined;
   const [fotoFalhou, setFotoFalhou] = useState(false);
   const fotoUrl = diagnostico.imagemUrl && !fotoFalhou ? urlDaApi(diagnostico.imagemUrl) : null;
 
@@ -238,11 +239,8 @@ export function DiagnosticoDetalhe({
                   </div>
                 )}
 
-                {analise && (
-                  <div className="border-border shell:mt-6 mt-4 border-t pt-4">
-                    <div className="font-heading mb-1.5 text-[13px] font-bold">Análise</div>
-                    <ConteudoBlocos blocos={analise.blocos} />
-                  </div>
+                {rodape && (
+                  <div className="border-border shell:mt-6 mt-4 border-t pt-4">{rodape}</div>
                 )}
               </Card>
 
