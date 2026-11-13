@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { entrar } from "../helpers/auth";
+import { conferirEnvioDaFoto, esperarImagemCarregada, observarEnvioDaFoto } from "../helpers/envio";
 import { consultarBanco } from "../helpers/banco";
 import { API_URL as API } from "../helpers/config";
 import { imagemLingua } from "../helpers/imagem";
@@ -31,11 +32,9 @@ test("profissional avalia paciente vinculado e salva revisão", async ({ page })
     mimeType: "image/png",
     buffer: imagemLingua,
   });
-  const criacaoDiagnostico = page.waitForResponse(
-    (r) => r.url() === `${API}/diagnosticos` && r.request().method() === "POST",
-  );
+  const envioDaFoto = observarEnvioDaFoto(page);
   await page.getByRole("button", { name: "Usar esta foto" }).filter({ visible: true }).click();
-  const criado = await criacaoDiagnostico;
+  const criado = await conferirEnvioDaFoto(envioDaFoto);
   expect(criado.status()).toBe(202);
   const { id } = await criado.json();
   expect(Number.isInteger(id)).toBe(true);
@@ -59,6 +58,7 @@ test("profissional avalia paciente vinculado e salva revisão", async ({ page })
   await page.locator(`a[href="/paciente/diagnosticos/${id}"]`).click();
   await expect(page.getByText("Observação clínica de teste")).toBeVisible();
   await expect(page.getByText(/Ana Souza/).first()).toBeVisible();
+  await esperarImagemCarregada(page.getByAltText("Foto da língua capturada"));
 });
 
 test("profissional cadastra paciente com convite pendente", async ({ page }) => {
