@@ -129,6 +129,87 @@ function renderPagina() {
 }
 
 describe("Fila de diagnósticos do admin", () => {
+  it("seleciona todos os elegíveis carregados e exporta somente esses IDs", async () => {
+    let corpo: unknown;
+    server.use(
+      http.get(url, () =>
+        HttpResponse.json(
+          resposta([
+            itemElegivel(101, "Primeiro"),
+            itemElegivel(102, "Segundo"),
+            itemElegivel(103, "Sem consentimento"),
+            itemElegivel(104, "Somente IA"),
+          ]),
+        ),
+      ),
+      http.get(`${url}/:id`, async ({ params }) => {
+        await delay(30);
+        const id = Number(params.id);
+        const detalhe = detalheElegivel(id, `Paciente ${id}`);
+        return HttpResponse.json(
+          id < 103
+            ? detalhe
+            : {
+                ...detalhe,
+                rotulo_dataset: {
+                  ...detalhe.rotulo_dataset,
+                  exportavel: false,
+                  fonte_efetiva: id === 104 ? "ia" : "profissional",
+                },
+              },
+        );
+      }),
+      http.post(`${config.apiBaseUrl}/api/v1/admin/datasets/exports`, async ({ request }) => {
+        corpo = await request.json();
+        return HttpResponse.json({ detail: "falha" }, { status: 500 });
+      }),
+    );
+    renderPagina();
+    await screen.findByText("Primeiro");
+    expect(screen.queryByRole("button", { name: "Selecionar elegíveis" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
+    const selecionar = screen.getByRole("button", { name: "Selecionar elegíveis" });
+    await waitFor(() => expect(selecionar).toBeEnabled());
+    await userEvent.click(selecionar);
+    expect(screen.getByText("2 selecionado(s)")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /Sem consentimento/ })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /Somente IA/ })).not.toBeChecked();
+    await userEvent.click(screen.getByRole("checkbox", { name: /Primeiro/ }));
+    expect(screen.getByText("1 selecionado(s)")).toBeInTheDocument();
+    await userEvent.click(selecionar);
+    await userEvent.click(screen.getByRole("button", { name: "Exportar dataset" }));
+    await screen.findByRole("alert");
+    expect(corpo).toEqual({ diagnostico_ids: [101, 102] });
+    await userEvent.click(screen.getByRole("button", { name: "Falha" }));
+    expect(screen.getByText("0 selecionado(s)")).toBeInTheDocument();
+  });
+
+  it("não habilita seleção em lote sem elegíveis e aguarda a consulta de elegibilidade", async () => {
+    let concluir!: () => void;
+    const consulta = new Promise<void>((resolve) => {
+      concluir = resolve;
+    });
+    server.use(
+      http.get(url, () => HttpResponse.json(resposta([itemElegivel(101, "Primeiro")]))),
+      http.get(`${url}/101`, async () => {
+        await consulta;
+        const detalhe = detalheElegivel(101, "Primeiro");
+        return HttpResponse.json({
+          ...detalhe,
+          rotulo_dataset: { ...detalhe.rotulo_dataset, exportavel: false },
+        });
+      }),
+    );
+    renderPagina();
+    await screen.findByText("Primeiro");
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
+    const selecionar = screen.getByRole("button", { name: "Selecionar elegíveis" });
+    expect(selecionar).toBeDisabled();
+    concluir();
+    await screen.findByText("Não elegível para exportação");
+    expect(selecionar).toBeDisabled();
+  });
+
   it("mostra os diagnósticos e as contagens", async () => {
     mockListagem();
     renderPagina();
@@ -408,6 +489,7 @@ describe("Fila de diagnósticos do admin", () => {
     await userEvent.click(screen.getByRole("button", { name: "Exportar dataset" }));
     expect(checkbox).toBeDisabled();
     expect(screen.getByRole("button", { name: "Cancelar seleção" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Selecionar elegíveis" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Falha" })).toBeDisabled();
     expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível gerar");
     expect(checkbox).toBeChecked();
