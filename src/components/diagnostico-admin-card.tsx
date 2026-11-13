@@ -17,6 +17,7 @@ type DiagnosticoAdminCardProps = {
   selecionando?: boolean;
   selecionado?: boolean;
   selecaoDesabilitada?: boolean;
+  estadoSelecao?: string;
   onAlternarSelecao?: () => void;
 };
 
@@ -32,6 +33,7 @@ export function DiagnosticoAdminCard({
   selecionando = false,
   selecionado = false,
   selecaoDesabilitada = false,
+  estadoSelecao,
   onAlternarSelecao,
 }: DiagnosticoAdminCardProps) {
   const rotuloNivel = !d.revisao.revisado ? "IA" : d.nivelCorrigido ? "Ajustado" : null;
@@ -66,6 +68,11 @@ export function DiagnosticoAdminCard({
             {formatarData(d.criadoEm)}
             {titulo === undefined && ` · #${d.id}`}
           </div>
+          {selecionando && (
+            <div id={`elegibilidade-${d.id}`} className="text-muted-foreground mt-1 text-xs">
+              {estadoSelecao}
+            </div>
+          )}
           <StatusBadge
             label={statusDiagnosticoLabel(d.status)}
             status={statusDiagnosticoBadgeStatus(d.status)}

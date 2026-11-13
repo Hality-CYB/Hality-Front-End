@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { Beaker, Clock, Download, LoaderCircle } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/ui/button";
@@ -58,11 +59,9 @@ export default function DiagnosticosAdminPage() {
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [baixando, setBaixando] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
-  const [elegibilidade, setElegibilidade] = useState<
-    Record<string, { exportavel: boolean; fonteEfetiva: "hality" | "profissional" | "ia" }>
-  >({});
-  const [idsElegibilidadeCarregados, setIdsElegibilidadeCarregados] = useState("");
-  const [versaoElegibilidade, setVersaoElegibilidade] = useState(0);
+  const [bloqueados, setBloqueados] = useState<Set<string>>(new Set());
+  const queryClient = useQueryClient();
+  const downloadEmAndamento = useRef(false);
   const downloadUrl = useRef<string | null>(null);
 
   useEffect(() => {
@@ -86,37 +85,40 @@ export default function DiagnosticosAdminPage() {
     () => lista.data?.pages.flatMap((p) => p.itens) ?? [],
     [lista.data?.pages],
   );
-  const idsCarregados = useMemo(() => diagnosticos.map((d) => d.id).join(","), [diagnosticos]);
-
-  useEffect(() => {
-    if (!modoSelecao || diagnosticos.length === 0) return;
-    let cancelado = false;
-    Promise.all(diagnosticos.map((d) => diagnosticoService.buscarAdmin(d.id)))
-      .then((detalhes) => {
-        if (cancelado) return;
-        setElegibilidade(
-          Object.fromEntries(
-            detalhes.map((detalhe) => [
-              detalhe.id,
-              {
-                exportavel: detalhe.rotuloDataset?.exportavel ?? false,
-                fonteEfetiva: detalhe.rotuloDataset?.fonteEfetiva ?? "ia",
-              },
-            ]),
-          ),
-        );
-      })
-      .catch(() => {
-        if (!cancelado) setMensagem("Não foi possível verificar a elegibilidade dos diagnósticos.");
-      })
-      .finally(() => {
-        if (!cancelado) setIdsElegibilidadeCarregados(idsCarregados);
-      });
-    return () => {
-      cancelado = true;
-    };
-    // idsCarregados representa somente os registros apresentados nesta consulta.
-  }, [modoSelecao, diagnosticos, idsCarregados, versaoElegibilidade]);
+  // A fila ainda não fornece elegibilidade. Consulta somente candidatos possíveis e
+  // reutiliza o cache do detalhe, sem repetir requisições ao carregar outras páginas.
+  const detalhes = useQueries({
+    queries: diagnosticos.map((d) => ({
+      queryKey: ["diagnosticos", "admin", d.id],
+      queryFn: () => diagnosticoService.buscarAdmin(d.id),
+      enabled: modoSelecao && d.status === "concluido" && d.qtdImagens > 0,
+      staleTime: 30_000,
+    })),
+  });
+  const elegibilidade = new Map(
+    diagnosticos.map((d, i) => {
+      const detalhe = detalhes[i];
+      const possivel = d.status === "concluido" && d.qtdImagens > 0;
+      const carregando = modoSelecao && possivel && !!detalhe?.isFetching;
+      const erro = possivel && !!detalhe?.isError;
+      const info = detalhe?.data?.rotuloDataset;
+      return [
+        d.id,
+        {
+          carregando,
+          erro,
+          exportavel:
+            possivel &&
+            !carregando &&
+            !erro &&
+            !bloqueados.has(d.id) &&
+            info?.exportavel === true &&
+            info.fonteEfetiva !== "ia",
+          fonte: info?.fonteEfetiva,
+        },
+      ] as const;
+    }),
+  );
   // cor do quadrado de sem classificação
   const corSem = nivelColor(null);
 
@@ -131,15 +133,11 @@ export default function DiagnosticosAdminPage() {
   };
 
   const selecionadosElegiveis = diagnosticos.filter(
-    (d) =>
-      selecionados.has(d.id) &&
-      elegibilidade[d.id]?.exportavel &&
-      elegibilidade[d.id]?.fonteEfetiva !== "ia",
+    (d) => selecionados.has(d.id) && elegibilidade.get(d.id)?.exportavel,
   );
-  const carregandoElegibilidade =
-    modoSelecao && diagnosticos.length > 0 && idsElegibilidadeCarregados !== idsCarregados;
 
   function limparSelecaoAntesDeMudarFiltro() {
+    setBloqueados(new Set());
     if (selecionados.size > 0) {
       setSelecionados(new Set());
       setMensagem("A seleção foi limpa porque os filtros foram alterados.");
@@ -157,7 +155,13 @@ export default function DiagnosticosAdminPage() {
   }
 
   async function exportar() {
-    if (baixando || selecionadosElegiveis.length === 0) return;
+    if (
+      downloadEmAndamento.current ||
+      selecionadosElegiveis.length === 0 ||
+      selecionadosElegiveis.length !== selecionados.size
+    )
+      return;
+    downloadEmAndamento.current = true;
     setBaixando(true);
     setMensagem("Preparando o download do dataset…");
     try {
@@ -168,36 +172,67 @@ export default function DiagnosticosAdminPage() {
       link.href = url;
       link.download = `hality-dataset-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}.zip`;
       link.click();
-      URL.revokeObjectURL(url);
-      downloadUrl.current = null;
+      window.setTimeout(() => {
+        URL.revokeObjectURL(url);
+        if (downloadUrl.current === url) downloadUrl.current = null;
+      }, 60_000);
       setSelecionados(new Set());
+      setBloqueados(new Set());
       setModoSelecao(false);
-      setMensagem(`${selecionadosElegiveis.length} diagnóstico(s) baixado(s).`);
+      setMensagem(`Download iniciado: ${selecionadosElegiveis.length} diagnóstico(s).`);
     } catch (erro) {
       if (erro instanceof ApiError) {
         const mensagens: Record<number, string> = {
           401: "Sua sessão expirou. Entre novamente para baixar o dataset.",
           403: "Você não tem permissão para exportar o dataset.",
-          409: "A elegibilidade mudou. A fila foi atualizada; revise a seleção.",
           413: "A seleção excede o limite de exportação.",
           500: "Não foi possível gerar o arquivo. Tente novamente.",
         };
-        setMensagem(
-          mensagens[erro.status] ??
-            (erro.status >= 500
-              ? "Erro temporário ao gerar o arquivo. Tente novamente."
-              : "Não foi possível exportar o dataset."),
-        );
         if (erro.status === 409) {
-          setElegibilidade({});
-          setIdsElegibilidadeCarregados("");
-          setVersaoElegibilidade((versao) => versao + 1);
-          await lista.refetch();
+          let detail: unknown;
+          try {
+            detail = JSON.parse(erro.message)?.detail;
+          } catch {
+            /* resposta sem JSON */
+          }
+          if (typeof detail === "string" && detail.includes("indisponível")) {
+            setMensagem("A exportação de dataset está indisponível no momento.");
+          } else {
+            const ids =
+              typeof detail === "object" &&
+              detail !== null &&
+              "diagnostico_ids" in detail &&
+              Array.isArray(detail.diagnostico_ids)
+                ? detail.diagnostico_ids.map(String)
+                : [];
+            if (ids.length) {
+              setBloqueados((atual) => new Set([...atual, ...ids]));
+              setSelecionados((atual) => new Set([...atual].filter((id) => !ids.includes(id))));
+            }
+            setMensagem("A elegibilidade mudou. Revise a seleção antes de exportar novamente.");
+            await Promise.all([
+              ...diagnosticos.map((d) =>
+                queryClient.invalidateQueries({
+                  queryKey: ["diagnosticos", "admin", d.id],
+                  exact: true,
+                }),
+              ),
+              lista.refetch(),
+            ]);
+          }
+        } else {
+          setMensagem(
+            mensagens[erro.status] ??
+              (erro.status >= 500
+                ? "Erro temporário ao gerar o arquivo. Tente novamente."
+                : "Não foi possível exportar o dataset."),
+          );
         }
       } else {
         setMensagem("Não foi possível exportar o dataset. Tente novamente.");
       }
     } finally {
+      downloadEmAndamento.current = false;
       setBaixando(false);
     }
   }
@@ -211,10 +246,14 @@ export default function DiagnosticosAdminPage() {
             type="button"
             size="sm"
             variant={modoSelecao ? "secondary" : "primary"}
+            disabled={baixando}
             onClick={() => {
               const proximo = !modoSelecao;
               setModoSelecao(proximo);
-              if (!proximo) setSelecionados(new Set());
+              if (!proximo) {
+                setSelecionados(new Set());
+                setBloqueados(new Set());
+              }
               setMensagem(null);
             }}
           >
@@ -225,6 +264,7 @@ export default function DiagnosticosAdminPage() {
           {FILTROS_STATUS.map((f) => (
             <button
               key={f.valor}
+              disabled={baixando}
               onClick={() => {
                 limparSelecaoAntesDeMudarFiltro();
                 setFiltroStatus(f.valor);
@@ -244,6 +284,7 @@ export default function DiagnosticosAdminPage() {
           {PERIODS.map((p) => (
             <button
               key={p}
+              disabled={baixando}
               onClick={() => {
                 limparSelecaoAntesDeMudarFiltro();
                 setPeriod(p);
@@ -257,6 +298,7 @@ export default function DiagnosticosAdminPage() {
             </button>
           ))}
           <button
+            disabled={baixando}
             onClick={() => setCustomDialogOpen(true)}
             className={cn(
               "font-heading flex shrink-0 items-center gap-1 rounded-4xl border-[1.5px] px-3 py-1.5 text-[11px] font-semibold whitespace-nowrap text-white",
@@ -281,11 +323,30 @@ export default function DiagnosticosAdminPage() {
       />
 
       <div className="flex flex-col gap-2.5 p-4">
-        <div className="sr-only" aria-live="polite">
-          {mensagem}
-        </div>
         {mensagem && (
-          <Alert type={mensagem.includes("baixado") ? "success" : "error"} message={mensagem} />
+          <Alert
+            type={
+              mensagem.startsWith("Download iniciado")
+                ? "success"
+                : baixando || mensagem.startsWith("A seleção foi limpa")
+                  ? "info"
+                  : "error"
+            }
+            message={mensagem}
+          />
+        )}
+        {modoSelecao && detalhes.some((d) => d.isError) && (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={baixando}
+            onClick={() => {
+              void Promise.all(detalhes.filter((d) => d.isError).map((d) => d.refetch()));
+            }}
+          >
+            Tentar verificar novamente
+          </Button>
         )}
         <Card className="rounded-lg p-5 shadow-sm ring-0">
           <h2 className="text-lg">Análise geral</h2>
@@ -301,6 +362,7 @@ export default function DiagnosticosAdminPage() {
                   key={nivel}
                   type="button"
                   aria-pressed={ativo}
+                  disabled={baixando}
                   onClick={() => {
                     limparSelecaoAntesDeMudarFiltro();
                     setFiltroNivel(ativo ? null : nivel);
@@ -319,6 +381,7 @@ export default function DiagnosticosAdminPage() {
             <button
               type="button"
               aria-pressed={semClassificacao}
+              disabled={baixando}
               onClick={() => {
                 limparSelecaoAntesDeMudarFiltro();
                 setSemClassificacao(!semClassificacao);
@@ -374,16 +437,23 @@ export default function DiagnosticosAdminPage() {
               selecionando={modoSelecao}
               selecionado={selecionados.has(d.id)}
               selecaoDesabilitada={
-                carregandoElegibilidade ||
-                !elegibilidade[d.id]?.exportavel ||
-                elegibilidade[d.id]?.fonteEfetiva === "ia"
+                baixando || (!selecionados.has(d.id) && !elegibilidade.get(d.id)?.exportavel)
+              }
+              estadoSelecao={
+                elegibilidade.get(d.id)?.carregando
+                  ? "Verificando elegibilidade…"
+                  : elegibilidade.get(d.id)?.erro
+                    ? "Não foi possível verificar"
+                    : elegibilidade.get(d.id)?.exportavel
+                      ? `Elegível · rótulo ${elegibilidade.get(d.id)?.fonte === "hality" ? "Hality" : "profissional"}`
+                      : "Não elegível para exportação"
               }
               onAlternarSelecao={() => alternarSelecao(d.id)}
             />
           ))}
         </div>
         <ScrollInfinito
-          temMais={!!lista.hasNextPage}
+          temMais={!baixando && !!lista.hasNextPage}
           carregando={lista.isFetchingNextPage}
           erro={lista.isFetchNextPageError}
           onCarregarMais={() => lista.fetchNextPage()}
@@ -398,7 +468,11 @@ export default function DiagnosticosAdminPage() {
             type="button"
             size="sm"
             variant="success"
-            disabled={baixando || selecionadosElegiveis.length === 0}
+            disabled={
+              baixando ||
+              selecionadosElegiveis.length === 0 ||
+              selecionadosElegiveis.length !== selecionados.size
+            }
             onClick={exportar}
           >
             {baixando ? <LoaderCircle className="animate-spin" /> : <Download />}

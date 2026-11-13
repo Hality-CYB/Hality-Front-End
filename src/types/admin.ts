@@ -161,14 +161,6 @@ export const backendAdminDiagnosticoItemSchema = z.object({
   automatica: automaticaSchema,
   revisao: revisaoAdminSchema,
   qtd_imagens: z.number(),
-  dataset: z.object({ disponivel: z.boolean(), motivo: z.string().nullable() }).optional(),
-  rotulo_dataset: z
-    .object({
-      fonte_efetiva: z.enum(["hality", "profissional", "ia"]),
-      exportavel: z.boolean(),
-      motivo: z.string().nullable(),
-    })
-    .optional(),
 });
 export const backendAdminDiagnosticoListSchema = paginaSchema(backendAdminDiagnosticoItemSchema);
 
@@ -198,9 +190,6 @@ export type DiagnosticoAdminResumo = {
   nivelCorrigido: boolean;
   revisao: RevisaoAdmin;
   qtdImagens: number;
-  exportavel: boolean;
-  fonteRotulo: "hality" | "profissional" | "ia";
-  motivoExportacao: string | null;
 };
 
 function adaptRevisaoAdmin(data: z.infer<typeof revisaoAdminSchema>): RevisaoAdmin {
@@ -235,9 +224,6 @@ function adaptItemAdmin(item: z.infer<typeof backendAdminDiagnosticoItemSchema>)
     ...niveisDoDiagnostico(item.automatica, revisao),
     revisao,
     qtdImagens: item.qtd_imagens,
-    exportavel: item.rotulo_dataset?.exportavel ?? false,
-    fonteRotulo: item.rotulo_dataset?.fonte_efetiva ?? "ia",
-    motivoExportacao: item.rotulo_dataset?.motivo ?? "elegibilidade_nao_informada",
   };
 }
 
@@ -395,9 +381,6 @@ export function adaptBackendAdminDiagnosticoDetalhe(
     imagem: data.imagem,
     dataset: data.dataset,
     rotuloDataset: adaptRotuloDatasetInfo(data.rotulo_dataset),
-    exportavel: data.rotulo_dataset.exportavel,
-    fonteRotulo: data.rotulo_dataset.fonte_efetiva,
-    motivoExportacao: data.rotulo_dataset.motivo ?? null,
     reclassificacao: data.reclassificacao
       ? {
           versao: data.reclassificacao.version,
