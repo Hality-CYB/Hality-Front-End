@@ -1,10 +1,12 @@
 import { apiClient } from "@/lib/api-client";
+import { enviarParaAlvo } from "@/lib/upload-direto";
 import {
   adaptBackendDiagnosticoDetail,
   adaptBackendDiagnosticoList,
   backendDiagnosticoCreatedSchema,
   backendDiagnosticoDetailSchema,
   backendDiagnosticoListResponseSchema,
+  backendUploadDiagnosticoSchema,
   adaptBackendDiagnosticoProfissional,
   adaptBackendDiagnosticoProfissionalList,
   adaptBackendRevisaoProfissional,
@@ -22,11 +24,14 @@ import {
 import {
   adaptBackendAdminDiagnosticoDetalhe,
   adaptBackendAdminDiagnosticoList,
+  adaptBackendRotuloDataset,
   backendAdminDiagnosticoDetalheSchema,
   backendAdminDiagnosticoListSchema,
+  backendRotuloDatasetItemSchema,
   type DiagnosticoAdminDetalhe,
   type DiagnosticoAdminResumo,
   type Pagina,
+  type RotuloDataset,
 } from "@/types/admin";
 
 export type FiltroDiagnosticos = {
@@ -74,9 +79,37 @@ export const diagnosticoService = {
     return adaptBackendAdminDiagnosticoList(backendAdminDiagnosticoListSchema.parse(data));
   },
 
+  async exportarDataset(diagnosticoIds: string[]): Promise<Blob> {
+    if (diagnosticoIds.length === 0) {
+      throw new Error("Selecione ao menos um diagnóstico elegível.");
+    }
+    return apiClient.postBlob(
+      "/api/v1/admin/datasets/exports",
+      {
+        diagnostico_ids: diagnosticoIds.map((id) => Number(id)),
+      },
+      { contentTypeEsperado: "application/zip" },
+    );
+  },
+
   async buscarAdmin(id: string): Promise<DiagnosticoAdminDetalhe> {
     const data = await apiClient.get<unknown>(`/api/v1/admin/diagnosticos/${id}`);
     return adaptBackendAdminDiagnosticoDetalhe(backendAdminDiagnosticoDetalheSchema.parse(data));
+  },
+
+  // rótulo Hality do dataset (#177 do back), só admin
+  // cada chamada cria uma versão nova e a anterior vai pro histórico
+  // versao é a que a tela conhecia (0 se ainda não tinha rótulo), se outra pessoa rotulou antes o back responde 409
+  async criarRotuloDataset(
+    id: string,
+    input: { nivel: DiagnosticoNivel; versao: number },
+  ): Promise<RotuloDataset> {
+    const data = await apiClient.post<unknown>(
+      `/api/v1/admin/diagnosticos/${id}/rotulos-dataset`,
+      { classificacao: CODIGO_POR_NIVEL[input.nivel], version: input.versao },
+      { statusEsperado: 201 },
+    );
+    return adaptBackendRotuloDataset(backendRotuloDatasetItemSchema.parse(data));
   },
 
   /** Diagnósticos do próprio paciente logado. */
@@ -115,11 +148,21 @@ export const diagnosticoService = {
     imagem: File;
     parametrosCaptura: Record<string, unknown>;
   }): Promise<{ id: string; status: StatusDiagnostico }> {
-    const form = new FormData();
-    form.append("anamnese_id", input.anamneseId);
-    form.append("imagem", input.imagem);
-    form.append("parametros_captura", JSON.stringify(input.parametrosCaptura));
-    const data = await apiClient.post<unknown>("/api/v1/diagnosticos", form);
+    const anamneseId = Number(input.anamneseId);
+    // Cada tentativa começa de novo: se uma anterior já criou o diagnóstico, o 409
+    // do primeiro passo traz o id para retomar.
+    const alvo = backendUploadDiagnosticoSchema.parse(
+      await apiClient.post<unknown>("/api/v1/diagnosticos/upload", {
+        anamnese_id: anamneseId,
+        content_type: input.imagem.type,
+      }),
+    );
+    await enviarParaAlvo(alvo, input.imagem);
+    const data = await apiClient.post<unknown>("/api/v1/diagnosticos", {
+      anamnese_id: anamneseId,
+      upload_token: alvo.upload_token,
+      parametros_captura: input.parametrosCaptura,
+    });
     const criado = backendDiagnosticoCreatedSchema.parse(data);
     return { id: String(criado.id), status: criado.status };
   },
@@ -154,5 +197,18 @@ export const diagnosticoService = {
       revisao: adaptBackendRevisaoProfissional(resposta.revisao),
       versao: resposta.version,
     };
+  },
+
+  /** Reclassificação pelo admin: mesmo contrato da revisão, sem depender de vínculo. */
+  async reclassificarAdmin(
+    id: string,
+    input: { nivel: DiagnosticoNivel; observacoes?: string; versao: number },
+  ): Promise<void> {
+    const data = await apiClient.patch<unknown>(`/api/v1/admin/diagnosticos/${id}/revisao`, {
+      classificacao: CODIGO_POR_NIVEL[input.nivel],
+      observacao: input.observacoes?.trim() || null,
+      version: input.versao,
+    });
+    backendRevisaoProfissionalResponseSchema.parse(data);
   },
 };

@@ -18,6 +18,12 @@ import { atualizarUsuarioMock } from "@/services/mocks/mock-db";
 const url = (path: string) => `${config.apiBaseUrl}${path}`;
 
 beforeEach(() => setStoredToken("mock-token:admin-1"));
+it("mantém a exportação indisponível no mock, sem enviar a requisição ao backend real", async () => {
+  await expect(diagnosticoService.exportarDataset(["1"])).rejects.toMatchObject({
+    status: 409,
+    message: expect.stringContaining("exportação de dataset indisponível"),
+  });
+});
 afterEach(() => clearStoredToken());
 
 describe("usuarioService (admin)", () => {
@@ -431,6 +437,13 @@ describe("diagnosticoService (admin)", () => {
             },
           ],
           dataset: { disponivel: false, motivo: "exportacao_fora_do_escopo" },
+          rotulo_dataset: {
+            atual: null,
+            historico: [],
+            fonte_efetiva: "profissional",
+            exportavel: true,
+            motivo: null,
+          },
           imagem: { disponivel: false, motivo: "politica_de_acesso_pendente" },
           anamnese_id: null,
         }),

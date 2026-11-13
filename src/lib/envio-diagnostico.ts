@@ -21,7 +21,7 @@ export function tipoDoErro(erro: unknown): TipoErro {
 }
 
 /**
- * `POST /diagnosticos` com uma anamnese que já tem diagnóstico responde 409 com
+ * `POST /diagnosticos/upload` ou `POST /diagnosticos` com uma anamnese que já tem diagnóstico responde 409 com
  * o `diagnostico_id` existente (#164 do back): é um reenvio, não um erro.
  */
 export function idDoDiagnosticoExistente(erro: unknown): string | null {

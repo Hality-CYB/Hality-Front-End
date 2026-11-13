@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { config } from "@/lib/config";
 import { server } from "@/services/mocks/server";
 import DiagnosticosAdminPage from "@/app/admin/diagnosticos/page";
@@ -31,6 +31,36 @@ function item(
       observacoes: null,
     },
     qtd_imagens: 1,
+  };
+}
+
+function itemElegivel(id: number, nome: string) {
+  return {
+    ...item(id, nome, "concluido", NORMAL),
+    rotulo_dataset: {
+      fonte_efetiva: "profissional",
+      exportavel: true,
+      motivo: null,
+    },
+  };
+}
+
+function detalheElegivel(id: number, nome: string) {
+  return {
+    ...itemElegivel(id, nome),
+    historico_revisoes: [],
+    dataset: { disponivel: false, motivo: "exportacao_fora_do_escopo" },
+    rotulo_dataset: {
+      atual: null,
+      historico: [],
+      fonte_efetiva: "profissional",
+      exportavel: true,
+      motivo: null,
+    },
+    imagem: { disponivel: false, motivo: "politica_de_acesso_pendente" },
+    reclassificacao: { version: 1, revisada_por_profissional: true },
+    erro: null,
+    anamnese_id: null,
   };
 }
 
@@ -186,5 +216,201 @@ describe("Fila de diagnósticos do admin", () => {
       await screen.findByText("Você não tem permissão para ver os diagnósticos."),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Tentar de novo" })).not.toBeInTheDocument();
+  });
+
+  it("seleciona somente diagnósticos elegíveis dentro do card", async () => {
+    server.use(
+      http.get(url, () => HttpResponse.json(resposta([itemElegivel(101, "Ana Paula Ferreira")]))),
+      http.get(`${url}/101`, () => HttpResponse.json(detalheElegivel(101, "Ana Paula Ferreira"))),
+    );
+    renderPagina();
+
+    await screen.findByText("Ana Paula Ferreira");
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
+
+    const checkbox = screen.getByRole("checkbox", {
+      name: "Selecionar diagnóstico de Ana Paula Ferreira, 101",
+    });
+    expect(checkbox.closest(".diag-list-card")).not.toBeNull();
+    await userEvent.click(checkbox);
+    expect(screen.getByText("1 selecionado(s)")).toBeInTheDocument();
+  });
+
+  it("mantém a seleção e mostra erro quando o export falha", async () => {
+    server.use(
+      http.get(url, () => HttpResponse.json(resposta([itemElegivel(101, "Ana Paula Ferreira")]))),
+      http.get(`${url}/101`, () => HttpResponse.json(detalheElegivel(101, "Ana Paula Ferreira"))),
+      http.post(`${config.apiBaseUrl}/api/v1/admin/datasets/exports`, () =>
+        HttpResponse.json({ detail: "storage" }, { status: 500 }),
+      ),
+    );
+    renderPagina();
+
+    await screen.findByText("Ana Paula Ferreira");
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
+    await userEvent.click(
+      screen.getByRole("checkbox", {
+        name: "Selecionar diagnóstico de Ana Paula Ferreira, 101",
+      }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Exportar dataset" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Não foi possível gerar o arquivo. Tente novamente.",
+    );
+    expect(screen.getByText("1 selecionado(s)")).toBeInTheDocument();
+  });
+
+  it("baixa o ZIP e revoga o Object URL após sucesso", async () => {
+    const createObjectURL = vi.fn(() => "blob:dataset");
+    const revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    server.use(
+      http.get(url, () => HttpResponse.json(resposta([itemElegivel(101, "Ana Paula Ferreira")]))),
+      http.get(`${url}/101`, () => HttpResponse.json(detalheElegivel(101, "Ana Paula Ferreira"))),
+      http.post(
+        `${config.apiBaseUrl}/api/v1/admin/datasets/exports`,
+        () =>
+          new HttpResponse(new Uint8Array([80, 75, 3, 4]), {
+            status: 200,
+            headers: { "Content-Type": "application/zip" },
+          }),
+      ),
+    );
+    const { unmount } = renderPagina();
+
+    await screen.findByText("Ana Paula Ferreira");
+    vi.spyOn(URL, "createObjectURL").mockImplementation(createObjectURL);
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(revokeObjectURL);
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
+    await userEvent.click(
+      screen.getByRole("checkbox", {
+        name: "Selecionar diagnóstico de Ana Paula Ferreira, 101",
+      }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Exportar dataset" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Download iniciado: 1 diagnóstico(s).",
+    );
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    expect(click).toHaveBeenCalledOnce();
+    unmount();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:dataset");
+  });
+
+  it("impede selecionar registros sem imagem ou não concluídos, mesmo com rótulo humano", async () => {
+    const semImagem = { ...itemElegivel(101, "Sem Imagem"), qtd_imagens: 0 };
+    const processando = { ...itemElegivel(102, "Processando"), status: "processando" };
+    let detalhes = 0;
+    server.use(
+      http.get(url, () => HttpResponse.json(resposta([semImagem, processando]))),
+      http.get(`${url}/:id`, () => {
+        detalhes++;
+        return new HttpResponse(null, { status: 500 });
+      }),
+    );
+    renderPagina();
+    await screen.findByText("Sem Imagem");
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
+    expect(screen.getByRole("checkbox", { name: /Sem Imagem/ })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: /Processando/ })).toBeDisabled();
+    expect(detalhes).toBe(0);
+  });
+
+  it("não bloqueia os outros itens quando uma consulta de elegibilidade falha", async () => {
+    server.use(
+      http.get(url, () =>
+        HttpResponse.json(resposta([itemElegivel(101, "Primeiro"), itemElegivel(102, "Segundo")])),
+      ),
+      http.get(`${url}/101`, () => HttpResponse.json(detalheElegivel(101, "Primeiro"))),
+      http.get(`${url}/102`, () => new HttpResponse(null, { status: 500 })),
+    );
+    renderPagina();
+    await screen.findByText("Primeiro");
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: /Primeiro/ })).toBeEnabled());
+    expect(await screen.findByText("Não foi possível verificar")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /Segundo/ })).toBeDisabled();
+  });
+
+  it.each([
+    [
+      { detail: "exportação de dataset indisponível" },
+      "A exportação de dataset está indisponível",
+      "1 selecionado(s)",
+    ],
+    [
+      { detail: { mensagem: "não elegível", diagnostico_ids: [101] } },
+      "A elegibilidade mudou",
+      "0 selecionado(s)",
+    ],
+  ])("trata o conflito do backend e mantém o estado coerente", async (body, mensagem, contador) => {
+    server.use(
+      http.get(url, () => HttpResponse.json(resposta([itemElegivel(101, "Primeiro")]))),
+      http.get(`${url}/101`, () => HttpResponse.json(detalheElegivel(101, "Primeiro"))),
+      http.post(`${config.apiBaseUrl}/api/v1/admin/datasets/exports`, () =>
+        HttpResponse.json(body, { status: 409 }),
+      ),
+    );
+    renderPagina();
+    await screen.findByText("Primeiro");
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
+    const checkbox = screen.getByRole("checkbox", { name: /Primeiro/ });
+    await waitFor(() => expect(checkbox).toBeEnabled());
+    await userEvent.click(checkbox);
+    await userEvent.click(screen.getByRole("button", { name: "Exportar dataset" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(mensagem);
+    expect(screen.getByText(contador)).toBeInTheDocument();
+  });
+
+  it.each([
+    [401, "Sua sessão expirou"],
+    [403, "Você não tem permissão"],
+    [413, "A seleção excede o limite"],
+    [503, "Erro temporário"],
+  ])("informa erro %i e mantém a seleção para revisão", async (status, mensagem) => {
+    server.use(
+      http.get(url, () => HttpResponse.json(resposta([itemElegivel(101, "Primeiro")]))),
+      http.get(`${url}/101`, () => HttpResponse.json(detalheElegivel(101, "Primeiro"))),
+      http.post(`${config.apiBaseUrl}/api/v1/admin/datasets/exports`, () =>
+        HttpResponse.json({ detail: "erro" }, { status }),
+      ),
+    );
+    renderPagina();
+    await screen.findByText("Primeiro");
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
+    const checkbox = screen.getByRole("checkbox", { name: /Primeiro/ });
+    await waitFor(() => expect(checkbox).toBeEnabled());
+    await userEvent.click(checkbox);
+    await userEvent.click(screen.getByRole("button", { name: "Exportar dataset" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(mensagem);
+    expect(checkbox).toBeChecked();
+  });
+
+  it("bloqueia mudanças na seleção e filtros enquanto o arquivo é gerado", async () => {
+    let requisicoes = 0;
+    server.use(
+      http.get(url, () => HttpResponse.json(resposta([itemElegivel(101, "Primeiro")]))),
+      http.get(`${url}/101`, () => HttpResponse.json(detalheElegivel(101, "Primeiro"))),
+      http.post(`${config.apiBaseUrl}/api/v1/admin/datasets/exports`, async () => {
+        requisicoes++;
+        await delay(250);
+        return HttpResponse.json({ detail: "falha" }, { status: 500 });
+      }),
+    );
+    renderPagina();
+    await screen.findByText("Primeiro");
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
+    const checkbox = screen.getByRole("checkbox", { name: /Primeiro/ });
+    await waitFor(() => expect(checkbox).toBeEnabled());
+    await userEvent.click(checkbox);
+    await userEvent.click(screen.getByRole("button", { name: "Exportar dataset" }));
+    expect(checkbox).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancelar seleção" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Falha" })).toBeDisabled();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível gerar");
+    expect(checkbox).toBeChecked();
+    expect(requisicoes).toBe(1);
   });
 });

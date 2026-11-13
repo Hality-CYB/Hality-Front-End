@@ -6,6 +6,8 @@ import { http, HttpResponse } from "msw";
 import { ZodError } from "zod";
 import { config } from "@/lib/config";
 import { ApiError } from "@/lib/api-client";
+import { idDoDiagnosticoExistente } from "@/lib/envio-diagnostico";
+import { clearStoredToken, setStoredToken } from "@/lib/session";
 import { server } from "@/services/mocks/server";
 import { diagnosticoService } from "@/services/diagnostico-service";
 import { nivelFinal } from "@/types/diagnostico";
@@ -83,15 +85,42 @@ function sequenciaDeGets(...corpos: Record<string, unknown>[]) {
   return chamadas;
 }
 
-describe("diagnosticoService.criar", () => {
-  it("envia multipart com anamnese_id, a imagem intacta e parametros_captura em JSON", async () => {
-    let contentType: string | null = null;
-    let recebido: FormData | undefined;
-    server.use(
-      http.post(url("/api/v1/diagnosticos"), async ({ request }) => {
-        contentType = request.headers.get("content-type");
-        recebido = await request.formData();
-        return HttpResponse.json(
+const ALVO = {
+  url: "/api/v1/uploads/local",
+  fields: { key: "uploads/abc.jpg", "Content-Type": "image/jpeg", policy: "p", signature: "s" },
+  upload_token: "token-1",
+};
+
+/** Alvo, envio e confirmação do back, registrando a ordem das chamadas. */
+function fluxoDeEnvio(
+  { confirmacao }: { confirmacao?: () => Response } = {},
+  chamadas: string[] = [],
+) {
+  const registro: {
+    chamadas: string[];
+    alvo?: unknown;
+    campos?: [string, FormDataEntryValue][];
+    autorizacaoDoEnvio?: string | null;
+    confirmacao?: unknown;
+  } = { chamadas };
+  server.use(
+    http.post(url("/api/v1/diagnosticos/upload"), async ({ request }) => {
+      chamadas.push("alvo");
+      registro.alvo = await request.json();
+      return HttpResponse.json(ALVO);
+    }),
+    http.post(url("/api/v1/uploads/local"), async ({ request }) => {
+      chamadas.push("envio");
+      registro.autorizacaoDoEnvio = request.headers.get("authorization");
+      registro.campos = [...(await request.formData()).entries()];
+      return new HttpResponse(null, { status: 204 });
+    }),
+    http.post(url("/api/v1/diagnosticos"), async ({ request }) => {
+      chamadas.push("confirmacao");
+      registro.confirmacao = await request.json();
+      return (
+        confirmacao?.() ??
+        HttpResponse.json(
           {
             id: 7,
             status: "processando",
@@ -99,9 +128,17 @@ describe("diagnosticoService.criar", () => {
             anamnese_id: 101,
           },
           { status: 202 },
-        );
-      }),
-    );
+        )
+      );
+    }),
+  );
+  return registro;
+}
+
+describe("diagnosticoService.criar", () => {
+  it("pede o alvo, envia a foto direto e confirma em JSON com o token", async () => {
+    setStoredToken("token-de-acesso");
+    const registro = fluxoDeEnvio();
 
     const criado = await diagnosticoService.criar({
       anamneseId: "101",
@@ -110,25 +147,120 @@ describe("diagnosticoService.criar", () => {
     });
 
     expect(criado).toEqual({ id: "7", status: "processando" });
-    expect(contentType).toMatch(/^multipart\/form-data; boundary=/);
-    expect(recebido!.get("anamnese_id")).toBe("101");
-    const imagem = recebido!.get("imagem") as File;
-    expect(imagem.name).toBe("lingua.jpg");
-    expect(imagem.type).toBe("image/jpeg");
-    expect(new Uint8Array(await imagem.arrayBuffer())).toEqual(BYTES_IMAGEM);
-    expect(JSON.parse(recebido!.get("parametros_captura") as string)).toEqual({
-      origem: "galeria",
-      largura: 800,
-      altura: 600,
+    expect(registro.chamadas).toEqual(["alvo", "envio", "confirmacao"]);
+    expect(registro.alvo).toEqual({ anamnese_id: 101, content_type: "image/jpeg" });
+    expect(registro.campos!.map(([nome]) => nome)).toEqual([...Object.keys(ALVO.fields), "file"]);
+    const arquivo = registro.campos!.at(-1)![1] as File;
+    expect(arquivo.name).toBe("lingua.jpg");
+    expect(new Uint8Array(await arquivo.arrayBuffer())).toEqual(BYTES_IMAGEM);
+    expect(registro.autorizacaoDoEnvio).toBeNull();
+    expect(registro.confirmacao).toEqual({
+      anamnese_id: 101,
+      upload_token: "token-1",
+      parametros_captura: { origem: "galeria", largura: 800, altura: 600 },
+    });
+    clearStoredToken();
+  });
+
+  describe("diagnosticoService.exportarDataset", () => {
+    it("serializa IDs e retorna ZIP como Blob", async () => {
+      let corpo: unknown;
+      server.use(
+        http.post(url("/api/v1/admin/datasets/exports"), async ({ request }) => {
+          corpo = await request.json();
+          return new HttpResponse(new Uint8Array([80, 75, 3, 4]), {
+            status: 200,
+            headers: {
+              "Content-Type": "application/zip",
+              "Content-Disposition": 'attachment; filename="hality-dataset-20261108.zip"',
+            },
+          });
+        }),
+      );
+
+      const blob = await diagnosticoService.exportarDataset(["12", "13"]);
+
+      expect(corpo).toEqual({ diagnostico_ids: [12, 13] });
+      expect(blob).toBeInstanceOf(Blob);
+      expect(blob.type).toBe("application/zip");
+    });
+
+    it("rejeita resposta que não seja ZIP", async () => {
+      server.use(
+        http.post(url("/api/v1/admin/datasets/exports"), () =>
+          HttpResponse.json({ detail: "erro" }, { status: 200 }),
+        ),
+      );
+
+      await expect(diagnosticoService.exportarDataset(["12"])).rejects.toMatchObject({
+        status: 200,
+      });
     });
   });
 
-  it("propaga o erro do back (ex.: 422 anamnese já usada) como ApiError", async () => {
+  it("anamnese que já tem diagnóstico (409 no alvo) devolve o id e não envia nada", async () => {
+    const chamadas: string[] = [];
     server.use(
-      http.post(url("/api/v1/diagnosticos"), () =>
-        HttpResponse.json({ detail: "anamnese já vinculada a outro diagnóstico" }, { status: 422 }),
-      ),
+      http.post(url("/api/v1/diagnosticos/upload"), () => {
+        chamadas.push("alvo");
+        return HttpResponse.json(
+          { detail: "anamnese já vinculada a outro diagnóstico", diagnostico_id: 55 },
+          { status: 409 },
+        );
+      }),
     );
+
+    const erro = await diagnosticoService
+      .criar({ anamneseId: "101", imagem: imagemFake(), parametrosCaptura: {} })
+      .catch((e: unknown) => e);
+
+    expect(erro).toMatchObject({ status: 409 });
+    expect(idDoDiagnosticoExistente(erro)).toBe("55");
+    expect(chamadas).toEqual(["alvo"]);
+  });
+
+  it("409 na confirmação também traz o id existente", async () => {
+    fluxoDeEnvio({
+      confirmacao: () => HttpResponse.json({ diagnostico_id: 9 }, { status: 409 }),
+    });
+
+    const erro = await diagnosticoService
+      .criar({ anamneseId: "101", imagem: imagemFake(), parametrosCaptura: {} })
+      .catch((e: unknown) => e);
+
+    expect(idDoDiagnosticoExistente(erro)).toBe("9");
+  });
+
+  it("falha no envio da foto não chama a confirmação", async () => {
+    const chamadas: string[] = [];
+    fluxoDeEnvio({}, chamadas);
+    server.use(
+      http.post(url("/api/v1/uploads/local"), () => {
+        chamadas.push("envio");
+        return HttpResponse.json(
+          { motivo: "Alvo de upload inválido ou expirado." },
+          { status: 403 },
+        );
+      }),
+    );
+
+    const erro = await diagnosticoService
+      .criar({ anamneseId: "101", imagem: imagemFake(), parametrosCaptura: {} })
+      .catch((e: unknown) => e);
+
+    expect(erro).toBeInstanceOf(ApiError);
+    expect((erro as ApiError).status).toBe(400);
+    expect(chamadas).toEqual(["alvo", "envio"]);
+  });
+
+  it("propaga o erro da confirmação (ex.: 400 token vencido) como ApiError", async () => {
+    fluxoDeEnvio({
+      confirmacao: () =>
+        HttpResponse.json(
+          { motivo: "Envio da imagem inválido ou expirado. Envie a foto de novo." },
+          { status: 400 },
+        ),
+    });
 
     const promessa = diagnosticoService.criar({
       anamneseId: "101",
@@ -137,15 +269,23 @@ describe("diagnosticoService.criar", () => {
     });
 
     await expect(promessa).rejects.toBeInstanceOf(ApiError);
-    await expect(promessa).rejects.toMatchObject({ status: 422 });
+    await expect(promessa).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("rejeita um alvo fora do contrato do back", async () => {
+    server.use(
+      http.post(url("/api/v1/diagnosticos/upload"), () => HttpResponse.json({ url: "/x" })),
+    );
+
+    await expect(
+      diagnosticoService.criar({ anamneseId: "101", imagem: imagemFake(), parametrosCaptura: {} }),
+    ).rejects.toBeInstanceOf(ZodError);
   });
 
   it("rejeita uma resposta 202 fora do contrato do back", async () => {
-    server.use(
-      http.post(url("/api/v1/diagnosticos"), () =>
-        HttpResponse.json({ id: "sete", status: "processando" }, { status: 202 }),
-      ),
-    );
+    fluxoDeEnvio({
+      confirmacao: () => HttpResponse.json({ id: "sete", status: "processando" }, { status: 202 }),
+    });
 
     await expect(
       diagnosticoService.criar({ anamneseId: "101", imagem: imagemFake(), parametrosCaptura: {} }),
@@ -591,5 +731,144 @@ describe("diagnosticoService.revisar", () => {
     await expect(diagnosticoService.revisar("42", { nivel: 2, versao: 0 })).rejects.toMatchObject({
       status: 409,
     });
+  });
+});
+
+describe("diagnosticoService.criarRotuloDataset", () => {
+  const caminho = "/api/v1/admin/diagnosticos/42/rotulos-dataset";
+  const rotuloBackend = {
+    id: 7,
+    diagnostico_id: 42,
+    version: 1,
+    classificacao: { codigo: "mau_halito_social", nome_exibicao: "Mau Hálito Social", ordem: 3 },
+    autor: { papel: "admin", nome: "Ana Admin" },
+    criado_em: "2026-10-02T10:00:00",
+  };
+
+  it("manda o código da classificação e a versão conhecida, e devolve o rótulo adaptado", async () => {
+    let corpo: unknown;
+    server.use(
+      http.post(url(caminho), async ({ request }) => {
+        corpo = await request.json();
+        return HttpResponse.json(rotuloBackend, { status: 201 });
+      }),
+    );
+
+    const resultado = await diagnosticoService.criarRotuloDataset("42", { nivel: 3, versao: 0 });
+
+    expect(corpo).toEqual({ classificacao: "mau_halito_social", version: 0 });
+    expect(resultado).toEqual({
+      id: "7",
+      versao: 1,
+      codigo: "mau_halito_social",
+      nomeExibicao: "Mau Hálito Social",
+      nivel: 3,
+      autorNome: "Ana Admin",
+      criadoEm: "2026-10-02T10:00:00",
+    });
+  });
+
+  it.each([403, 404, 409, 422, 500])("o erro %i chega como ApiError", async (status) => {
+    server.use(http.post(url(caminho), () => new HttpResponse(null, { status })));
+
+    await expect(
+      diagnosticoService.criarRotuloDataset("42", { nivel: 1, versao: 0 }),
+    ).rejects.toMatchObject({ status });
+  });
+
+  it("sucesso com status diferente de 201 é tratado como resposta inesperada", async () => {
+    server.use(http.post(url(caminho), () => HttpResponse.json(rotuloBackend, { status: 200 })));
+
+    await expect(
+      diagnosticoService.criarRotuloDataset("42", { nivel: 3, versao: 0 }),
+    ).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("resposta fora do contrato vira ZodError", async () => {
+    server.use(http.post(url(caminho), () => HttpResponse.json({ id: 7 }, { status: 201 })));
+
+    await expect(
+      diagnosticoService.criarRotuloDataset("42", { nivel: 3, versao: 0 }),
+    ).rejects.toBeInstanceOf(ZodError);
+  });
+});
+
+describe("diagnosticoService.buscarAdmin: rótulo do dataset", () => {
+  const classificacao = { codigo: "halitose_intima", nome_exibicao: "Halitose Íntima", ordem: 2 };
+  const item = (version: number, nome: string) => ({
+    id: version,
+    diagnostico_id: 42,
+    version,
+    classificacao,
+    autor: { papel: "admin", nome },
+    criado_em: `2026-10-0${version}T10:00:00`,
+  });
+  const detalheBackend = (rotulo: unknown) => ({
+    id: 42,
+    paciente_id: "paciente-1",
+    paciente: { id: "paciente-1", nome: "Ana Paula Ferreira" },
+    data: "2026-10-01T12:00:00Z",
+    status: "concluido",
+    erro: null,
+    automatica: { classificacao, escala_saburra: null, confianca_ia: 0.9 },
+    revisao: {
+      status: "pendente",
+      profissional_revisor_id: null,
+      profissional_revisor_nome: null,
+      data_revisao: null,
+      classificacao: null,
+      observacoes: null,
+    },
+    historico_revisoes: [],
+    dataset: { disponivel: false, motivo: "exportacao_fora_do_escopo" },
+    rotulo_dataset: rotulo,
+    imagem: { disponivel: false, motivo: "politica_de_acesso_pendente" },
+    anamnese_id: 42,
+    qtd_imagens: 1,
+  });
+
+  it("lê o rótulo atual, o histórico e a fonte que vale", async () => {
+    server.use(
+      http.get(url("/api/v1/admin/diagnosticos/42"), () =>
+        HttpResponse.json(
+          detalheBackend({
+            atual: item(2, "Ana Admin"),
+            historico: [item(1, "Bruno Admin")],
+            fonte_efetiva: "hality",
+            exportavel: true,
+            motivo: null,
+          }),
+        ),
+      ),
+    );
+
+    const { rotuloDataset } = await diagnosticoService.buscarAdmin("42");
+
+    expect(rotuloDataset.fonteEfetiva).toBe("hality");
+    expect(rotuloDataset.exportavel).toBe(true);
+    expect(rotuloDataset.atual).toMatchObject({ versao: 2, nivel: 2, autorNome: "Ana Admin" });
+    expect(rotuloDataset.historico.map((r) => r.versao)).toEqual([1]);
+  });
+
+  it("sem rótulo Hality: atual nulo e a fonte cai pra IA", async () => {
+    server.use(
+      http.get(url("/api/v1/admin/diagnosticos/42"), () =>
+        HttpResponse.json(
+          detalheBackend({
+            atual: null,
+            historico: [],
+            fonte_efetiva: "ia",
+            exportavel: false,
+            motivo: "sem_rotulo_humano",
+          }),
+        ),
+      ),
+    );
+
+    const { rotuloDataset } = await diagnosticoService.buscarAdmin("42");
+
+    expect(rotuloDataset.atual).toBeNull();
+    expect(rotuloDataset.fonteEfetiva).toBe("ia");
+    expect(rotuloDataset.motivo).toBe("sem_rotulo_humano");
   });
 });

@@ -216,7 +216,7 @@ describe("regras do back no mock", () => {
 });
 
 describe("upload de mídia (mock espelha o back)", () => {
-  it("envia o arquivo em multipart e a URL devolvida serve o mesmo arquivo", async () => {
+  it("pede o alvo, envia direto e a URL pública serve o mesmo arquivo", async () => {
     const midia = await conteudoAdminService.enviarMidia(
       new File(["conteudo"], "foto.png", { type: "image/png" }),
     );
@@ -231,6 +231,29 @@ describe("upload de mídia (mock espelha o back)", () => {
     // multipart no fetch do Node. O arquivo real é conferido contra o back.
   });
 
+  it("manda content_type e tamanho no pedido do alvo", async () => {
+    let corpo: unknown;
+    server.use(
+      http.post(url("/api/v1/admin/conteudos/midias/upload"), async ({ request }) => {
+        corpo = await request.json();
+        return HttpResponse.json({
+          url: "/api/v1/uploads/local",
+          fields: { key: "conteudos/a.webm" },
+          url_publica: "/api/v1/public/conteudos/midias/a.webm",
+          tipo: "video",
+        });
+      }),
+      http.post(url("/api/v1/uploads/local"), () => new HttpResponse(null, { status: 204 })),
+    );
+
+    const midia = await conteudoAdminService.enviarMidia(
+      new File(["12345"], "v.webm", { type: "video/webm" }),
+    );
+
+    expect(corpo).toEqual({ content_type: "video/webm", tamanho: 5 });
+    expect(midia).toEqual({ url: "/api/v1/public/conteudos/midias/a.webm", tipo: "video" });
+  });
+
   it("formato não aceito volta com o motivo do back", async () => {
     const erro = await conteudoAdminService
       .enviarMidia(new File(["x"], "a.pdf", { type: "application/pdf" }))
@@ -238,6 +261,16 @@ describe("upload de mídia (mock espelha o back)", () => {
 
     expect((erro as ApiError).status).toBe(400);
     expect(mensagemErroMidia(erro)).toMatch(/^Formato não aceito/);
+  });
+
+  it("arquivo acima do limite declarado: 413 com a mensagem de tamanho de hoje", async () => {
+    const grande = new File(["x"], "g.png", { type: "image/png" });
+    Object.defineProperty(grande, "size", { value: 10 * 1024 * 1024 + 1 });
+
+    const erro = await conteudoAdminService.enviarMidia(grande).catch((e: unknown) => e);
+
+    expect((erro as ApiError).status).toBe(413);
+    expect(mensagemErroMidia(erro)).toBe("Arquivo grande demais. Envie um arquivo menor.");
   });
 });
 

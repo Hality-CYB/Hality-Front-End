@@ -104,7 +104,14 @@ O seed destrutivo roda só no banco novo deste Compose. Para reiniciar do zero,
 remova os volumes com o último comando e suba novamente. Não execute o seed
 contra bancos compartilhados. Usuários: `carla.mendes@example.com` (paciente),
 `ana.souza@hality.com` (profissional), `admin@hality.com`; senha sintética
-`HalityE2e123!`. Uma execução usa um worker e contextos isolados por teste.
+`HalityE2e123!`. A suíte Chromium tem dois projetos. O `isolado` roda com 2 workers
+e testes em paralelo; cada teste segue com contexto de navegador isolado. O `global`
+roda depois, com 1 worker:
+`e2e/google/google.spec.ts`, `e2e/admin-usuarios/admin-usuarios.spec.ts`,
+`e2e/resumos/resumos.spec.ts`, `e2e/conteudo/conteudo.spec.ts`,
+`e2e/conteudo-midia/conteudo-midia.spec.ts` e `e2e/avaliacao-erros/avaliacao-erros.spec.ts`.
+Teste novo entra no `isolado`, salvo se afirmar contagem global, total de admins,
+resumo do admin ou conteúdo publicado visível aos outros pacientes.
 
 PRs com base em `develop`, `main` ou `chore/e2e-*` (PRs empilhados) executam E2E após testes e build
 contra o back-end da mesma branch alvo: `main` em PRs e pushes pra `main`, `develop` nos demais.

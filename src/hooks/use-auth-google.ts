@@ -60,6 +60,7 @@ export function useAuthGoogle() {
   const retornoRef = useRef<RetornoGoogle | null>(null);
   const codigoRef = useRef<string | null>(null);
   const consentimentosRef = useRef<DecisaoConsentimento[] | undefined>(undefined);
+  const senhaRef = useRef<string | undefined>(undefined);
   const trocaRef = useRef<Promise<void> | null>(null);
   const [estado, setEstado] = useState<EstadoAuthGoogle>(ESTADO_INICIAL);
 
@@ -70,6 +71,7 @@ export function useAuthGoogle() {
       await authService.trocarCodigoGoogle({
         codigo,
         consentimentos: consentimentosRef.current,
+        senha: senhaRef.current,
       });
     },
     retry: false,
@@ -141,13 +143,17 @@ export function useAuthGoogle() {
     };
   }, [mutateAsync, queryClient, refresh, replace]);
 
-  async function concluirPrimeiroAcesso(consentimentos: DecisaoConsentimento[]): Promise<void> {
+  async function concluirPrimeiroAcesso(
+    consentimentos: DecisaoConsentimento[],
+    senha: string,
+  ): Promise<void> {
     if (retornoRef.current?.status !== "consentimento" || !codigoRef.current) {
       throw new ApiError(400, "O código do Google não está disponível.");
     }
     if (trocaRef.current) return trocaRef.current;
 
     consentimentosRef.current = consentimentos;
+    senhaRef.current = senha;
     setEstado({
       status: "consentimento",
       mensagem: "Antes de criar sua conta, precisamos confirmar os termos de uso.",
@@ -189,6 +195,7 @@ export function useAuthGoogle() {
       throw erro;
     } finally {
       consentimentosRef.current = undefined;
+      senhaRef.current = undefined;
       trocaRef.current = null;
     }
   }

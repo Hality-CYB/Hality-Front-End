@@ -235,6 +235,78 @@ export function adaptBackendAdminDiagnosticoList(
 
 const indisponivelSchema = z.object({ disponivel: z.boolean(), motivo: z.string() });
 
+// --- Rótulo Hality do dataset (contrato da #177 do back) ---
+
+const classificacaoRotuloSchema = z.object({
+  codigo: z.string(),
+  nome_exibicao: z.string(),
+  ordem: z.number(),
+});
+
+export const backendRotuloDatasetItemSchema = z.object({
+  id: z.number(),
+  diagnostico_id: z.number(),
+  version: z.number(),
+  classificacao: classificacaoRotuloSchema,
+  autor: z.object({ papel: z.literal("admin"), nome: z.string() }),
+  criado_em: z.string(),
+});
+
+const rotuloDatasetInfoSchema = z.object({
+  atual: backendRotuloDatasetItemSchema.nullable(),
+  // do mais recente pro mais antigo, sem repetir o atual
+  historico: z.array(backendRotuloDatasetItemSchema),
+  fonte_efetiva: z.enum(["hality", "profissional", "ia"]),
+  exportavel: z.boolean(),
+  motivo: z.string().nullable().optional(),
+});
+
+// uma versão do rótulo Hality, a anterior nunca é apagada e fica no histórico
+export type RotuloDataset = {
+  id: string;
+  versao: number;
+  codigo: string;
+  nomeExibicao: string;
+  nivel: DiagnosticoNivel | null;
+  autorNome: string;
+  criadoEm: string;
+};
+
+export type FonteRotulo = "hality" | "profissional" | "ia";
+
+export type RotuloDatasetInfo = {
+  atual: RotuloDataset | null;
+  historico: RotuloDataset[];
+  // de onde vem o rótulo que vale pro dataset: Hality, profissional ou IA
+  fonteEfetiva: FonteRotulo;
+  exportavel: boolean;
+  motivo: string | null;
+};
+
+export function adaptBackendRotuloDataset(
+  data: z.infer<typeof backendRotuloDatasetItemSchema>,
+): RotuloDataset {
+  return {
+    id: String(data.id),
+    versao: data.version,
+    codigo: data.classificacao.codigo,
+    nomeExibicao: data.classificacao.nome_exibicao,
+    nivel: nivelDaOrdem(data.classificacao.ordem),
+    autorNome: data.autor.nome,
+    criadoEm: data.criado_em,
+  };
+}
+
+function adaptRotuloDatasetInfo(data: z.infer<typeof rotuloDatasetInfoSchema>): RotuloDatasetInfo {
+  return {
+    atual: data.atual ? adaptBackendRotuloDataset(data.atual) : null,
+    historico: data.historico.map(adaptBackendRotuloDataset),
+    fonteEfetiva: data.fonte_efetiva,
+    exportavel: data.exportavel,
+    motivo: data.motivo ?? null,
+  };
+}
+
 export const backendAdminDiagnosticoDetalheSchema = z.object({
   id: z.number(),
   paciente_id: z.string(),
@@ -254,7 +326,12 @@ export const backendAdminDiagnosticoDetalheSchema = z.object({
     }),
   ),
   dataset: indisponivelSchema,
+  rotulo_dataset: rotuloDatasetInfoSchema,
   imagem: indisponivelSchema,
+  /** Opcional só para o mock, que não acompanha mais os contratos novos. */
+  reclassificacao: z
+    .object({ version: z.number(), revisada_por_profissional: z.boolean() })
+    .optional(),
   anamnese_id: z.number().nullable(),
   qtd_imagens: z.number(),
 });
@@ -270,6 +347,9 @@ export type DiagnosticoAdminDetalhe = Omit<DiagnosticoAdminResumo, "qtdImagens">
   historico: Omit<RevisaoAdmin, "revisado">[];
   imagem: { disponivel: boolean; motivo: string };
   dataset: { disponivel: boolean; motivo: string };
+  rotuloDataset: RotuloDatasetInfo;
+  /** Versão da revisão e se o último revisor foi um profissional. */
+  reclassificacao: { versao: number; revisadaPorProfissional: boolean } | null;
   anamneseId: string | null;
   qtdImagens: number;
 };
@@ -300,6 +380,13 @@ export function adaptBackendAdminDiagnosticoDetalhe(
     })),
     imagem: data.imagem,
     dataset: data.dataset,
+    rotuloDataset: adaptRotuloDatasetInfo(data.rotulo_dataset),
+    reclassificacao: data.reclassificacao
+      ? {
+          versao: data.reclassificacao.version,
+          revisadaPorProfissional: data.reclassificacao.revisada_por_profissional,
+        }
+      : null,
     anamneseId: data.anamnese_id === null ? null : String(data.anamnese_id),
     qtdImagens: data.qtd_imagens,
   };

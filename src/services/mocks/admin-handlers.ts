@@ -2,6 +2,7 @@ import { http, HttpResponse } from "msw";
 import { z } from "zod";
 import { config } from "@/lib/config";
 import { adicionarUsuarioMock, usuarioDoRequest } from "@/services/mocks/auth-handlers";
+import { arquivoRecebidoMock, emitirAlvoMock } from "@/services/mocks/uploads-handlers";
 import { historicoRevisoesMock } from "@/services/mocks/diagnosticos-handlers";
 import {
   CLASSIFICACAO_ID_POR_NIVEL,
@@ -21,7 +22,7 @@ import {
 } from "@/services/mocks/mock-db";
 import { CATEGORIAS_CONTEUDO, type BackendConteudoAdmin } from "@/types/conteudo-admin";
 import { DESTINOS_CONTEUDO, MIDIA_ACEITA } from "@/types/conteudo";
-import { CODIGO_POR_NIVEL, type Diagnostico } from "@/types/diagnostico";
+import { CODIGO_POR_NIVEL, type Diagnostico, type DiagnosticoNivel } from "@/types/diagnostico";
 import { roleSchema, type Usuario } from "@/types/usuario";
 
 /**
@@ -194,6 +195,62 @@ function paraAdminDiagnosticoItem(d: Diagnostico) {
   };
 }
 
+// --- Rótulo Hality do dataset (#177) ---
+
+type RotuloMock = {
+  id: number;
+  diagnosticoId: string;
+  version: number;
+  nivel: DiagnosticoNivel;
+  autorNome: string;
+  criadoEm: string;
+};
+
+// só na memória, some quando recarrega a página (como o resto do mock)
+const rotulosMock: RotuloMock[] = [];
+const NIVEIS: DiagnosticoNivel[] = [1, 2, 3];
+
+const criarRotuloSchema = z.object({
+  classificacao: z.string().min(1).max(50),
+  version: z.number().int().min(0),
+});
+
+function paraRotuloItem(r: RotuloMock) {
+  return {
+    id: r.id,
+    diagnostico_id: idNumerico(r.diagnosticoId),
+    version: r.version,
+    classificacao: classificacaoResumo(r.nivel)!,
+    autor: { papel: "admin" as const, nome: r.autorNome },
+    criado_em: r.criadoEm,
+  };
+}
+
+// versões do diagnóstico da mais nova pra mais antiga
+function rotulosDoDiagnostico(diagnosticoId: string) {
+  return rotulosMock
+    .filter((r) => r.diagnosticoId === diagnosticoId)
+    .sort((a, b) => b.version - a.version);
+}
+
+// igual ao RotuloDatasetInfo do back: Hality vale mais que o profissional, que vale mais que a IA
+function rotuloDatasetDe(d: Diagnostico) {
+  const [atual, ...historico] = rotulosDoDiagnostico(d.id);
+  const revisado = revisaoDe(d).status === "concluida";
+  const temRotuloHumano = !!atual || revisado;
+  return {
+    atual: atual ? paraRotuloItem(atual) : null,
+    historico: historico.map(paraRotuloItem),
+    fonte_efetiva: atual
+      ? ("hality" as const)
+      : revisado
+        ? ("profissional" as const)
+        : ("ia" as const),
+    exportavel: temRotuloHumano,
+    motivo: temRotuloHumano ? null : "sem_rotulo_humano",
+  };
+}
+
 // --- Conteúdos ---
 
 const categoriaSchema = z.enum(Object.keys(CATEGORIAS_CONTEUDO) as [string, ...string[]]);
@@ -275,7 +332,6 @@ function sincronizarHome(
  * Mídias de conteúdo enviadas no mock, em memória. Mesmo contrato do
  * `conteudo_storage` do back: formatos, limites, 400 com `motivo` e 413.
  */
-const midiasMock = new Map<string, { bytes: ArrayBuffer; tipo: string }>();
 const EXTENSAO_MIDIA: Record<string, string> = {
   "image/jpeg": ".jpg",
   "image/png": ".png",
@@ -285,18 +341,20 @@ const EXTENSAO_MIDIA: Record<string, string> = {
 };
 
 export const adminHandlers = [
-  http.post(url("/api/v1/admin/conteudos/midias"), async ({ request }) => {
+  // O mock não guarda imagens nem decisões de consentimento necessárias ao ZIP.
+  // Retorna a mesma indisponibilidade do backend desligado, sem acessar a API real.
+  http.post(url("/api/v1/admin/datasets/exports"), ({ request }) => {
     const admin = exigirAdmin(request);
     if (admin instanceof Response) return admin;
-    const campo = (await request.formData()).get("arquivo");
-    // Checa a forma, não a classe: no teste (jsdom) o arquivo vem de outro realm
-    // e `instanceof Blob` falha.
-    const arquivo =
-      typeof campo === "object" && campo !== null && "arrayBuffer" in campo ? campo : null;
-    if (!arquivo) {
-      return HttpResponse.json({ detail: "arquivo obrigatório" }, { status: 422 });
-    }
-    const extensao = EXTENSAO_MIDIA[arquivo.type];
+    return HttpResponse.json({ detail: "exportação de dataset indisponível" }, { status: 409 });
+  }),
+  http.post(url("/api/v1/admin/conteudos/midias/upload"), async ({ request }) => {
+    const admin = exigirAdmin(request);
+    if (admin instanceof Response) return admin;
+    const corpo = (await request.json()) as { content_type?: unknown; tamanho?: unknown };
+    const contentType = typeof corpo.content_type === "string" ? corpo.content_type : "";
+    const tamanho = typeof corpo.tamanho === "number" ? corpo.tamanho : 0;
+    const extensao = EXTENSAO_MIDIA[contentType];
     if (!extensao) {
       return HttpResponse.json(
         {
@@ -305,29 +363,29 @@ export const adminHandlers = [
         { status: 400 },
       );
     }
-    if (arquivo.size === 0) {
+    if (tamanho <= 0) {
       return HttpResponse.json({ motivo: "O arquivo enviado está vazio." }, { status: 400 });
     }
-    const tipo = arquivo.type.startsWith("video/") ? "video" : "imagem";
-    if (arquivo.size > MIDIA_ACEITA[tipo].maxMb * 1024 * 1024) {
+    const tipo = contentType.startsWith("video/") ? "video" : "imagem";
+    const maxBytes = MIDIA_ACEITA[tipo].maxMb * 1024 * 1024;
+    if (tamanho > maxBytes) {
       return HttpResponse.json(
         { detail: "arquivo acima do tamanho máximo permitido" },
         { status: 413 },
       );
     }
     const nome = `${crypto.randomUUID().replaceAll("-", "")}${extensao}`;
-    // Guarda os bytes, não o objeto: no teste (jsdom) nem o File nem o Blob
-    // globais servem de corpo de Response.
-    midiasMock.set(nome, { bytes: await arquivo.arrayBuffer(), tipo: arquivo.type });
-    return HttpResponse.json(
-      { url: `/api/v1/public/conteudos/midias/${nome}`, tipo },
-      { status: 201 },
-    );
+    const alvo = emitirAlvoMock(`conteudos/${nome}`, contentType, maxBytes);
+    return HttpResponse.json({
+      ...alvo,
+      url_publica: `/api/v1/public/conteudos/midias/${nome}`,
+      tipo,
+    });
   }),
 
   // Aberta, como no back: <img>/<video> carregam sem token.
   http.get(url("/api/v1/public/conteudos/midias/:nome"), ({ params }) => {
-    const arquivo = midiasMock.get(String(params.nome));
+    const arquivo = arquivoRecebidoMock(`conteudos/${String(params.nome)}`);
     if (!arquivo) return HttpResponse.json({ detail: "mídia não encontrada" }, { status: 404 });
     return new HttpResponse(arquivo.bytes, { headers: { "Content-Type": arquivo.tipo } });
   }),
@@ -574,9 +632,42 @@ export const adminHandlers = [
         observacoes: r.observacao,
       })),
       dataset: { disponivel: false, motivo: "exportacao_fora_do_escopo" },
+      rotulo_dataset: rotuloDatasetDe(d),
       imagem: { disponivel: false, motivo: "politica_de_acesso_pendente" },
       anamnese_id: d.anamneseId ? idNumerico(d.anamneseId) : null,
     });
+  }),
+
+  // Cada rótulo cria uma versão nova (a anterior fica no histórico), com as mesmas respostas do back.
+  http.post(url("/api/v1/admin/diagnosticos/:id/rotulos-dataset"), async ({ params, request }) => {
+    const admin = exigirAdmin(request);
+    if (admin instanceof Response) return admin;
+    const d = diagnosticosMock.find((x) => idNumerico(x.id) === Number(params.id));
+    if (!d) return HttpResponse.json({ detail: "diagnóstico não encontrado" }, { status: 404 });
+    const body = criarRotuloSchema.safeParse(await request.json());
+    if (!body.success) return HttpResponse.json({ detail: "dados inválidos" }, { status: 422 });
+    const nivel = NIVEIS.find((n) => CODIGO_POR_NIVEL[n] === body.data.classificacao);
+    if (!nivel) return HttpResponse.json({ detail: "classificação inválida" }, { status: 422 });
+
+    const versaoAtual = rotulosDoDiagnostico(d.id)[0]?.version ?? 0;
+    const rotulavel = d.status === "concluido" && d.nivel !== null;
+    if (!rotulavel || body.data.version !== versaoAtual) {
+      return HttpResponse.json(
+        { detail: "a versão do rótulo está desatualizada ou o diagnóstico não pode ser rotulado" },
+        { status: 409 },
+      );
+    }
+
+    const novo: RotuloMock = {
+      id: rotulosMock.length + 1,
+      diagnosticoId: d.id,
+      version: versaoAtual + 1,
+      nivel,
+      autorNome: admin.nome,
+      criadoEm: new Date().toISOString(),
+    };
+    rotulosMock.push(novo);
+    return HttpResponse.json(paraRotuloItem(novo), { status: 201 });
   }),
 
   // Paginada e filtrada como na #144 do back (parâmetros em inglês).

@@ -35,6 +35,20 @@ Check Your Breath (CYB) é o app da Hality Diagnóstico do Hálito: usa IA para 
 
 ## Últimas atualizações
 
+- **2026-11-13** - CI do E2E: cache das imagens da stack e dos browsers do Playwright, e o job deixa de esperar lint, testes e build. O deploy em main continua dependendo dos quatro.
+
+- **2026-11-12** - Envio direto ao storage: a foto do diagnóstico (paciente e atendimento pelo profissional) e a mídia de conteúdo do admin pedem um alvo ao back (`POST /diagnosticos/upload`, `POST /admin/conteudos/midias/upload`), enviam o arquivo ao alvo (`src/lib/upload-direto.ts`, `FormData` com os campos do alvo e o arquivo por último, sem `Authorization`) e confirmam no back (diagnóstico) ou usam `url_publica` no bloco (mídia). Erros do alvo viram os mesmos textos de antes e nunca 403/409. A leitura não muda. Mocks MSW e E2E seguem o fluxo novo.
+
+- **2026-11-06** - Revisão do E2E de sessão: o teste mantém o refresh pendente até observar as duas respostas 401 reais, confere a ordem dos eventos sem depender da resolução do relógio e conta todas as tentativas de renovação.
+
+- **2026-11-06** - Revisão do E2E de câmera: relógio controlado durante a contagem 3, 2, 1, evitando falhas por lentidão da CI entre as asserções; tempo normal retomado antes da captura.
+
+- **2026-11-06** - Revisão do E2E de vínculo e privacidade: a verificação de requisições clínicas também cobre o diagnóstico do profissional e identifica rotas e assinaturas pela URL estruturada, sem bloquear o endpoint administrativo de metadados.
+
+- **2026-11-06** - Revisão do E2E de conteúdo: a aba de orientações aguarda um card ou a mensagem de lista vazia antes de verificar ausências, incluindo respostas sem conteúdo.
+
+- **2026-11-06** - Revisão do E2E de recuperação de senha: resposta genérica validada com schema estrito para que campos extras que revelem a existência de contas não sejam descartados antes da comparação.
+
 - **2026-11-06** - Revisão do cenário E2E de convite: aguarda a ação de redefinir senha após a ativação antes de verificar que o convite pendente desapareceu, evitando aprovação durante o carregamento. Integração com `develop` preserva `alembic upgrade heads` no ambiente descartável.
 
 - **2026-11-06** - Preparação compartilhada dos testes E2E em `e2e/helpers/`: login UI/API, paciente confirmado, diagnóstico com polling, questionário, PNG válido e consulta ao banco descartável. Os 5 specs usam os helpers, preservando jornadas e asserções para servir de base aos próximos cenários.

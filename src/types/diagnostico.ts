@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { alvoDeUploadSchema } from "@/types/upload";
 import { backendConteudoSchema, blocoConteudoSchema } from "@/types/conteudo";
 import {
   adaptBackendRespostas,
@@ -81,6 +82,12 @@ export const backendDiagnosticoCreatedSchema = z.object({
   data_diagnostico: z.string(),
   anamnese_id: z.number(),
 });
+/** Alvo de envio da foto (`POST /diagnosticos/upload`) e o token que a confirmação devolve ao back. */
+export const backendUploadDiagnosticoSchema = alvoDeUploadSchema.extend({
+  upload_token: z.string().min(1),
+});
+export type BackendUploadDiagnostico = z.infer<typeof backendUploadDiagnosticoSchema>;
+
 export type BackendDiagnosticoCreated = z.infer<typeof backendDiagnosticoCreatedSchema>;
 
 const backendClassificacaoResumoSchema = z.object({
