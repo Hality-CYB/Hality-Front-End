@@ -34,34 +34,16 @@ function item(
   };
 }
 
-function itemElegivel(id: number, nome: string) {
-  return {
-    ...item(id, nome, "concluido", NORMAL),
-    rotulo_dataset: {
-      fonte_efetiva: "profissional",
-      exportavel: true,
-      motivo: null,
-    },
-  };
+type Dataset = { exportavel: boolean; fonte_efetiva: string; motivo: string | null };
+
+const ELEGIVEL: Dataset = { exportavel: true, fonte_efetiva: "profissional", motivo: null };
+
+function noDataset(id: number, nome: string, dataset: Dataset = ELEGIVEL) {
+  return { ...item(id, nome, "concluido", NORMAL), dataset };
 }
 
-function detalheElegivel(id: number, nome: string) {
-  return {
-    ...itemElegivel(id, nome),
-    historico_revisoes: [],
-    dataset: { disponivel: false, motivo: "exportacao_fora_do_escopo" },
-    rotulo_dataset: {
-      atual: null,
-      historico: [],
-      fonte_efetiva: "profissional",
-      exportavel: true,
-      motivo: null,
-    },
-    imagem: { disponivel: false, motivo: "politica_de_acesso_pendente" },
-    reclassificacao: { version: 1, revisada_por_profissional: true },
-    erro: null,
-    anamnese_id: null,
-  };
+function itemElegivel(id: number, nome: string) {
+  return noDataset(id, nome);
 }
 
 const INTIMA = { codigo: "halitose_intima", nome_exibicao: "Halitose Íntima", ordem: 2 };
@@ -73,8 +55,9 @@ const ITENS = [
   item(103, "Carlos Mendes", "concluido", NORMAL),
 ];
 
-function resposta(itens: unknown[], limite = 20) {
+function resposta(itens: unknown[], limite = 20, exportacaoHabilitada = true) {
   return {
+    exportacao_habilitada: exportacaoHabilitada,
     itens: itens.slice(0, limite),
     pagina: 1,
     limite,
@@ -137,28 +120,19 @@ describe("Fila de diagnósticos do admin", () => {
           resposta([
             itemElegivel(101, "Primeiro"),
             itemElegivel(102, "Segundo"),
-            itemElegivel(103, "Sem consentimento"),
-            itemElegivel(104, "Somente IA"),
+            noDataset(103, "Sem consentimento", {
+              exportavel: false,
+              fonte_efetiva: "profissional",
+              motivo: "sem_consentimento",
+            }),
+            noDataset(104, "Somente IA", {
+              exportavel: false,
+              fonte_efetiva: "ia",
+              motivo: "sem_rotulo_humano",
+            }),
           ]),
         ),
       ),
-      http.get(`${url}/:id`, async ({ params }) => {
-        await delay(30);
-        const id = Number(params.id);
-        const detalhe = detalheElegivel(id, `Paciente ${id}`);
-        return HttpResponse.json(
-          id < 103
-            ? detalhe
-            : {
-                ...detalhe,
-                rotulo_dataset: {
-                  ...detalhe.rotulo_dataset,
-                  exportavel: false,
-                  fonte_efetiva: id === 104 ? "ia" : "profissional",
-                },
-              },
-        );
-      }),
       http.post(`${config.apiBaseUrl}/api/v1/admin/datasets/exports`, async ({ request }) => {
         corpo = await request.json();
         return HttpResponse.json({ detail: "falha" }, { status: 500 });
@@ -168,46 +142,149 @@ describe("Fila de diagnósticos do admin", () => {
     await screen.findByText("Primeiro");
     expect(screen.queryByRole("button", { name: "Selecionar elegíveis" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
-    const selecionar = screen.getByRole("button", { name: "Selecionar elegíveis" });
-    await waitFor(() => expect(selecionar).toBeEnabled());
-    await userEvent.click(selecionar);
-    expect(screen.getByText("2 selecionado(s)")).toBeInTheDocument();
+    expect(screen.getByText("2 elegíveis entre os 4 carregados")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar elegíveis" }));
+    expect(screen.getByText("2 diagnósticos selecionados")).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: /Sem consentimento/ })).not.toBeChecked();
     expect(screen.getByRole("checkbox", { name: /Somente IA/ })).not.toBeChecked();
     await userEvent.click(screen.getByRole("checkbox", { name: /Primeiro/ }));
-    expect(screen.getByText("1 selecionado(s)")).toBeInTheDocument();
-    await userEvent.click(selecionar);
+    expect(screen.getByText("1 diagnóstico selecionado")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar elegíveis" }));
     await userEvent.click(screen.getByRole("button", { name: "Exportar dataset" }));
     await screen.findByRole("alert");
     expect(corpo).toEqual({ diagnostico_ids: [101, 102] });
     await userEvent.click(screen.getByRole("button", { name: "Falha" }));
-    expect(screen.getByText("0 selecionado(s)")).toBeInTheDocument();
+    expect(screen.getByText("Nenhum diagnóstico selecionado")).toBeInTheDocument();
   });
 
-  it("não habilita seleção em lote sem elegíveis e aguarda a consulta de elegibilidade", async () => {
-    let concluir!: () => void;
-    const consulta = new Promise<void>((resolve) => {
-      concluir = resolve;
-    });
+  it("o card diz por que o diagnóstico fica fora do dataset", async () => {
     server.use(
-      http.get(url, () => HttpResponse.json(resposta([itemElegivel(101, "Primeiro")]))),
-      http.get(`${url}/101`, async () => {
-        await consulta;
-        const detalhe = detalheElegivel(101, "Primeiro");
-        return HttpResponse.json({
-          ...detalhe,
-          rotulo_dataset: { ...detalhe.rotulo_dataset, exportavel: false },
-        });
+      http.get(url, () =>
+        HttpResponse.json(
+          resposta([
+            itemElegivel(101, "Primeiro"),
+            noDataset(102, "Sem consentimento", {
+              exportavel: false,
+              fonte_efetiva: "hality",
+              motivo: "sem_consentimento",
+            }),
+            noDataset(103, "Motivo novo", {
+              exportavel: false,
+              fonte_efetiva: "ia",
+              motivo: "algo_que_o_front_nao_conhece",
+            }),
+          ]),
+        ),
+      ),
+    );
+    renderPagina();
+    await screen.findByText("Primeiro");
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
+
+    expect(screen.getByText("Entra no dataset · rótulo do profissional")).toBeInTheDocument();
+    expect(
+      screen.getByText("Fora do dataset: o paciente não autorizou o uso da imagem"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Fora do dataset: não atende às regras de exportação"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /Sem consentimento/ })).toBeDisabled();
+  });
+
+  it("não busca o detalhe de cada item para saber a elegibilidade", async () => {
+    let detalhes = 0;
+    server.use(
+      http.get(url, () =>
+        HttpResponse.json(resposta([itemElegivel(101, "Primeiro"), itemElegivel(102, "Segundo")])),
+      ),
+      http.get(`${url}/:id`, () => {
+        detalhes++;
+        return new HttpResponse(null, { status: 500 });
       }),
     );
     renderPagina();
     await screen.findByText("Primeiro");
     await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
-    const selecionar = screen.getByRole("button", { name: "Selecionar elegíveis" });
-    expect(selecionar).toBeDisabled();
-    concluir();
-    await screen.findByText("Não elegível para exportação");
-    expect(selecionar).toBeDisabled();
+
+    expect(screen.getByRole("checkbox", { name: /Primeiro/ })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Selecionar elegíveis" })).toBeEnabled();
+    expect(detalhes).toBe(0);
+  });
+
+  it("sem elegíveis carregados, a seleção em lote fica desligada", async () => {
+    server.use(
+      http.get(url, () =>
+        HttpResponse.json(
+          resposta([
+            noDataset(101, "Primeiro", {
+              exportavel: false,
+              fonte_efetiva: "ia",
+              motivo: "sem_rotulo_humano",
+            }),
+          ]),
+        ),
+      ),
+    );
+    renderPagina();
+    await screen.findByText("Primeiro");
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
+
+    expect(screen.getByRole("button", { name: "Selecionar elegíveis" })).toBeDisabled();
+    expect(
+      screen.getByText("Fora do dataset: precisa de revisão ou rótulo Hality"),
+    ).toBeInTheDocument();
+  });
+
+  it("com todos os elegíveis marcados, o botão vira limpar seleção", async () => {
+    server.use(
+      http.get(url, () =>
+        HttpResponse.json(resposta([itemElegivel(101, "Primeiro"), itemElegivel(102, "Segundo")])),
+      ),
+    );
+    renderPagina();
+    await screen.findByText("Primeiro");
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar elegíveis" }));
+    expect(screen.getByText("2 diagnósticos selecionados")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Limpar seleção" }));
+
+    expect(screen.getByText("Nenhum diagnóstico selecionado")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Selecionar elegíveis" })).toBeEnabled();
+  });
+
+  it("com a exportação desligada, avisa antes e não deixa exportar", async () => {
+    let exportou = false;
+    server.use(
+      http.get(url, () => HttpResponse.json(resposta([itemElegivel(101, "Primeiro")], 20, false))),
+      http.post(`${config.apiBaseUrl}/api/v1/admin/datasets/exports`, () => {
+        exportou = true;
+        return new HttpResponse(null, { status: 409 });
+      }),
+    );
+    renderPagina();
+    await screen.findByText("Primeiro");
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
+
+    expect(screen.getByText(/A exportação do dataset está desligada/)).toBeInTheDocument();
+    expect(screen.getByText("Exportação desligada neste ambiente")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("checkbox", { name: /Primeiro/ }));
+    expect(screen.getByRole("button", { name: "Exportar dataset" })).toBeDisabled();
+    expect(exportou).toBe(false);
+  });
+
+  it("contra um back que não informa a elegibilidade, nada fica selecionável", async () => {
+    server.use(
+      http.get(url, () =>
+        HttpResponse.json(resposta([item(101, "Primeiro", "concluido", NORMAL)])),
+      ),
+    );
+    renderPagina();
+    await screen.findByText("Primeiro");
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
+
+    expect(screen.getByText("Elegibilidade indisponível")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /Primeiro/ })).toBeDisabled();
   });
 
   it("mostra os diagnósticos e as contagens", async () => {
@@ -302,7 +379,6 @@ describe("Fila de diagnósticos do admin", () => {
   it("seleciona somente diagnósticos elegíveis dentro do card", async () => {
     server.use(
       http.get(url, () => HttpResponse.json(resposta([itemElegivel(101, "Ana Paula Ferreira")]))),
-      http.get(`${url}/101`, () => HttpResponse.json(detalheElegivel(101, "Ana Paula Ferreira"))),
     );
     renderPagina();
 
@@ -314,13 +390,12 @@ describe("Fila de diagnósticos do admin", () => {
     });
     expect(checkbox.closest(".diag-list-card")).not.toBeNull();
     await userEvent.click(checkbox);
-    expect(screen.getByText("1 selecionado(s)")).toBeInTheDocument();
+    expect(screen.getByText("1 diagnóstico selecionado")).toBeInTheDocument();
   });
 
   it("mantém a seleção e mostra erro quando o export falha", async () => {
     server.use(
       http.get(url, () => HttpResponse.json(resposta([itemElegivel(101, "Ana Paula Ferreira")]))),
-      http.get(`${url}/101`, () => HttpResponse.json(detalheElegivel(101, "Ana Paula Ferreira"))),
       http.post(`${config.apiBaseUrl}/api/v1/admin/datasets/exports`, () =>
         HttpResponse.json({ detail: "storage" }, { status: 500 }),
       ),
@@ -339,7 +414,7 @@ describe("Fila de diagnósticos do admin", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Não foi possível gerar o arquivo. Tente novamente.",
     );
-    expect(screen.getByText("1 selecionado(s)")).toBeInTheDocument();
+    expect(screen.getByText("1 diagnóstico selecionado")).toBeInTheDocument();
   });
 
   it("baixa o ZIP e revoga o Object URL após sucesso", async () => {
@@ -348,7 +423,6 @@ describe("Fila de diagnósticos do admin", () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     server.use(
       http.get(url, () => HttpResponse.json(resposta([itemElegivel(101, "Ana Paula Ferreira")]))),
-      http.get(`${url}/101`, () => HttpResponse.json(detalheElegivel(101, "Ana Paula Ferreira"))),
       http.post(
         `${config.apiBaseUrl}/api/v1/admin/datasets/exports`,
         () =>
@@ -380,56 +454,46 @@ describe("Fila de diagnósticos do admin", () => {
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:dataset");
   });
 
-  it("impede selecionar registros sem imagem ou não concluídos, mesmo com rótulo humano", async () => {
-    const semImagem = { ...itemElegivel(101, "Sem Imagem"), qtd_imagens: 0 };
-    const processando = { ...itemElegivel(102, "Processando"), status: "processando" };
-    let detalhes = 0;
-    server.use(
-      http.get(url, () => HttpResponse.json(resposta([semImagem, processando]))),
-      http.get(`${url}/:id`, () => {
-        detalhes++;
-        return new HttpResponse(null, { status: 500 });
+  it("impede selecionar registros sem imagem ou não concluídos", async () => {
+    const semImagem = noDataset(101, "Sem Imagem", {
+      exportavel: false,
+      fonte_efetiva: "profissional",
+      motivo: "sem_imagem",
+    });
+    const processando = {
+      ...noDataset(102, "Processando", {
+        exportavel: false,
+        fonte_efetiva: "ia",
+        motivo: "nao_concluido",
       }),
-    );
+      status: "processando",
+    };
+    server.use(http.get(url, () => HttpResponse.json(resposta([semImagem, processando]))));
     renderPagina();
     await screen.findByText("Sem Imagem");
     await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
     expect(screen.getByRole("checkbox", { name: /Sem Imagem/ })).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: /Processando/ })).toBeDisabled();
-    expect(detalhes).toBe(0);
-  });
-
-  it("não bloqueia os outros itens quando uma consulta de elegibilidade falha", async () => {
-    server.use(
-      http.get(url, () =>
-        HttpResponse.json(resposta([itemElegivel(101, "Primeiro"), itemElegivel(102, "Segundo")])),
-      ),
-      http.get(`${url}/101`, () => HttpResponse.json(detalheElegivel(101, "Primeiro"))),
-      http.get(`${url}/102`, () => new HttpResponse(null, { status: 500 })),
-    );
-    renderPagina();
-    await screen.findByText("Primeiro");
-    await userEvent.click(screen.getByRole("button", { name: "Selecionar" }));
-    await waitFor(() => expect(screen.getByRole("checkbox", { name: /Primeiro/ })).toBeEnabled());
-    expect(await screen.findByText("Não foi possível verificar")).toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: /Segundo/ })).toBeDisabled();
+    expect(screen.getByText("Fora do dataset: não tem imagem")).toBeInTheDocument();
+    expect(
+      screen.getByText("Fora do dataset: o diagnóstico ainda não foi concluído"),
+    ).toBeInTheDocument();
   });
 
   it.each([
     [
       { detail: "exportação de dataset indisponível" },
       "A exportação de dataset está indisponível",
-      "1 selecionado(s)",
+      "1 diagnóstico selecionado",
     ],
     [
       { detail: { mensagem: "não elegível", diagnostico_ids: [101] } },
       "A elegibilidade mudou",
-      "0 selecionado(s)",
+      "Nenhum diagnóstico selecionado",
     ],
   ])("trata o conflito do backend e mantém o estado coerente", async (body, mensagem, contador) => {
     server.use(
       http.get(url, () => HttpResponse.json(resposta([itemElegivel(101, "Primeiro")]))),
-      http.get(`${url}/101`, () => HttpResponse.json(detalheElegivel(101, "Primeiro"))),
       http.post(`${config.apiBaseUrl}/api/v1/admin/datasets/exports`, () =>
         HttpResponse.json(body, { status: 409 }),
       ),
@@ -453,7 +517,6 @@ describe("Fila de diagnósticos do admin", () => {
   ])("informa erro %i e mantém a seleção para revisão", async (status, mensagem) => {
     server.use(
       http.get(url, () => HttpResponse.json(resposta([itemElegivel(101, "Primeiro")]))),
-      http.get(`${url}/101`, () => HttpResponse.json(detalheElegivel(101, "Primeiro"))),
       http.post(`${config.apiBaseUrl}/api/v1/admin/datasets/exports`, () =>
         HttpResponse.json({ detail: "erro" }, { status }),
       ),
@@ -473,7 +536,6 @@ describe("Fila de diagnósticos do admin", () => {
     let requisicoes = 0;
     server.use(
       http.get(url, () => HttpResponse.json(resposta([itemElegivel(101, "Primeiro")]))),
-      http.get(`${url}/101`, () => HttpResponse.json(detalheElegivel(101, "Primeiro"))),
       http.post(`${config.apiBaseUrl}/api/v1/admin/datasets/exports`, async () => {
         requisicoes++;
         await delay(250);
@@ -489,7 +551,7 @@ describe("Fila de diagnósticos do admin", () => {
     await userEvent.click(screen.getByRole("button", { name: "Exportar dataset" }));
     expect(checkbox).toBeDisabled();
     expect(screen.getByRole("button", { name: "Cancelar seleção" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Selecionar elegíveis" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Limpar seleção" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Falha" })).toBeDisabled();
     expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível gerar");
     expect(checkbox).toBeChecked();
