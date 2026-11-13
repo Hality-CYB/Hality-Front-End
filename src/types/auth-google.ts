@@ -1,6 +1,11 @@
 import { z } from "zod";
 import type { DecisaoConsentimento } from "@/types/consentimento";
 
+export const vinculoGoogleSchema = z.object({
+  vinculado: z.boolean(),
+  email: z.string().nullable(),
+});
+
 /** Etapa indicada pelo callback do back ao devolver o navegador ao frontend. */
 export const etapaGoogleSchema = z.enum(["sessao", "consentimento"]);
 export type EtapaGoogle = z.infer<typeof etapaGoogleSchema>;

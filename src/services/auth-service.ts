@@ -30,6 +30,7 @@ import type { DecisaoConsentimento } from "@/types/consentimento";
 import {
   codigoTrocaGoogleSchema,
   respostaSessaoGoogleSchema,
+  vinculoGoogleSchema,
   type TrocaCodigoGoogleInput,
 } from "@/types/auth-google";
 
@@ -314,6 +315,10 @@ export const authService = {
   /** Navegação completa para que o cookie OAuth acompanhe o fluxo pelo backend. */
   obterUrlDeAutorizacaoGoogle(): string {
     return `${config.apiBaseUrl}${CAMINHO_GOOGLE}/authorize`;
+  },
+
+  async statusVinculoGoogle() {
+    return vinculoGoogleSchema.parse(await apiClient.get(`${CAMINHO_GOOGLE}/link`));
   },
 
   /** Adapta o login Google à mesma sessão e ao mesmo refresh usados pelo login atual. */
