@@ -1,0 +1,22 @@
+# Cache de build só na CI. O compose local não inclui este arquivo.
+services:
+  front:
+    build:
+      cache_from:
+        - type=gha,scope=e2e-front
+      cache_to:
+        - type=gha,scope=e2e-front,mode=max
+  setup:
+    build:
+      cache_from:
+        - type=gha,scope=e2e-back
+      cache_to:
+        - type=gha,scope=e2e-back,mode=max
+  api:
+    build:
+      cache_from:
+        - type=gha,scope=e2e-back
+  identity-worker:
+    build:
+      cache_from:
+        - type=gha,scope=e2e-back

@@ -220,6 +220,9 @@ export default function RegistroPage() {
         </Button>
       </form>
       <div className="mt-4 flex flex-col items-center gap-2.5">
+        <Link href="/registro-profissional" className="text-primary text-sm font-semibold">
+          Sou profissional de saúde — solicitar acesso
+        </Link>
         <Link href="/" className="text-muted-foreground text-sm">
           ← Página inicial
         </Link>
