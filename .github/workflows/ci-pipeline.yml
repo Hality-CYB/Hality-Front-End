@@ -108,6 +108,21 @@ jobs:
           path: backend
           persist-credentials: false
 
+      # Features coordenadas podem manter branches com o mesmo nome nos dois repos.
+      # Main continua sempre testando main; PRs externos não escolhem o back executado.
+      - name: Usar branch correspondente do backend quando disponível
+        if: github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'feature/')
+        working-directory: backend
+        env:
+          BACKEND_BRANCH: ${{ github.head_ref }}
+        run: |
+          git check-ref-format "refs/heads/$BACKEND_BRANCH"
+          remote_ref=$(git ls-remote --heads origin "refs/heads/$BACKEND_BRANCH")
+          if [ -n "$remote_ref" ]; then
+            git fetch --depth=1 origin "refs/heads/$BACKEND_BRANCH"
+            git checkout --detach FETCH_HEAD
+          fi
+
       - name: Registrar revisões testadas
         run: |
           {

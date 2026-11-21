@@ -66,17 +66,21 @@ export function BottomNav({ role }: BottomNavProps) {
         const active = isActive(item.href);
         const Icon = item.icon;
         return (
-          <Link key={item.href} href={item.href} className="flex flex-1 justify-center px-1 py-0.5">
+          <Link
+            key={item.href}
+            href={item.href}
+            className="flex min-w-0 flex-1 justify-center px-0.5 py-0.5"
+          >
             <div
               className={cn(
-                "flex flex-col items-center gap-1 rounded-[14px] px-2.5 py-2 transition-all duration-200",
-                active ? "bg-muted text-foreground min-w-20" : "text-gray-3",
+                "flex w-full min-w-0 flex-col items-center gap-1 rounded-[14px] px-1 py-2 transition-all duration-200",
+                active ? "bg-muted text-foreground" : "text-gray-3",
               )}
             >
               <Icon className="h-5.5 w-5.5" />
               <span
                 className={cn(
-                  "text-[11px] whitespace-nowrap",
+                  "text-center text-[10px] whitespace-nowrap",
                   active ? "font-bold" : "font-medium",
                 )}
               >

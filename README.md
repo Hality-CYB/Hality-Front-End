@@ -2,6 +2,29 @@
 
 Frontend em Next.js (React + TypeScript), gerenciado com npm.
 
+## Cadastro profissional com aprovação
+
+O profissional solicita acesso em `/registro-profissional` (links no login, cadastro de
+paciente e página inicial). Informa nome, e-mail, telefone opcional, registro profissional,
+especialidade e aceita os termos. A solicitação não cria sessão nem concede acesso clínico.
+A senha é definida somente no convite enviado após aprovação.
+
+O administrador acessa **Usuários → Analisar solicitações profissionais**, confere os dados
+e aprova ou recusa. A decisão é enviada por e-mail; a aprovação não concede vínculo com
+a equipe Hality. A conta permanece inativa até a confirmação pelo convite. E-mails com
+conta ou solicitação existente exigem contato com a equipe, sem converter papéis ou apagar dados.
+
+Validação integrada contra os dois repositórios locais:
+
+```bash
+npm run e2e:up
+npx playwright test e2e/cadastro-profissional/cadastro-profissional.spec.ts --project=isolado
+```
+
+Na CI, PRs internos `feature/*` para `develop` usam a branch de mesmo nome do backend
+quando ela existir, registrando os dois commits testados no resumo da execução.
+Na ausência dela, usam `develop`; transportes e deploys continuam usando `main`.
+
 ## Sumário
 
 - [Como iniciar o projeto](#como-iniciar-o-projeto)
