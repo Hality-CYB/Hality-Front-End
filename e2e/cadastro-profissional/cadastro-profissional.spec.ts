@@ -26,7 +26,7 @@ async function conferirLargura(page: Page, largura: number) {
         })),
       { message: `A página deve caber no viewport de ${largura}px, sem rolagem horizontal` },
     )
-    .toMatchObject({ viewport: largura, semOverflow: true });
+    .toEqual({ viewport: largura, conteudo: largura, semOverflow: true });
 }
 
 async function solicitar(page: Page, email: string) {

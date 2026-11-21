@@ -46,7 +46,7 @@ export default function SolicitacoesProfissionaisPage() {
   const aprovando = decisao?.resultado === "aprovada";
 
   return (
-    <div className="flex flex-col">
+    <div className="flex w-full min-w-0 flex-col">
       <div className="p-5" style={{ background: "var(--gradient-brand)" }}>
         <Link
           href="/admin/usuarios"
@@ -80,7 +80,7 @@ export default function SolicitacoesProfissionaisPage() {
           ))}
         </div>
       </div>
-      <div className="flex flex-col gap-3 p-4">
+      <div className="flex w-full min-w-0 flex-col gap-3 p-4">
         {decidir.isSuccess && (
           <Alert
             type="success"
@@ -110,10 +110,10 @@ export default function SolicitacoesProfissionaisPage() {
             title="Nenhuma solicitação encontrada"
           />
         )}
-        <div className="cyb-grid gap-3">
+        <div className="cyb-grid min-w-0 gap-3">
           {itens.map((s) => (
-            <Card key={s.id} className="gap-3 rounded-lg p-5 shadow-sm ring-0">
-              <div className="flex flex-wrap items-center justify-between gap-2">
+            <Card key={s.id} className="min-w-0 gap-3 rounded-lg p-5 shadow-sm ring-0">
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
                 <h2 className="font-heading text-base font-bold break-words">{s.nome}</h2>
                 <StatusBadge
                   label={
@@ -132,7 +132,7 @@ export default function SolicitacoesProfissionaisPage() {
                   }
                 />
               </div>
-              <dl className="grid gap-2 text-sm">
+              <dl className="grid min-w-0 gap-2 text-sm">
                 {[
                   ["E-mail", s.email],
                   ["Telefone", formatarTelefone(s.telefone) || "—"],
@@ -140,9 +140,9 @@ export default function SolicitacoesProfissionaisPage() {
                   ["Especialidade", s.especialidade],
                   ["Solicitado em", formatarData(s.created_at)],
                 ].map(([label, valor]) => (
-                  <div key={label}>
+                  <div key={label} className="min-w-0">
                     <dt className="text-muted-foreground text-xs">{label}</dt>
-                    <dd className="break-words">{valor}</dd>
+                    <dd className="[overflow-wrap:anywhere] break-words">{valor}</dd>
                   </div>
                 ))}
               </dl>

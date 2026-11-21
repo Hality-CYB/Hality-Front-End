@@ -35,7 +35,7 @@ Check Your Breath (CYB) é o app da Hality Diagnóstico do Hálito: usa IA para 
 
 ## Últimas atualizações
 
-- **2026-11-21** - E2E do cadastro profissional: as verificações de responsividade aguardam a atualização das medidas após redimensionar o navegador e informam as larguras do viewport/conteúdo em caso de falha, mantendo a exigência de ausência de rolagem horizontal.
+- **2026-11-21** - E2E do cadastro profissional: as verificações de responsividade aguardam a atualização das medidas após redimensionar o navegador e mostram viewport e largura do conteúdo em caso de falha. A listagem administrativa mantém cartões dentro do espaço disponível e quebra valores longos sem criar rolagem horizontal.
 
 - **2026-11-21** - Solicitação pública de acesso profissional em `/registro-profissional`, sem sessão ou senha antecipada. Admin analisa em `/admin/solicitacoes-profissionais` (entrada em Usuários), confirma aprovação ou recusa e acompanha estados. Aprovação envia convite existente para confirmar e-mail e definir senha; não atribui vínculo Hality. Testes cobrem ativação, paciente convidado, diagnóstico, recusa e concorrência. E2E de PRs internos `feature/*` para develop usa branch correspondente do backend quando disponível, mantendo main como alvo dos transportes/deploys.
 
