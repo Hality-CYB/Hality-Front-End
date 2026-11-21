@@ -13,6 +13,22 @@ async function capturar(page: Page, testInfo: TestInfo, nome: string) {
   });
 }
 
+async function conferirLargura(page: Page, largura: number) {
+  // O resize do navegador pode retornar antes da atualização das medidas de rolagem.
+  // Aguarda o layout, sem tolerar conteúdo maior que o viewport após estabilizar.
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => ({
+          viewport: window.innerWidth,
+          conteudo: document.documentElement.scrollWidth,
+          semOverflow: document.documentElement.scrollWidth <= window.innerWidth,
+        })),
+      { message: `A página deve caber no viewport de ${largura}px, sem rolagem horizontal` },
+    )
+    .toMatchObject({ viewport: largura, semOverflow: true });
+}
+
 async function solicitar(page: Page, email: string) {
   await page.goto("/registro-profissional");
   await page.getByLabel("Nome completo *").fill("Profissional Solicitação E2E");
@@ -51,9 +67,7 @@ test("solicitação aprovada ativa profissional, que avalia paciente convidado s
     await expect(card.getByText("CRO-RS E2E 123")).toBeVisible();
     for (const width of [1280, 390, 320]) {
       await adminPage.setViewportSize({ width, height: 900 });
-      expect(
-        await adminPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
-      ).toBeTruthy();
+      await conferirLargura(adminPage, width);
       await capturar(adminPage, testInfo, `admin-pendente-${width}`);
     }
     await card.getByRole("button", { name: "Aprovar", exact: true }).click();
@@ -195,9 +209,7 @@ test("cadastro profissional mantém legibilidade em desktop e celular", async ({
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/registro-profissional");
     await expect(page.getByRole("heading", { name: "Cadastro profissional" })).toBeVisible();
-    expect(
-      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
-    ).toBeTruthy();
+    await conferirLargura(page, width);
     await capturar(page, testInfo, `cadastro-${width}`);
   }
 });
