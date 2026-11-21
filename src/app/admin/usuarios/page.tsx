@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Search, Plus, ChevronRight, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { ScrollInfinito } from "@/components/scroll-infinito";
@@ -88,6 +89,9 @@ export default function UsuariosPage() {
       </div>
 
       <div className="flex flex-col gap-2.5 p-4">
+        <Button variant="secondary" asChild>
+          <Link href="/admin/solicitacoes-profissionais">Analisar solicitações profissionais</Link>
+        </Button>
         {criar.isSuccess && (
           <Alert
             type="success"

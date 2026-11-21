@@ -184,6 +184,11 @@ export function LoginForm() {
             Registrar
           </Link>
         </p>
+        <p className="mt-3 text-center text-sm">
+          <Link href="/registro-profissional" className="text-primary font-semibold">
+            Solicitar acesso profissional
+          </Link>
+        </p>
       </div>
     </div>
   );

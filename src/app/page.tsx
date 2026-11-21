@@ -387,10 +387,13 @@ function LandingContent() {
               disponibilidade em ajudar a desenvolver nosso sistema.
             </p>
             <p className="mb-8 text-sm leading-relaxed text-white/60">
-              O acesso de profissionais é liberado pela equipe Hality. Fale com a gente para
-              cadastrar você e começar a acompanhar seus pacientes.
+              Solicite seu cadastro profissional. A equipe Hality verificará seus dados e informará
+              a aprovação ou recusa por e-mail antes de liberar seu acesso.
             </p>
             <div className="flex flex-wrap justify-center gap-3">
+              <Button size="lg" variant="success" asChild>
+                <Link href="/registro-profissional">Solicitar acesso profissional</Link>
+              </Button>
               <Button size="lg" variant="success" asChild>
                 <a href={linkWhatsApp(MENSAGEM_PROFISSIONAL)} target="_blank" rel="noreferrer">
                   <MessageCircle aria-hidden /> Falar no WhatsApp
