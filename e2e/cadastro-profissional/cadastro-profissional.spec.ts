@@ -19,14 +19,37 @@ async function conferirLargura(page: Page, largura: number) {
   await expect
     .poll(
       () =>
-        page.evaluate(() => ({
-          viewport: window.innerWidth,
-          conteudo: document.documentElement.scrollWidth,
-          semOverflow: document.documentElement.scrollWidth <= window.innerWidth,
-        })),
+        page.evaluate(() => {
+          const largura = window.innerWidth;
+          const overflow = Array.from(document.querySelectorAll("body *"))
+            .map((element) => {
+              const rect = element.getBoundingClientRect();
+              return {
+                tag: element.tagName.toLowerCase(),
+                classe: typeof element.className === "string" ? element.className : "",
+                texto: element.textContent?.trim().slice(0, 48) ?? "",
+                esquerda: Math.round(rect.left),
+                direita: Math.round(rect.right),
+              };
+            })
+            .filter((element) => element.direita > largura || element.esquerda < 0)
+            .slice(0, 12);
+
+          return {
+            viewport: largura,
+            conteudo: document.documentElement.scrollWidth,
+            semOverflow: document.documentElement.scrollWidth <= largura,
+            elementosForaDoViewport: overflow,
+          };
+        }),
       { message: `A página deve caber no viewport de ${largura}px, sem rolagem horizontal` },
     )
-    .toEqual({ viewport: largura, conteudo: largura, semOverflow: true });
+    .toEqual({
+      viewport: largura,
+      conteudo: largura,
+      semOverflow: true,
+      elementosForaDoViewport: [],
+    });
 }
 
 async function solicitar(page: Page, email: string) {
