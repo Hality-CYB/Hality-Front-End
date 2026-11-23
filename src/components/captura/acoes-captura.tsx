@@ -74,7 +74,7 @@ function AcoesMobile({
   onTirarOutra,
 }: AcoesCapturaProps) {
   return (
-    <div className="shell:hidden grid grid-cols-3 items-center pt-1">
+    <div className="shell:hidden grid grid-cols-3 items-center bg-black px-4 pt-5 pb-6">
       {aoVivo ? (
         <AcaoSecundaria Icon={ImageUp} label="Galeria" onClick={onGaleria} disabled={contando} />
       ) : (
@@ -87,7 +87,7 @@ function AcoesMobile({
             onClick={onCapturar}
             disabled={capturaDesabilitada}
             aria-label="Capturar foto"
-            className="border-primary/25 flex h-18 w-18 items-center justify-center rounded-full border-4 bg-white shadow-md disabled:opacity-50"
+            className="flex h-18 w-18 items-center justify-center rounded-full border-4 border-white/40 bg-white shadow-md disabled:opacity-50"
           >
             <span className="bg-primary flex h-13 w-13 items-center justify-center rounded-full text-white">
               <Camera className="h-6 w-6" />
@@ -126,9 +126,9 @@ function AcaoSecundaria({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="text-primary font-heading flex flex-col items-center gap-1 text-xs font-semibold disabled:opacity-40"
+      className="font-heading flex flex-col items-center gap-1 text-xs font-semibold text-white disabled:opacity-40"
     >
-      <span className="bg-secondary flex h-11 w-11 items-center justify-center rounded-full">
+      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15">
         <Icon className="h-5 w-5" />
       </span>
       {label}
