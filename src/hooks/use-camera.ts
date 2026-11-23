@@ -13,6 +13,15 @@ export type CapturaCamera = {
   facingMode?: string;
 };
 
+// `torch` ainda não está nos tipos do DOM; o Chrome do Android expõe na câmera traseira.
+type CapacidadesComFlash = MediaTrackCapabilities & { torch?: boolean };
+type RestricaoDeFlash = MediaTrackConstraintSet & { torch?: boolean };
+
+function suportaFlash(track: MediaStreamTrack | undefined): boolean {
+  const capacidades = track?.getCapabilities?.() as CapacidadesComFlash | undefined;
+  return capacidades?.torch === true;
+}
+
 function estadoDoErro(erro: unknown): EstadoCamera {
   // getUserMedia rejeita com DOMException, que nem sempre é `instanceof Error`.
   const nome = typeof erro === "object" && erro !== null && "name" in erro ? String(erro.name) : "";
@@ -22,7 +31,8 @@ function estadoDoErro(erro: unknown): EstadoCamera {
 }
 
 /** Câmera ao vivo (traseira no celular, alternável) enquanto `ativa`; desliga ao sair.
- * Fora de HTTPS/localhost fica "indisponivel" e quem usa oferece outro caminho. */
+ * Fora de HTTPS/localhost fica "indisponivel" e quem usa oferece outro caminho.
+ * O flash (lanterna) só aparece quando a câmera em uso suporta `torch`. */
 export function useCamera(ativa: boolean) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -30,12 +40,16 @@ export function useCamera(ativa: boolean) {
   const [facingMode, setFacingMode] = useState<string | undefined>();
   const [lado, setLado] = useState<LadoCamera>("environment");
   const [podeAlternar, setPodeAlternar] = useState(false);
+  const [temFlash, setTemFlash] = useState(false);
+  const [flashLigado, setFlashLigado] = useState(false);
 
   useEffect(() => {
     if (!ativa) return;
     let cancelado = false;
 
     function parar() {
+      // Parar a trilha também apaga a lanterna; o estado acompanha.
+      setFlashLigado(false);
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
       if (videoRef.current) videoRef.current.srcObject = null;
@@ -62,7 +76,10 @@ export function useCamera(ativa: boolean) {
           return;
         }
         streamRef.current = stream;
-        setFacingMode(stream.getVideoTracks()[0]?.getSettings().facingMode);
+        const trilha = stream.getVideoTracks()[0];
+        setFacingMode(trilha?.getSettings().facingMode);
+        setTemFlash(suportaFlash(trilha));
+        setFlashLigado(false);
         const dispositivos = await navigator.mediaDevices.enumerateDevices?.();
         if (!cancelado && dispositivos) {
           setPodeAlternar(dispositivos.filter((d) => d.kind === "videoinput").length > 1);
@@ -92,6 +109,20 @@ export function useCamera(ativa: boolean) {
     [],
   );
 
+  const alternarFlash = useCallback(async () => {
+    const trilha = streamRef.current?.getVideoTracks()[0];
+    if (!trilha || !suportaFlash(trilha)) return;
+    const ligar = !flashLigado;
+    try {
+      await trilha.applyConstraints({ advanced: [{ torch: ligar } as RestricaoDeFlash] });
+      setFlashLigado(ligar);
+    } catch {
+      // Alguns aparelhos anunciam o flash e recusam na hora; o botão some.
+      setTemFlash(false);
+      setFlashLigado(false);
+    }
+  }, [flashLigado]);
+
   const capturar = useCallback(async (): Promise<CapturaCamera> => {
     const video = videoRef.current;
     if (!video || !video.videoWidth) throw new Error("A câmera ainda não está pronta.");
@@ -111,5 +142,14 @@ export function useCamera(ativa: boolean) {
     return { file, largura, altura, facingMode };
   }, [facingMode]);
 
-  return { videoRef, estado, capturar, podeAlternar, alternarCamera };
+  return {
+    videoRef,
+    estado,
+    capturar,
+    podeAlternar,
+    alternarCamera,
+    temFlash,
+    flashLigado,
+    alternarFlash,
+  };
 }

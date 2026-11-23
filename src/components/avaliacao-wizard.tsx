@@ -187,6 +187,9 @@ export function AvaliacaoWizard({
     capturar: capturarDaCamera,
     podeAlternar: podeAlternarCamera,
     alternarCamera,
+    temFlash,
+    flashLigado,
+    alternarFlash,
   } = useCamera(step === 4 || (step === 5 && foto?.origem === "camera"));
   const [capturando, setCapturando] = useState(false);
   const [falhaNaCaptura, setFalhaNaCaptura] = useState(false);
@@ -697,6 +700,9 @@ export function AvaliacaoWizard({
               estadoCamera={estadoCamera}
               podeAlternarCamera={podeAlternarCamera}
               onAlternarCamera={alternarCamera}
+              temFlash={temFlash}
+              flashLigado={flashLigado}
+              onAlternarFlash={() => void alternarFlash()}
               foto={step === 5 ? foto : null}
               ocupado={capturando}
               onCapturar={capturarFoto}

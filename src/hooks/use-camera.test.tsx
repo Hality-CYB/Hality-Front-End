@@ -304,4 +304,58 @@ describe("useCamera", () => {
       await expect(camera().capturar()).rejects.toThrow("Não foi possível capturar");
     });
   });
+
+  describe("flash", () => {
+    function streamComFlash(torch: boolean | undefined) {
+      const applyConstraints = vi.fn().mockResolvedValue(undefined);
+      const track = {
+        stop: vi.fn(),
+        getSettings: () => ({ facingMode: "environment" }),
+        getCapabilities: () => (torch === undefined ? {} : { torch }),
+        applyConstraints,
+      };
+      const stream = {
+        getTracks: () => [track],
+        getVideoTracks: () => [track],
+      } as unknown as MediaStream;
+      return { stream, track, applyConstraints };
+    }
+
+    it("não oferece flash quando a câmera não tem lanterna", async () => {
+      const { stream } = streamComFlash(undefined);
+      mockMediaDevices(vi.fn().mockResolvedValue(stream), 1);
+      const { camera, video } = renderCamera(true);
+
+      await waitFor(() => expect(video.srcObject).toBe(stream));
+      expect(camera().temFlash).toBe(false);
+    });
+
+    it("liga e desliga a lanterna pela câmera em uso", async () => {
+      const { stream, applyConstraints } = streamComFlash(true);
+      mockMediaDevices(vi.fn().mockResolvedValue(stream), 2);
+      const { camera } = renderCamera(true);
+      await waitFor(() => expect(camera().temFlash).toBe(true));
+
+      await act(() => camera().alternarFlash());
+      expect(applyConstraints).toHaveBeenLastCalledWith({ advanced: [{ torch: true }] });
+      expect(camera().flashLigado).toBe(true);
+
+      await act(() => camera().alternarFlash());
+      expect(applyConstraints).toHaveBeenLastCalledWith({ advanced: [{ torch: false }] });
+      expect(camera().flashLigado).toBe(false);
+    });
+
+    it("se o aparelho recusa a lanterna, o botão some", async () => {
+      const { stream, applyConstraints } = streamComFlash(true);
+      applyConstraints.mockRejectedValue(new DOMException("não", "NotSupportedError"));
+      mockMediaDevices(vi.fn().mockResolvedValue(stream), 1);
+      const { camera } = renderCamera(true);
+      await waitFor(() => expect(camera().temFlash).toBe(true));
+
+      await act(() => camera().alternarFlash());
+
+      expect(camera().temFlash).toBe(false);
+      expect(camera().flashLigado).toBe(false);
+    });
+  });
 });
