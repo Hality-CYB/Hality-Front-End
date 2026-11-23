@@ -325,8 +325,11 @@ export function AvaliacaoWizard({
       }
       const diagnostico = await diagnosticoService.aguardarResultado(idDiagnostico);
       if (diagnostico.status === "falha" || diagnostico.nivel === null) {
+        // Quando a IA recusa a imagem, o back manda a orientação ao usuário
+        // (ex.: "mostre a língua de frente"); senão, mensagem genérica.
         throw new FalhaNaAnalise(
-          "Ocorreu um problema ao analisar a imagem. Certifique-se de seguir as orientações de captura da imagem e tente novamente.",
+          diagnostico.erro ??
+            "Ocorreu um problema ao analisar a imagem. Certifique-se de seguir as orientações de captura da imagem e tente novamente.",
         );
       }
       setResultado({
