@@ -143,4 +143,48 @@ describe("CapturaLingua", () => {
     expect(onVoltar).toHaveBeenCalledTimes(1);
     expect(onAlternarCamera).toHaveBeenCalledTimes(1);
   });
+
+  it("com lanterna disponível, mostra o botão do flash e indica se está ligado", () => {
+    const onAlternarFlash = vi.fn();
+    const { rerender } = renderCaptura({ temFlash: true, flashLigado: false, onAlternarFlash });
+
+    fireEvent.click(screen.getByRole("button", { name: "Ligar o flash" }));
+    expect(onAlternarFlash).toHaveBeenCalledOnce();
+
+    rerender(
+      <CapturaLingua
+        videoRef={createRef<HTMLVideoElement>()}
+        estadoCamera="ativa"
+        podeAlternarCamera={false}
+        foto={null}
+        temFlash
+        flashLigado
+        onAlternarFlash={onAlternarFlash}
+        onAlternarCamera={vi.fn()}
+        onCapturar={vi.fn()}
+        onGaleria={vi.fn()}
+        onVoltar={vi.fn()}
+        onUsarFoto={vi.fn()}
+        onTirarOutra={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Desligar o flash" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("sem lanterna, não mostra o botão do flash", () => {
+    renderCaptura({ temFlash: false, onAlternarFlash: vi.fn() });
+
+    expect(screen.queryByRole("button", { name: /flash/ })).not.toBeInTheDocument();
+  });
+
+  it("no celular a captura cobre a tela inteira; no desktop volta para o fluxo da página", () => {
+    renderCaptura();
+
+    const tela = screen.getByTestId("captura-lingua");
+    expect(tela.className).toMatch(/(^|\s)fixed inset-0/);
+    expect(tela.className).toContain("shell:static");
+  });
 });

@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { SwitchCamera } from "lucide-react";
+import { SwitchCamera, Zap, ZapOff } from "lucide-react";
 import { GuiaCaptura } from "@/components/captura/guia-captura";
 import type { EstadoCamera } from "@/hooks/use-camera";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,9 @@ type MolduraCapturaProps = {
   dica: string | null;
   podeAlternarCamera: boolean;
   onAlternarCamera: () => void;
+  temFlash?: boolean;
+  flashLigado?: boolean;
+  onAlternarFlash?: () => void;
 };
 
 export function MolduraCaptura({
@@ -26,6 +29,9 @@ export function MolduraCaptura({
   dica,
   podeAlternarCamera,
   onAlternarCamera,
+  temFlash = false,
+  flashLigado = false,
+  onAlternarFlash,
 }: MolduraCapturaProps) {
   const aoVivo = foto === null;
   const cameraAtiva = aoVivo && estadoCamera === "ativa";
@@ -35,7 +41,7 @@ export function MolduraCaptura({
   return (
     <div
       data-testid="moldura-captura"
-      className="shell:h-auto shell:aspect-[4/3] relative h-[calc(100dvh_-_340px)] min-h-80 overflow-hidden rounded-[20px] bg-teal-900"
+      className="shell:flex-none shell:h-auto shell:aspect-[4/3] shell:rounded-[20px] shell:bg-teal-900 relative min-h-0 flex-1 overflow-hidden bg-black"
     >
       <video
         ref={videoRef}
@@ -83,15 +89,33 @@ export function MolduraCaptura({
         </span>
       )}
 
-      {cameraAtiva && podeAlternarCamera && contagem === null && (
-        <button
-          type="button"
-          onClick={onAlternarCamera}
-          aria-label="Alternar entre câmera frontal e traseira"
-          className="absolute top-3 right-3 flex h-10 w-10 items-center justify-center rounded-full bg-teal-950/50 text-white backdrop-blur-sm"
-        >
-          <SwitchCamera className="h-5 w-5" />
-        </button>
+      {cameraAtiva && contagem === null && (temFlash || podeAlternarCamera) && (
+        <div className="absolute top-3 right-3 flex gap-2">
+          {temFlash && onAlternarFlash && (
+            <button
+              type="button"
+              onClick={onAlternarFlash}
+              aria-pressed={flashLigado}
+              aria-label={flashLigado ? "Desligar o flash" : "Ligar o flash"}
+              className={cn(
+                "flex h-10 w-10 items-center justify-center rounded-full backdrop-blur-sm transition-colors",
+                flashLigado ? "bg-amber-300 text-teal-950" : "bg-teal-950/50 text-white",
+              )}
+            >
+              {flashLigado ? <Zap className="h-5 w-5" /> : <ZapOff className="h-5 w-5" />}
+            </button>
+          )}
+          {podeAlternarCamera && (
+            <button
+              type="button"
+              onClick={onAlternarCamera}
+              aria-label="Alternar entre câmera frontal e traseira"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-teal-950/50 text-white backdrop-blur-sm"
+            >
+              <SwitchCamera className="h-5 w-5" />
+            </button>
+          )}
+        </div>
       )}
 
       {contagem !== null && (

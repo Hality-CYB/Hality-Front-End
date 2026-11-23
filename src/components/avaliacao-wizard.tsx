@@ -187,6 +187,9 @@ export function AvaliacaoWizard({
     capturar: capturarDaCamera,
     podeAlternar: podeAlternarCamera,
     alternarCamera,
+    temFlash,
+    flashLigado,
+    alternarFlash,
   } = useCamera(step === 4 || (step === 5 && foto?.origem === "camera"));
   const [capturando, setCapturando] = useState(false);
   const [falhaNaCaptura, setFalhaNaCaptura] = useState(false);
@@ -322,8 +325,11 @@ export function AvaliacaoWizard({
       }
       const diagnostico = await diagnosticoService.aguardarResultado(idDiagnostico);
       if (diagnostico.status === "falha" || diagnostico.nivel === null) {
+        // Quando a IA recusa a imagem, o back manda a orientação ao usuário
+        // (ex.: "mostre a língua de frente"); senão, mensagem genérica.
         throw new FalhaNaAnalise(
-          "Ocorreu um problema ao analisar a imagem. Certifique-se de seguir as orientações de captura da imagem e tente novamente.",
+          diagnostico.erro ??
+            "Ocorreu um problema ao analisar a imagem. Certifique-se de seguir as orientações de captura da imagem e tente novamente.",
         );
       }
       setResultado({
@@ -697,6 +703,9 @@ export function AvaliacaoWizard({
               estadoCamera={estadoCamera}
               podeAlternarCamera={podeAlternarCamera}
               onAlternarCamera={alternarCamera}
+              temFlash={temFlash}
+              flashLigado={flashLigado}
+              onAlternarFlash={() => void alternarFlash()}
               foto={step === 5 ? foto : null}
               ocupado={capturando}
               onCapturar={capturarFoto}

@@ -422,6 +422,7 @@ describe("diagnosticoService.buscar", () => {
       temProfissionalVinculado: false,
       conteudos: [],
       revisao: null,
+      erro: null,
     });
   });
 
