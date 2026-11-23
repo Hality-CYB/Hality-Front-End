@@ -40,6 +40,8 @@ export const diagnosticoSchema = z.object({
   profissionalId: z.string().optional(),
   nivel: diagnosticoNivelSchema.nullable(),
   status: statusDiagnosticoSchema,
+  /** Mensagem pública de falha vinda do back (ex.: orientação da IA quando a imagem é rejeitada). */
+  erro: z.string().nullable().optional(),
   imagemUrl: z.string(),
   anamneseId: z.string(),
   /** Respostas da anamnese que geraram o diagnóstico — já vêm no detalhe do back. */
@@ -148,6 +150,7 @@ export function adaptBackendDiagnosticoDetail(data: BackendDiagnosticoDetail): D
     id: String(data.id),
     nivel: nivelDaOrdem(data.classificacao?.ordem),
     status: data.status,
+    erro: data.erro ?? null,
     imagemUrl: data.imagens[0]?.url_arquivo ?? "",
     anamneseId: String(data.anamnese.id),
     respostasAnamnese: adaptBackendRespostas(data.anamnese.respostas),
